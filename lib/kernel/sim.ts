@@ -67,6 +67,9 @@ export function runDay(scenario: Scenario): SimResult {
   const callsAbandoned = new Array(48).fill(0)
   const totalWaitMs = new Array(48).fill(0)
   const totalBusyMin = new Array(48).fill(0)
+  const totalAvailMin = new Array(48).fill(0)
+
+  const permanentlyRemoved = new Set<string>()
 
   let queue: { arriveMin: number; callId: string }[] = []
   let callCounter = 0
@@ -81,6 +84,7 @@ export function runDay(scenario: Scenario): SimResult {
       for (const a of agents) {
         if (a.active && removed < pert.flashAbsentJustFired) {
           a.active = false
+          permanentlyRemoved.add(a.id)
           events.push({ timeMin: min, type: 'agent_shift_end', agentId: a.id })
           removed++
         }
@@ -110,6 +114,7 @@ export function runDay(scenario: Scenario): SimResult {
       if (activeCount < effectiveCap) {
         for (const a of agents) {
           if (a.active) continue
+          if (permanentlyRemoved.has(a.id)) continue   // flash_absent victims stay out
           a.active = true
           activeCount++
           events.push({ timeMin: min, type: 'agent_shift_start', agentId: a.id })
@@ -177,7 +182,7 @@ export function runDay(scenario: Scenario): SimResult {
     }
 
     perInterval[intervalIdx].queueLen = Math.max(perInterval[intervalIdx].queueLen, queue.length)
-    perInterval[intervalIdx].agents = effectiveCap
+    totalAvailMin[intervalIdx] += effectiveCap
   }
 
   // Aggregate
@@ -192,14 +197,15 @@ export function runDay(scenario: Scenario): SimResult {
     const aban = callsAbandoned[i]
     perInterval[i].sl = ans > 0 ? ith / ans : 1
     perInterval[i].abandons = aban
-    perInterval[i].occ = perInterval[i].agents > 0 ? totalBusyMin[i] / (perInterval[i].agents * 30) : 0
+    perInterval[i].agents = Math.round(totalAvailMin[i] / 30)
+    perInterval[i].occ = totalAvailMin[i] > 0 ? totalBusyMin[i] / totalAvailMin[i] : 0
     totalSlNum += ith
     totalSlDen += ans
     totalWait += totalWaitMs[i]
     totalAns += ans
     totalAbandons += aban
     totalBusy += totalBusyMin[i]
-    totalAvail += perInterval[i].agents * 30
+    totalAvail += totalAvailMin[i]
   }
 
   return {
