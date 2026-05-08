@@ -1015,3 +1015,141 @@ details[open] .learn-tip summary::before { content: '▼ '; }
 .cockpit-kpi-green { color: #10b981; }
 .cockpit-kpi-amber { color: #fbbf24; }
 .cockpit-kpi-neutral { color: #e2e8f0; }
+
+/* ───────── Cockpit Phase 2 ───────── */
+
+/* Live viewport layout */
+.cockpit-live-viewport .cockpit-viewport-body {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  gap: 0.75rem;
+  min-height: 0;
+}
+
+.cockpit-agent-canvas-frame {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 0.75rem;
+  min-height: 240px;
+  overflow: hidden;
+}
+.cockpit-agent-canvas-container {
+  width: 100%;
+  height: 100%;
+  min-height: 220px;
+}
+
+/* Timeline */
+.cockpit-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+}
+
+.cockpit-play-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+.cockpit-play-btn {
+  background: #3b82f6;
+  border: 0;
+  color: #fff;
+  padding: 0.4rem 0.7rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  font-weight: 600;
+}
+.cockpit-play-btn--small { background: #334155; }
+.cockpit-play-time { font-variant-numeric: tabular-nums; opacity: 0.85; }
+.cockpit-play-speed { display: flex; gap: 0.2rem; margin-left: auto; }
+.cockpit-play-speed-btn {
+  background: transparent;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.cockpit-play-speed-btn--active {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #fff;
+}
+
+.cockpit-scrubber svg { display: block; cursor: ew-resize; }
+.cockpit-scrubber-axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.6rem;
+  opacity: 0.5;
+  margin-top: 0.25rem;
+}
+
+/* Inject modal */
+.cockpit-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.cockpit-modal {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 1rem;
+  width: min(440px, 90vw);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.cockpit-modal-title { font-weight: 700; }
+.cockpit-modal-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.cockpit-modal-item {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 0.6rem 0.75rem;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.6rem;
+  align-items: center;
+  text-align: left;
+  cursor: pointer;
+  color: #e2e8f0;
+}
+.cockpit-modal-item:hover { background: #15233a; }
+.cockpit-modal-item-emoji { font-size: 1.1rem; }
+.cockpit-modal-item-label { font-weight: 600; }
+.cockpit-modal-item-desc { opacity: 0.6; font-size: 0.8rem; }
+.cockpit-modal-cancel {
+  background: transparent;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  cursor: pointer;
+  align-self: flex-end;
+}
+
+/* Clear-injections button */
+.cockpit-clear-injections {
+  background: transparent;
+  border: 1px solid #ef4444;
+  color: #ef4444;
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
