@@ -833,7 +833,8 @@ details[open] .learn-tip summary::before { content: '▼ '; }
 .cockpit {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  flex: 1;
+  min-height: 0;
   background: #0f172a;
   color: #e2e8f0;
   font-family: system-ui, -apple-system, sans-serif;
