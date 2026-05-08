@@ -42,7 +42,7 @@ function CockpitInner() {
           {tab === 'classic' && <ClassicTab />}
         </main>
       </div>
-      <KpiStrip live={tab === 'live' && live ? { stats: live.stats, abandons: live.abandons } : null} />
+      <KpiStrip live={tab === 'live' && live ? live : null} />
     </div>
   )
 }

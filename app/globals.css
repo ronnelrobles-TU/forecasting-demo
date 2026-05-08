@@ -1529,3 +1529,52 @@ details[open] .learn-tip summary::before { content: '▼ '; }
   margin-top: 0.2rem;
   align-self: flex-start;
 }
+
+/* ───────── Cockpit KPI strip — two-row variant for Live Sim ───────── */
+
+.cockpit-kpi-stack {
+  display: flex;
+  flex-direction: column;
+  background: #1e293b;
+  border-top: 1px solid #334155;
+}
+
+.cockpit-kpi-stack .cockpit-kpi-strip {
+  border-top: 0;
+  background: transparent;
+}
+
+.cockpit-kpi-stack .cockpit-kpi-strip + .cockpit-kpi-strip {
+  border-top: 1px dashed #334155;
+}
+
+.cockpit-kpi-strip--with-prefix {
+  display: grid;
+  grid-template-columns: 92px repeat(5, 1fr);
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.cockpit-kpi-prefix {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}
+
+.cockpit-kpi-strip--live {
+  opacity: 0.85;
+}
+
+.cockpit-kpi-strip--live .cockpit-kpi-prefix {
+  color: #60a5fa;
+}
+
+.cockpit-kpi-strip--live .cockpit-kpi-value {
+  font-size: 0.95rem;
+}
+
+.cockpit-kpi--muted .cockpit-kpi-value {
+  opacity: 0.35;
+}
