@@ -18,6 +18,7 @@ function scenarioFromCampaign(key: CampaignKey, seed = 42): Scenario {
     abs: c.abs,
     roster: null,
     rngSeed: seed,
+    injectedEvents: [],
   }
 }
 

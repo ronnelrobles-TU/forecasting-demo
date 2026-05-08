@@ -21,6 +21,8 @@ export interface Campaign {
   asa: number              // SL threshold seconds
   shrink: number           // 0..100
   abs: number              // 0..100
+  abandonThresholdSec: number    // caller leaves if wait > this (default 60)
+  abandonCurveBeta: number       // ramp steepness, P(abandon | wait) ≈ 1 - exp(-beta * (wait - threshold))
   rules: string
 }
 
@@ -44,6 +46,7 @@ export interface Scenario {
   abs: number
   roster: Shift[] | null      // null → kernel derives from Erlang C
   rngSeed: number
+  injectedEvents: InjectedEvent[]
 }
 
 export type SimEventType =

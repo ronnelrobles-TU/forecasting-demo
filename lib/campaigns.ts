@@ -21,6 +21,8 @@ export const campaigns: Record<CampaignKey, Campaign> = {
     ]),
     dailyTotal: 12400,
     aht: 420, sl: 80, asa: 20, shrink: 32, abs: 9,
+    abandonThresholdSec: 60,
+    abandonCurveBeta: 0.05,
     rules: 'Voice inbound · Tier 1 troubleshoot · 24/7 follow-the-sun · ESL premium tagging',
   },
   au_retail_cebu: {
@@ -33,6 +35,8 @@ export const campaigns: Record<CampaignKey, Campaign> = {
     ]),
     dailyTotal: 5800,
     aht: 240, sl: 85, asa: 30, shrink: 28, abs: 7,
+    abandonThresholdSec: 90,
+    abandonCurveBeta: 0.03,
     rules: 'Chat (2 concurrent) · AEST coverage · holiday surge model · post-sales focus',
   },
   uk_fintech_manila: {
@@ -45,6 +49,8 @@ export const campaigns: Record<CampaignKey, Campaign> = {
     ]),
     dailyTotal: 7600,
     aht: 540, sl: 90, asa: 15, shrink: 35, abs: 8,
+    abandonThresholdSec: 45,
+    abandonCurveBeta: 0.08,
     rules: 'Voice · KYC compliance · GMT coverage · senior-tier only · strict QA',
   },
   us_healthcare_clark: {
@@ -58,6 +64,8 @@ export const campaigns: Record<CampaignKey, Campaign> = {
     ]),
     dailyTotal: 4400,
     aht: 600, sl: 90, asa: 30, shrink: 38, abs: 10,
+    abandonThresholdSec: 75,
+    abandonCurveBeta: 0.04,
     rules: 'Voice · HIPAA · EST/CST split · seasonal Q4 enrollment surge',
   },
   ph_telco_davao: {
@@ -70,6 +78,8 @@ export const campaigns: Record<CampaignKey, Campaign> = {
     ]),
     dailyTotal: 14800,
     aht: 300, sl: 75, asa: 25, shrink: 30, abs: 12,
+    abandonThresholdSec: 60,
+    abandonCurveBeta: 0.06,
     rules: 'Voice · Bisaya/Tagalog dual · local hours · weather-event flex (typhoon)',
   },
 }
