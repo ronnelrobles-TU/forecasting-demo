@@ -30,6 +30,7 @@ interface ScenarioContextValue {
   setDailyTotal: (n: number) => void
   setNumeric: (field: 'aht' | 'sl' | 'asa' | 'shrink' | 'abs', value: number) => void
   reseed: () => void
+  setRngSeed: (seed: number) => void
   addInjection: (ev: InjectedEvent) => void
   clearInjections: () => void
 }
@@ -47,6 +48,7 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
     setScenario(s => ({ ...s, [field]: value }))
   }, [])
   const reseed = useCallback(() => setScenario(s => ({ ...s, rngSeed: Math.floor(Math.random() * 1_000_000) })), [])
+  const setRngSeed = useCallback((seed: number) => setScenario(s => ({ ...s, rngSeed: seed })), [])
   const addInjection = useCallback((ev: InjectedEvent) => {
     setScenario(s => ({ ...s, injectedEvents: [...s.injectedEvents, ev] }))
   }, [])
@@ -54,7 +56,7 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
 
   return (
     <ScenarioContext.Provider value={{
-      scenario, setCampaign, setHoop, setCurve, setDailyTotal, setNumeric, reseed,
+      scenario, setCampaign, setHoop, setCurve, setDailyTotal, setNumeric, reseed, setRngSeed,
       addInjection, clearInjections,
     }}>
       {children}
