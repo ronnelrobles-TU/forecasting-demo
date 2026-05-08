@@ -68,8 +68,8 @@ export function MonteCarloTab({ onReplayWorstDay }: MonteCarloTabProps = {}) {
           {' '}<TabIntroReopenLink tab="monte" />
         </span>
       </div>
+      <TabIntroStrip tab="monte" />
       <div className="cockpit-viewport-body cockpit-monte-body">
-        <TabIntroStrip tab="monte" />
         <div className="cockpit-monte-chart-frame">
           {summary && !running
             ? <MonteCarloFanChart

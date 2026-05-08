@@ -63,8 +63,9 @@ export function LiveSimTab({ onLiveChange }: LiveSimTabProps = {}) {
         </span>
       </div>
 
+      <TabIntroStrip tab="live" />
+
       <div className="cockpit-viewport-body">
-        <TabIntroStrip tab="live" />
         <div className="cockpit-agent-canvas-frame">
           {result
             ? <AgentDotCanvas events={result.events} peakAgents={peakAgents} simTimeMin={simTimeMin} />

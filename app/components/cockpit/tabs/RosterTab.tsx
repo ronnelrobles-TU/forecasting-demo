@@ -95,8 +95,8 @@ export function RosterTab() {
           {' '}<TabIntroReopenLink tab="roster" />
         </span>
       </div>
+      <TabIntroStrip tab="roster" />
       <div className="cockpit-viewport-body cockpit-roster-body">
-        <TabIntroStrip tab="roster" />
         <OptimizerControls
           budgetAgentHours={budget}
           onBudgetChange={setBudget}

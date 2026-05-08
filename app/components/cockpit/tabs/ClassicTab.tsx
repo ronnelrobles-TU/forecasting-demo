@@ -11,8 +11,8 @@ export function ClassicTab() {
           <TabIntroReopenLink tab="classic" />
         </span>
       </div>
+      <TabIntroStrip tab="classic" />
       <div className="cockpit-viewport-body">
-        <TabIntroStrip tab="classic" />
         <WFMDemo />
       </div>
     </div>
