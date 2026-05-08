@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ScenarioProvider } from './ScenarioContext'
+import { ScenarioProvider, useScenario } from './ScenarioContext'
 import { Header, type TabKey } from './Header'
 import { Sidebar } from './Sidebar'
 import { KpiStrip } from './KpiStrip'
@@ -17,28 +17,40 @@ interface LiveData {
   simTimeMin: number
 }
 
-export function Cockpit() {
+function CockpitInner() {
   const [tab, setTab] = useState<TabKey>('live')
   const [live, setLive] = useState<LiveData | null>(null)
+  const { setRngSeed } = useScenario()
 
   const liveProps: LiveSimTabProps = { onLiveChange: setLive }
   const simTimeMin = live?.simTimeMin ?? 0
 
+  function handleReplayWorstDay(seed: number) {
+    setRngSeed(seed)
+    setTab('live')
+  }
+
+  return (
+    <div className="cockpit">
+      <Header active={tab} onChange={setTab} />
+      <div className="cockpit-body">
+        <Sidebar currentSimTimeMin={tab === 'live' ? simTimeMin : 0} />
+        <main className="cockpit-main">
+          {tab === 'live'    && <LiveSimTab {...liveProps} />}
+          {tab === 'monte'   && <MonteCarloTab onReplayWorstDay={handleReplayWorstDay} />}
+          {tab === 'roster'  && <RosterTab />}
+          {tab === 'classic' && <ClassicTab />}
+        </main>
+      </div>
+      <KpiStrip live={tab === 'live' && live ? { stats: live.stats, abandons: live.abandons } : null} />
+    </div>
+  )
+}
+
+export function Cockpit() {
   return (
     <ScenarioProvider>
-      <div className="cockpit">
-        <Header active={tab} onChange={setTab} />
-        <div className="cockpit-body">
-          <Sidebar currentSimTimeMin={tab === 'live' ? simTimeMin : 0} />
-          <main className="cockpit-main">
-            {tab === 'live'    && <LiveSimTab {...liveProps} />}
-            {tab === 'monte'   && <MonteCarloTab />}
-            {tab === 'roster'  && <RosterTab />}
-            {tab === 'classic' && <ClassicTab />}
-          </main>
-        </div>
-        <KpiStrip live={tab === 'live' && live ? { stats: live.stats, abandons: live.abandons } : null} />
-      </div>
+      <CockpitInner />
     </ScenarioProvider>
   )
 }
