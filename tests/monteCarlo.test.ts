@@ -34,6 +34,10 @@ describe('runManyDays', () => {
   })
 
   it('produces variation across days', () => {
+    // Bump dailyTotal beyond the campaign default — the default 12400 is so over-staffed
+    // by the Erlang-C-derived count that every RNG draw produces ~100% SL with no variation
+    // to assert against. 20000 puts the system into a regime where Poisson noise produces
+    // visibly different per-day SL outcomes.
     const scenario = { ...baseScenario(13), dailyTotal: 20000 }
     const results = runManyDays(scenario, 10, 1)
     const sls = results.map(r => r.totals.sl)
