@@ -50,7 +50,7 @@ export function JargonTerm({ term, children }: JargonTermProps) {
       className="cockpit-onboarding-term"
       onMouseEnter={show}
       onMouseLeave={() => setOpen(false)}
-      onClick={e => { e.stopPropagation(); open ? closeMe() : show() }}
+      onClick={e => { e.stopPropagation(); if (open) closeMe(); else show() }}
     >
       {children}
       {open && (
