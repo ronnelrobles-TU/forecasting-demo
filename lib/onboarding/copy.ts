@@ -38,25 +38,25 @@ export const TAB_INTROS: Record<TabKey, TabIntro> = {
     title: 'What is this view?',
     body:
       'This tab plays your call center day as a 60-second movie. Each colored dot is one agent — green = idle, red = on a call, yellow = wrap-up, grey = on break. Press play, drag the timeline to skip around, or hit "Inject event" to drop a typhoon mid-day and watch what happens.',
-    learnAnchor: '#live-sim',
+    learnAnchor: '#erlang-c',
   },
   monte: {
     title: 'What is this view?',
     body:
       'Real days are noisy — even a perfect schedule has bad-luck days. This tab simulates 1,000 versions of today and shows the spread. The blue band is the middle 80% of outcomes; the red dashed line is your worst day. Click "Replay worst day" to jump back to Live Sim and watch the disaster play out.',
-    learnAnchor: '#monte-carlo',
+    learnAnchor: '#erlang-c',
   },
   roster: {
     title: 'What is this view?',
     body:
       'Schedules don\'t write themselves. Drag the shift bars to design a roster by hand, or hit "Auto-generate" and watch an algorithm search for the best schedule given your demand curve and budget. Once you have a roster, the Live Sim and Monte Carlo tabs use it automatically.',
-    learnAnchor: '#roster',
+    learnAnchor: '#erlang-c',
   },
   classic: {
     title: 'What is this view?',
     body:
       'The original demo before the cockpit shipped — same Erlang C math, single-page view, no animation. Useful as a sanity-check baseline if a number on another tab looks weird.',
-    learnAnchor: '#classic',
+    learnAnchor: '#erlang-c',
   },
 }
 
