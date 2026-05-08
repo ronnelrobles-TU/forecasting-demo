@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
-import type { Scenario, CampaignKey, HoopWindow } from '@/lib/types'
+import type { Scenario, CampaignKey, HoopWindow, InjectedEvent } from '@/lib/types'
 import { campaigns } from '@/lib/campaigns'
 
 function scenarioFromCampaign(key: CampaignKey, seed = 42): Scenario {
@@ -30,6 +30,8 @@ interface ScenarioContextValue {
   setDailyTotal: (n: number) => void
   setNumeric: (field: 'aht' | 'sl' | 'asa' | 'shrink' | 'abs', value: number) => void
   reseed: () => void
+  addInjection: (ev: InjectedEvent) => void
+  clearInjections: () => void
 }
 
 const ScenarioContext = createContext<ScenarioContextValue | null>(null)
@@ -37,32 +39,24 @@ const ScenarioContext = createContext<ScenarioContextValue | null>(null)
 export function ScenarioProvider({ children }: { children: ReactNode }) {
   const [scenario, setScenario] = useState<Scenario>(() => scenarioFromCampaign('us_telco_manila'))
 
-  const setCampaign = useCallback((key: CampaignKey) => {
-    setScenario(scenarioFromCampaign(key))
-  }, [])
-
-  const setHoop = useCallback((hoop: HoopWindow) => {
-    setScenario(s => ({ ...s, hoop }))
-  }, [])
-
-  const setCurve = useCallback((curve: number[]) => {
-    setScenario(s => ({ ...s, curve }))
-  }, [])
-
-  const setDailyTotal = useCallback((n: number) => {
-    setScenario(s => ({ ...s, dailyTotal: n }))
-  }, [])
-
+  const setCampaign = useCallback((key: CampaignKey) => setScenario(scenarioFromCampaign(key)), [])
+  const setHoop = useCallback((hoop: HoopWindow) => setScenario(s => ({ ...s, hoop })), [])
+  const setCurve = useCallback((curve: number[]) => setScenario(s => ({ ...s, curve })), [])
+  const setDailyTotal = useCallback((n: number) => setScenario(s => ({ ...s, dailyTotal: n })), [])
   const setNumeric = useCallback((field: 'aht' | 'sl' | 'asa' | 'shrink' | 'abs', value: number) => {
     setScenario(s => ({ ...s, [field]: value }))
   }, [])
-
-  const reseed = useCallback(() => {
-    setScenario(s => ({ ...s, rngSeed: Math.floor(Math.random() * 1_000_000) }))
+  const reseed = useCallback(() => setScenario(s => ({ ...s, rngSeed: Math.floor(Math.random() * 1_000_000) })), [])
+  const addInjection = useCallback((ev: InjectedEvent) => {
+    setScenario(s => ({ ...s, injectedEvents: [...s.injectedEvents, ev] }))
   }, [])
+  const clearInjections = useCallback(() => setScenario(s => ({ ...s, injectedEvents: [] })), [])
 
   return (
-    <ScenarioContext.Provider value={{ scenario, setCampaign, setHoop, setCurve, setDailyTotal, setNumeric, reseed }}>
+    <ScenarioContext.Provider value={{
+      scenario, setCampaign, setHoop, setCurve, setDailyTotal, setNumeric, reseed,
+      addInjection, clearInjections,
+    }}>
       {children}
     </ScenarioContext.Provider>
   )
