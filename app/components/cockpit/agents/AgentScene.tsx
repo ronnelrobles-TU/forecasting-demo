@@ -23,7 +23,7 @@ export function AgentScene({ events, peakAgents, simTimeMin }: AgentSceneProps) 
   const fallbackEngaged = overCapacity && theme === 'office'
   const prevFallbackRef = useRef(false)
 
-  // Show toast when fallback engages (transition into fallback)
+  // Show toast when fallback engages (rising edge); dismiss on falling edge
   useEffect(() => {
     const prev = prevFallbackRef.current
     prevFallbackRef.current = fallbackEngaged
@@ -31,6 +31,9 @@ export function AgentScene({ events, peakAgents, simTimeMin }: AgentSceneProps) 
       setShowFallbackToast(true)
       const t = setTimeout(() => setShowFallbackToast(false), 4000)
       return () => clearTimeout(t)
+    }
+    if (prev && !fallbackEngaged) {
+      setShowFallbackToast(false)
     }
   }, [fallbackEngaged])
 
