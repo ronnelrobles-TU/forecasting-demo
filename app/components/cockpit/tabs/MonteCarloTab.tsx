@@ -6,7 +6,7 @@ import { runManyInPool } from '@/app/workers/monteCarloClient'
 import { summarizeRuns, type RunsSummary } from '@/lib/animation/fanStats'
 import { MonteCarloFanChart } from '../monte/MonteCarloFanChart'
 import { MonteCarloStats } from '../monte/MonteCarloStats'
-import type { SimResult } from '@/lib/types'
+import type { Scenario } from '@/lib/types'
 import { dayRngSeed } from '@/lib/kernel/monteCarlo'
 
 const TOTAL_DAYS = 1000
@@ -19,18 +19,12 @@ export function MonteCarloTab({ onReplayWorstDay }: MonteCarloTabProps = {}) {
   const { scenario } = useScenario()
   const [progress, setProgress] = useState({ completed: 0, total: TOTAL_DAYS })
   const [summary, setSummary] = useState<RunsSummary | null>(null)
-  const [running, setRunning] = useState(false)
-  const [resultsRef, setResultsRef] = useState<SimResult[]>([])
+  const [shownScenario, setShownScenario] = useState<Scenario | null>(null)
+
+  const running = scenario !== shownScenario
 
   useEffect(() => {
     let cancelled = false
-    setRunning(true)
-    setSummary(null)
-    setResultsRef([])
-    setProgress({ completed: 0, total: TOTAL_DAYS })
-
-    const collected: SimResult[] = []
-    let lastSummaryAt = 0
 
     runManyInPool(scenario, {
       days: TOTAL_DAYS,
@@ -42,22 +36,13 @@ export function MonteCarloTab({ onReplayWorstDay }: MonteCarloTabProps = {}) {
     })
       .then(results => {
         if (cancelled) return
-        // Final summarization once everything is done
-        const s = summarizeRuns(results, scenario.sl / 100)
-        setSummary(s)
-        setResultsRef(results)
-        setRunning(false)
+        setSummary(summarizeRuns(results, scenario.sl / 100))
+        setShownScenario(scenario)
       })
       .catch(() => {
         if (cancelled) return
-        setRunning(false)
+        setShownScenario(scenario)  // unblock the running flag even on failure
       })
-
-    // Note: we deliberately summarize once at the end (instead of streaming) for Phase 3 simplicity;
-    // 1k days × 4 workers finishes in ~6-8s. Streaming partial fans is a Phase 5 polish.
-    // Suppress unused-warning by referencing the throttle anchor.
-    void lastSummaryAt
-    void collected
 
     return () => { cancelled = true }
   }, [scenario])
@@ -82,7 +67,7 @@ export function MonteCarloTab({ onReplayWorstDay }: MonteCarloTabProps = {}) {
       </div>
       <div className="cockpit-viewport-body cockpit-monte-body">
         <div className="cockpit-monte-chart-frame">
-          {summary
+          {summary && !running
             ? <MonteCarloFanChart
                 perInterval={summary.perInterval}
                 targetSl={summary.targetSl}
@@ -100,7 +85,7 @@ export function MonteCarloTab({ onReplayWorstDay }: MonteCarloTabProps = {}) {
             ? summary.perInterval[Math.floor(summary.perInterval.length / 2)].p10
             : 0}
           onReplayWorstDay={handleReplay}
-          replayDisabled={!summary || summary.worstDayIdx < 0}
+          replayDisabled={!summary || summary.worstDayIdx < 0 || running}
         />
       </div>
     </div>
