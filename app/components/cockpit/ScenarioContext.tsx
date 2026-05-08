@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
-import type { Scenario, CampaignKey, HoopWindow, InjectedEvent } from '@/lib/types'
+import type { Scenario, CampaignKey, HoopWindow, InjectedEvent, RosterShift } from '@/lib/types'
 import { campaigns } from '@/lib/campaigns'
 
 function scenarioFromCampaign(key: CampaignKey, seed = 42): Scenario {
@@ -33,6 +33,10 @@ interface ScenarioContextValue {
   setRngSeed: (seed: number) => void
   addInjection: (ev: InjectedEvent) => void
   clearInjections: () => void
+  setRoster: (roster: RosterShift[] | null) => void
+  addShift: (shift: RosterShift) => void
+  removeShift: (id: string) => void
+  updateShift: (id: string, partial: Partial<RosterShift>) => void
 }
 
 const ScenarioContext = createContext<ScenarioContextValue | null>(null)
@@ -54,10 +58,24 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
   }, [])
   const clearInjections = useCallback(() => setScenario(s => ({ ...s, injectedEvents: [] })), [])
 
+  const setRoster = useCallback((roster: RosterShift[] | null) => setScenario(s => ({ ...s, roster })), [])
+  const addShift = useCallback((shift: RosterShift) => {
+    setScenario(s => ({ ...s, roster: [...(s.roster ?? []), shift] }))
+  }, [])
+  const removeShift = useCallback((id: string) => {
+    setScenario(s => ({ ...s, roster: (s.roster ?? []).filter(x => x.id !== id) }))
+  }, [])
+  const updateShift = useCallback((id: string, partial: Partial<RosterShift>) => {
+    setScenario(s => ({
+      ...s,
+      roster: (s.roster ?? []).map(x => x.id === id ? { ...x, ...partial } : x),
+    }))
+  }, [])
+
   return (
     <ScenarioContext.Provider value={{
       scenario, setCampaign, setHoop, setCurve, setDailyTotal, setNumeric, reseed, setRngSeed,
-      addInjection, clearInjections,
+      addInjection, clearInjections, setRoster, addShift, removeShift, updateShift,
     }}>
       {children}
     </ScenarioContext.Provider>
