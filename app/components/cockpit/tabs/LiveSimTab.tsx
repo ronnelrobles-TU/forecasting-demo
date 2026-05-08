@@ -7,7 +7,7 @@ import type { IntervalStat, Scenario, SimResult } from '@/lib/types'
 import { useAnimation } from '../timeline/useAnimation'
 import { PlayControls } from '../timeline/PlayControls'
 import { TimelineScrubber } from '../timeline/TimelineScrubber'
-import { AgentDotCanvas } from '../agents/AgentDotCanvas'
+import { AgentScene } from '../agents/AgentScene'
 import { intervalStatsAt } from '@/lib/animation/intervalAtTime'
 import { TabIntroStrip } from '../onboarding/TabIntroStrip'
 import { TabIntroReopenLink } from '../onboarding/TabIntroReopenLink'
@@ -68,7 +68,7 @@ export function LiveSimTab({ onLiveChange }: LiveSimTabProps = {}) {
       <div className="cockpit-viewport-body">
         <div className="cockpit-agent-canvas-frame">
           {result
-            ? <AgentDotCanvas events={result.events} peakAgents={peakAgents} simTimeMin={simTimeMin} />
+            ? <AgentScene events={result.events} peakAgents={peakAgents} simTimeMin={simTimeMin} />
             : <div className="cockpit-placeholder"><p>Loading sim…</p></div>}
         </div>
 

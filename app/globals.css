@@ -1578,3 +1578,41 @@ details[open] .learn-tip summary::before { content: '▼ '; }
 .cockpit-kpi--muted .cockpit-kpi-value {
   opacity: 0.35;
 }
+
+/* Agent scene + theme picker (replaces .cockpit-agent-canvas-container) */
+.cockpit-agent-scene {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 240px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cockpit-agent-scene > svg { max-width: 100%; max-height: 100%; }
+
+.cockpit-theme-picker {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: inline-flex;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  overflow: hidden;
+  font-size: 0.7rem;
+  z-index: 2;
+}
+.cockpit-theme-picker-btn {
+  background: transparent;
+  color: #cbd5e1;
+  border: none;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+.cockpit-theme-picker-btn:hover { background: #334155; color: #f1f5f9; }
+.cockpit-theme-picker-btn--active {
+  background: #3b82f6;
+  color: #fff;
+}
