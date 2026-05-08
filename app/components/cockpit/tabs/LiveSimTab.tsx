@@ -3,22 +3,26 @@
 import { useEffect, useRef, useState } from 'react'
 import { useScenario } from '../ScenarioContext'
 import { runDayInWorker } from '@/app/workers/kernelClient'
-import type { SimResult } from '@/lib/types'
+import type { Scenario, SimResult } from '@/lib/types'
 import Chart from 'chart.js/auto'
 
 export function LiveSimTab() {
   const { scenario } = useScenario()
   const [result, setResult] = useState<SimResult | null>(null)
-  const [running, setRunning] = useState(false)
+  const [shownScenario, setShownScenario] = useState<Scenario | null>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const chartRef = useRef<Chart | null>(null)
 
+  const running = scenario !== shownScenario
+
   useEffect(() => {
-    setRunning(true)
+    let cancelled = false
     runDayInWorker(scenario).then(r => {
+      if (cancelled) return
       setResult(r)
-      setRunning(false)
+      setShownScenario(scenario)
     })
+    return () => { cancelled = true }
   }, [scenario])
 
   useEffect(() => {

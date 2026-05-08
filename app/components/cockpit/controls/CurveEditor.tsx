@@ -52,6 +52,7 @@ export function CurveEditor({ curve, hoop, onChange }: CurveEditorProps) {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reshape closes over `curve` which is in deps
   }, [dragging, curve])
 
   const max = Math.max(0.001, ...curve)
