@@ -1,0 +1,44 @@
+'use client'
+
+import type { Speed } from '@/lib/animation/timeScale'
+
+interface PlayControlsProps {
+  playing: boolean
+  speed: Speed
+  simTimeMin: number
+  onPlayToggle: () => void
+  onSpeedChange: (s: Speed) => void
+  onReset: () => void
+}
+
+function fmtTime(min: number): string {
+  const h = Math.floor(min / 60) % 24
+  const m = Math.floor(min) % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
+export function PlayControls({ playing, speed, simTimeMin, onPlayToggle, onSpeedChange, onReset }: PlayControlsProps) {
+  return (
+    <div className="cockpit-play-controls">
+      <button type="button" className="cockpit-play-btn" onClick={onPlayToggle}>
+        {playing ? '⏸' : '▶'}
+      </button>
+      <button type="button" className="cockpit-play-btn cockpit-play-btn--small" onClick={onReset} title="Reset to 00:00">
+        ⏮
+      </button>
+      <div className="cockpit-play-time">{fmtTime(simTimeMin)}</div>
+      <div className="cockpit-play-speed">
+        {([1, 10, 60] as Speed[]).map(s => (
+          <button
+            key={s}
+            type="button"
+            className={`cockpit-play-speed-btn ${speed === s ? 'cockpit-play-speed-btn--active' : ''}`}
+            onClick={() => onSpeedChange(s)}
+          >
+            {s}×
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
