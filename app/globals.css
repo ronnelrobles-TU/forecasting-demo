@@ -1153,3 +1153,75 @@ details[open] .learn-tip summary::before { content: '▼ '; }
   font-size: 0.7rem;
   cursor: pointer;
 }
+
+/* ───────── Cockpit Phase 3 (Monte Carlo) ───────── */
+
+.cockpit-monte-viewport .cockpit-monte-body {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 0.75rem;
+  flex: 1;
+  min-height: 0;
+}
+
+.cockpit-monte-chart-frame {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 0.75rem;
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+}
+.cockpit-monte-fan-container {
+  flex: 1;
+  position: relative;
+  min-height: 240px;
+}
+
+.cockpit-monte-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.cockpit-monte-stat {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+}
+.cockpit-monte-stat-label {
+  opacity: 0.6;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.cockpit-monte-stat-value {
+  font-weight: 700;
+  font-size: 1.4rem;
+  margin-top: 0.2rem;
+}
+.cockpit-monte-stat-value--red { color: #ef4444; }
+.cockpit-monte-stat-value--green { color: #10b981; }
+.cockpit-monte-stat-value--amber { color: #fbbf24; }
+.cockpit-monte-stat-sub {
+  opacity: 0.6;
+  font-size: 0.65rem;
+  margin-top: 0.1rem;
+}
+.cockpit-monte-replay-btn {
+  background: #ef4444;
+  color: #fff;
+  border: 0;
+  border-radius: 8px;
+  padding: 0.6rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  margin-top: 0.5rem;
+}
+.cockpit-monte-replay-btn:disabled {
+  background: #334155;
+  color: #64748b;
+  cursor: not-allowed;
+}
