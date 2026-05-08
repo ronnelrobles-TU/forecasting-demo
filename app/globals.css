@@ -1616,3 +1616,17 @@ details[open] .learn-tip summary::before { content: '▼ '; }
   background: #3b82f6;
   color: #fff;
 }
+.cockpit-theme-toast {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e293b;
+  color: #f1f5f9;
+  border: 1px solid #fbbf24;
+  border-radius: 6px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.75rem;
+  z-index: 3;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
