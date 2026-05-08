@@ -20,7 +20,8 @@ export function useAnimation(): UseAnimationReturn {
   const lastFrameRef = useRef<number | null>(null)
   const rafRef = useRef<number | null>(null)
   const speedRef = useRef(speed)
-  speedRef.current = speed
+
+  useEffect(() => { speedRef.current = speed }, [speed])
 
   useEffect(() => {
     if (!playing) {
