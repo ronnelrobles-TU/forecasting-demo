@@ -1420,3 +1420,112 @@ details[open] .learn-tip summary::before { content: '▼ '; }
   height: 100%;
   position: relative;
 }
+
+/* ───────── Cockpit Onboarding ───────── */
+
+/* Intro strip */
+.cockpit-onboarding-strip {
+  background: #1e3a5f;
+  border: 1px solid #3b82f6;
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  margin-bottom: 0.75rem;
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  color: #e2e8f0;
+}
+.cockpit-onboarding-strip-icon {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.cockpit-onboarding-strip-body {
+  flex: 1;
+}
+.cockpit-onboarding-strip-title {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+.cockpit-onboarding-strip-text {
+  font-size: 0.85rem;
+  line-height: 1.55;
+  opacity: 0.92;
+  margin: 0;
+}
+.cockpit-onboarding-strip-link {
+  color: #60a5fa;
+  text-decoration: underline;
+  margin-left: 0.25rem;
+}
+.cockpit-onboarding-strip-close {
+  background: transparent;
+  border: 0;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 1.1rem;
+  padding: 0 0.25rem;
+  line-height: 1;
+}
+.cockpit-onboarding-strip-close:hover {
+  color: #e2e8f0;
+}
+
+/* Reopen link */
+.cockpit-onboarding-reopen {
+  background: transparent;
+  border: 0;
+  color: #94a3b8;
+  font-size: 0.75rem;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 0.5rem;
+  font-family: inherit;
+}
+.cockpit-onboarding-reopen:hover {
+  color: #cbd5e1;
+}
+
+/* Jargon term underline */
+.cockpit-onboarding-term {
+  position: relative;
+  border-bottom: 1px dotted #94a3b8;
+  cursor: help;
+}
+
+/* Jargon popover */
+.cockpit-onboarding-popover {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 0.4rem;
+  background: #0f172a;
+  border: 1px solid #3b82f6;
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  width: 280px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  cursor: default;
+}
+.cockpit-onboarding-popover-label {
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: #3b82f6;
+}
+.cockpit-onboarding-popover-body {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  opacity: 0.9;
+  color: #e2e8f0;
+}
+.cockpit-onboarding-popover-link {
+  color: #60a5fa;
+  text-decoration: underline;
+  font-size: 0.7rem;
+  margin-top: 0.2rem;
+  align-self: flex-start;
+}
