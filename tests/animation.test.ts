@@ -55,3 +55,22 @@ describe('agentStateAt', () => {
     expect(agentStateAt(tl, 1000)).toBe<AgentVisualState>('off_shift')
   })
 })
+
+import { intervalStatsAt } from '@/lib/animation/intervalAtTime'
+import type { IntervalStat } from '@/lib/types'
+
+describe('intervalStatsAt', () => {
+  const stats: IntervalStat[] = Array.from({ length: 48 }, (_, i) => ({
+    sl: i / 47, agents: i, queueLen: 0, abandons: 0, occ: 0.5,
+  }))
+
+  it('picks interval 0 for minute 0', () => {
+    expect(intervalStatsAt(stats, 0).agents).toBe(0)
+  })
+  it('picks interval 47 for minute 1439', () => {
+    expect(intervalStatsAt(stats, 1439).agents).toBe(47)
+  })
+  it('picks interval 16 for minute 480 (08:00)', () => {
+    expect(intervalStatsAt(stats, 480).agents).toBe(16)
+  })
+})
