@@ -8,6 +8,7 @@ import { CurveEditor } from './controls/CurveEditor'
 import { DailyTotalInput } from './controls/DailyTotalInput'
 import { SliderRow } from './controls/SliderRow'
 import { InjectEventModal } from './inject/InjectEventModal'
+import { JargonTerm } from './onboarding/JargonTerm'
 import type { CampaignKey } from '@/lib/types'
 
 interface SidebarProps {
@@ -35,7 +36,7 @@ export function Sidebar({ currentSimTimeMin }: SidebarProps) {
       </div>
 
       <div className="cockpit-section">
-        <div className="cockpit-section-label">HOOP</div>
+        <div className="cockpit-section-label"><JargonTerm term="hoop">HOOP</JargonTerm></div>
         <HoopSlider value={scenario.hoop} onChange={setHoop} />
       </div>
 
@@ -47,11 +48,11 @@ export function Sidebar({ currentSimTimeMin }: SidebarProps) {
 
       <div className="cockpit-section">
         <div className="cockpit-section-label">Inputs</div>
-        <SliderRow label="AHT (s)"        value={scenario.aht}    min={120} max={900}  step={10} onChange={v => setNumeric('aht', v)} />
-        <SliderRow label="SL target (%)"  value={scenario.sl}     min={60}  max={95}   step={1}  format={v => `${v}%`}   onChange={v => setNumeric('sl', v)} />
-        <SliderRow label="SL threshold"   value={scenario.asa}    min={10}  max={60}   step={1}  format={v => `${v}s`}   onChange={v => setNumeric('asa', v)} />
-        <SliderRow label="Shrinkage (%)"  value={scenario.shrink} min={10}  max={45}   step={1}  format={v => `${v}%`}   onChange={v => setNumeric('shrink', v)} />
-        <SliderRow label="Absent. (%)"    value={scenario.abs}    min={0}   max={20}   step={1}  format={v => `${v}%`}   onChange={v => setNumeric('abs', v)} />
+        <SliderRow label={<><JargonTerm term="aht">AHT</JargonTerm> (s)</>}                     value={scenario.aht}    min={120} max={900}  step={10} onChange={v => setNumeric('aht', v)} />
+        <SliderRow label={<><JargonTerm term="sl">SL target</JargonTerm> (%)</>}                value={scenario.sl}     min={60}  max={95}   step={1}  format={v => `${v}%`}   onChange={v => setNumeric('sl', v)} />
+        <SliderRow label={<JargonTerm term="sl-threshold">SL threshold</JargonTerm>}            value={scenario.asa}    min={10}  max={60}   step={1}  format={v => `${v}s`}   onChange={v => setNumeric('asa', v)} />
+        <SliderRow label={<><JargonTerm term="shrinkage">Shrinkage</JargonTerm> (%)</>}         value={scenario.shrink} min={10}  max={45}   step={1}  format={v => `${v}%`}   onChange={v => setNumeric('shrink', v)} />
+        <SliderRow label="Absent. (%)"                                                          value={scenario.abs}    min={0}   max={20}   step={1}  format={v => `${v}%`}   onChange={v => setNumeric('abs', v)} />
       </div>
 
       {scenario.injectedEvents.length > 0 && (

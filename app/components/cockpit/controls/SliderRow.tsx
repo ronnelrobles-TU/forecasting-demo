@@ -1,7 +1,9 @@
 'use client'
 
+import type { ReactNode } from 'react'
+
 interface SliderRowProps {
-  label: string
+  label: ReactNode
   value: number
   min: number
   max: number

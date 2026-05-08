@@ -1,7 +1,8 @@
 'use client'
 
-import { useMemo } from 'react'
+import React, { useMemo } from 'react'
 import { useScenario } from './ScenarioContext'
+import { JargonTerm } from './onboarding/JargonTerm'
 import { applyHoop, callsPerInterval } from '@/lib/curve'
 import { requiredAgents, serviceLevel, avgWait } from '@/lib/erlang'
 import type { IntervalStat } from '@/lib/types'
@@ -42,14 +43,17 @@ export function KpiStrip({ live = null }: KpiStripProps = {}) {
     <div className="cockpit-kpi-strip">
       <Kpi label={live ? 'Active agents' : 'Erlang C agents'} value={String(kpis.N)} />
       <Kpi label="Scheduled HC"    value={String(kpis.scheduled)} />
-      <Kpi label="Service Level"   value={`${(kpis.sl * 100).toFixed(1)}%`} accent="green" />
-      <Kpi label="Occupancy"       value={`${(kpis.occ * 100).toFixed(1)}%`} accent="amber" />
-      <Kpi label={live ? 'Abandons' : 'Avg ASA'} value={live ? String(kpis.abandons) : `${Math.round(kpis.asa)}s`} />
+      <Kpi label={<JargonTerm term="sl">Service Level</JargonTerm>}   value={`${(kpis.sl * 100).toFixed(1)}%`} accent="green" />
+      <Kpi label={<JargonTerm term="occupancy">Occupancy</JargonTerm>} value={`${(kpis.occ * 100).toFixed(1)}%`} accent="amber" />
+      <Kpi label={live
+        ? <JargonTerm term="abandons">Abandons</JargonTerm>
+        : <JargonTerm term="asa">Avg ASA</JargonTerm>
+      } value={live ? String(kpis.abandons) : `${Math.round(kpis.asa)}s`} />
     </div>
   )
 }
 
-function Kpi({ label, value, accent }: { label: string; value: string; accent?: 'green' | 'amber' }) {
+function Kpi({ label, value, accent }: { label: React.ReactNode; value: string; accent?: 'green' | 'amber' }) {
   return (
     <div className="cockpit-kpi">
       <div className="cockpit-kpi-label">{label}</div>
