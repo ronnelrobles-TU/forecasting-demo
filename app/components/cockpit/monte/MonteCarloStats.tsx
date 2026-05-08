@@ -29,7 +29,7 @@ export function MonteCarloStats({
         </div>
       </div>
       <div className="cockpit-monte-stat">
-        <div className="cockpit-monte-stat-label">P10 SL · "bad day"</div>
+        <div className="cockpit-monte-stat-label">P10 SL · &ldquo;bad day&rdquo;</div>
         <div className="cockpit-monte-stat-value cockpit-monte-stat-value--amber">
           {(p10Sl * 100).toFixed(1)}%
         </div>
