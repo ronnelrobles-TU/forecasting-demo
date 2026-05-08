@@ -49,13 +49,12 @@ export function detectTransitions(prev: StateMap, curr: StateMap): Transition[] 
  * transitions: a new transition for an agent that already has an in-flight
  * animation replaces it (snap to new state).
  *
- * Note: the 4th and 5th args are optional to keep the simple "advance only"
+ * Note: the 3rd and 4th args are optional to keep the simple "advance only"
  * use case readable in tests; in production the renderer always passes them.
  */
 export function advanceAnimations(
   state: AnimState,
   dtSeconds: number,
-  durationMs: number,
   newTransitions: Transition[] = [],
   nowMs: number = 0,
 ): AnimState {
@@ -64,7 +63,7 @@ export function advanceAnimations(
   // Advance progress for each existing animation
   for (const id of Object.keys(next)) {
     const entry = next[id]
-    const duration = ANIM_DURATION_MS[entry.kind] ?? durationMs
+    const duration = ANIM_DURATION_MS[entry.kind]
     const inc = (dtSeconds * 1000) / duration
     const newProgress = entry.progress + inc
     if (newProgress >= 1) {
