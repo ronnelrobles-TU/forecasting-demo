@@ -1,4 +1,4 @@
-import type { Scenario, SimEvent, SimResult, IntervalStat } from '@/lib/types'
+import type { Scenario, SimEvent, SimResult, IntervalStat, RosterShift } from '@/lib/types'
 import { applyHoop, callsPerInterval, intervalIndexForMinute } from '@/lib/curve'
 import { requiredAgents } from '@/lib/erlang'
 import { makeRng, poisson, logNormal } from '@/lib/rng'
@@ -18,6 +18,20 @@ const SIGMA_AHT = 0.4
 // Cap agent pool per interval so extreme dailyTotal values create realistic overload (and abandons).
 // At the default campaign scale (≤15k calls/day) peak intervals stay well under this limit.
 const MAX_AGENTS_PER_INTERVAL = 300
+
+/** For each 30-min interval, the average agentCount across that interval (sample at midpoint). */
+function buildAgentsPerIntervalFromRoster(roster: RosterShift[]): number[] {
+  const out: number[] = new Array(48).fill(0)
+  for (let i = 0; i < 48; i++) {
+    const midMin = i * 30 + 15
+    let total = 0
+    for (const s of roster) {
+      if (midMin >= s.startMin && midMin < s.endMin) total += s.agentCount
+    }
+    out[i] = total
+  }
+  return out
+}
 
 function abandonProbability(waitSec: number, thresholdSec: number, beta: number): number {
   if (waitSec <= thresholdSec) return 0
@@ -45,14 +59,19 @@ export function runDay(scenario: Scenario, opts: RunDayOptions = {}): SimResult 
   const callsPer30 = callsPerInterval(curveAfterHoop, scenario.dailyTotal)
 
   const slTarget = scenario.sl / 100
-  const agentsPerInterval = callsPer30.map(calls => {
-    if (calls <= 0) return 0
-    const { N } = requiredAgents(calls, scenario.aht, slTarget, scenario.asa)
-    return Math.min(
-      MAX_AGENTS_PER_INTERVAL,
-      Math.max(1, Math.ceil(N / (1 - scenario.shrink / 100) / (1 - scenario.abs / 100))),
-    )
-  })
+
+  // Phase 4: when scenario.roster is non-null, derive agents per interval from the roster.
+  // When null, fall back to Phase 1–3 Erlang-C-based auto-staffing.
+  const agentsPerInterval = scenario.roster != null
+    ? buildAgentsPerIntervalFromRoster(scenario.roster)
+    : callsPer30.map(calls => {
+        if (calls <= 0) return 0
+        const { N } = requiredAgents(calls, scenario.aht, slTarget, scenario.asa)
+        return Math.min(
+          MAX_AGENTS_PER_INTERVAL,
+          Math.max(1, Math.ceil(N / (1 - scenario.shrink / 100) / (1 - scenario.abs / 100))),
+        )
+      })
 
   const peakAgents = Math.max(1, ...agentsPerInterval)
   const agents: AgentState[] = Array.from({ length: peakAgents }, (_, i) => ({

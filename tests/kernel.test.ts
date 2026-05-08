@@ -119,3 +119,40 @@ describe('runDay v2 — injection', () => {
     expect(ends.length).toBeGreaterThanOrEqual(10)
   })
 })
+
+describe('runDay v3 — roster-driven staffing', () => {
+  it('uses roster agentCount per interval when roster is provided', () => {
+    const sc = baseScenario(31)
+    sc.roster = [
+      // Two shifts: 06–14 (24 agents), 12–22 (32 agents)
+      { id: 's1', startMin: 360,  endMin: 840,  agentCount: 24, breaks: [] },
+      { id: 's2', startMin: 720,  endMin: 1320, agentCount: 32, breaks: [] },
+    ]
+    const result = runDay(sc)
+    // Interval 12 = 06:00 (06:00 starts at min 360 = idx 12). Should have 24 agents.
+    expect(result.perInterval[12].agents).toBeGreaterThanOrEqual(20)
+    expect(result.perInterval[12].agents).toBeLessThanOrEqual(28)
+    // Interval 24 = 12:00 (both shifts active). Should have ~56.
+    expect(result.perInterval[24].agents).toBeGreaterThanOrEqual(50)
+    expect(result.perInterval[24].agents).toBeLessThanOrEqual(60)
+    // Interval 0 = 00:00 (neither active). Should have 0.
+    expect(result.perInterval[0].agents).toBe(0)
+  })
+
+  it('falls back to Erlang C derivation when roster is null', () => {
+    const sc = baseScenario(31)
+    sc.roster = null
+    const result = runDay(sc)
+    // Phase 1–3 behavior: peak interval has positive agents.
+    const maxAgents = Math.max(...result.perInterval.map(s => s.agents))
+    expect(maxAgents).toBeGreaterThan(0)
+  })
+
+  it('roster with empty array means zero coverage', () => {
+    const sc = baseScenario(31)
+    sc.dailyTotal = 200
+    sc.roster = []
+    const result = runDay(sc)
+    expect(Math.max(...result.perInterval.map(s => s.agents))).toBe(0)
+  })
+})
