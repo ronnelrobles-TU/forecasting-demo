@@ -72,7 +72,9 @@ export async function runManyInPool(scenario: Scenario, opts: RunManyOptions): P
         },
         reject,
       })
-      slot.worker.postMessage({ type: 'runDay', requestId, scenario: seededScenario })
+      // collectEvents: false — Monte Carlo only needs perInterval/totals; skipping the
+      // event log saves ~150KB per day (~150MB across 1000 days) and prevents OOM crashes.
+      slot.worker.postMessage({ type: 'runDay', requestId, scenario: seededScenario, collectEvents: false })
     })
     promises.push(p)
   }

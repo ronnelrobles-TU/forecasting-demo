@@ -24,7 +24,18 @@ function abandonProbability(waitSec: number, thresholdSec: number, beta: number)
   return 1 - Math.exp(-beta * (waitSec - thresholdSec))
 }
 
-export function runDay(scenario: Scenario): SimResult {
+export interface RunDayOptions {
+  /**
+   * When false, the returned `events` array is empty and the kernel skips per-event
+   * allocations entirely. Use for Monte Carlo runs where only `perInterval` and
+   * `totals` are consumed — saves ~150KB per day, prevents OOM at 1k+ days.
+   * Default true (preserves Live Sim animation behavior).
+   */
+  collectEvents?: boolean
+}
+
+export function runDay(scenario: Scenario, opts: RunDayOptions = {}): SimResult {
+  const collectEvents = opts.collectEvents !== false
   const rng = makeRng(scenario.rngSeed)
   const campaign = campaigns[scenario.campaignKey]
   const abandonThresholdSec = campaign.abandonThresholdSec
@@ -58,6 +69,9 @@ export function runDay(scenario: Scenario): SimResult {
   }
 
   const events: SimEvent[] = []
+  const pushEvent: (e: SimEvent) => void = collectEvents
+    ? e => { events.push(e) }
+    : () => {}
   const perInterval: IntervalStat[] = Array.from({ length: 48 }, () => ({
     sl: 0, agents: 0, queueLen: 0, abandons: 0, occ: 0,
   }))
@@ -85,7 +99,7 @@ export function runDay(scenario: Scenario): SimResult {
         if (a.active && removed < pert.flashAbsentJustFired) {
           a.active = false
           permanentlyRemoved.add(a.id)
-          events.push({ timeMin: min, type: 'agent_shift_end', agentId: a.id })
+          pushEvent({ timeMin: min, type: 'agent_shift_end', agentId: a.id })
           removed++
         }
       }
@@ -105,7 +119,7 @@ export function runDay(scenario: Scenario): SimResult {
         if (!a.active) continue
         if (activeCount >= effectiveCap) {
           a.active = false
-          events.push({ timeMin: min, type: 'agent_shift_end', agentId: a.id })
+          pushEvent({ timeMin: min, type: 'agent_shift_end', agentId: a.id })
           continue
         }
         activeCount++
@@ -117,7 +131,7 @@ export function runDay(scenario: Scenario): SimResult {
           if (permanentlyRemoved.has(a.id)) continue   // flash_absent victims stay out
           a.active = true
           activeCount++
-          events.push({ timeMin: min, type: 'agent_shift_start', agentId: a.id })
+          pushEvent({ timeMin: min, type: 'agent_shift_start', agentId: a.id })
           if (activeCount >= effectiveCap) break
         }
       }
@@ -129,10 +143,10 @@ export function runDay(scenario: Scenario): SimResult {
       if (!br) continue
       if (a.onBreakUntilMin === 0 && min === br.startMin && a.active) {
         a.onBreakUntilMin = min + br.durationMin
-        events.push({ timeMin: min, type: 'agent_break_start', agentId: a.id })
+        pushEvent({ timeMin: min, type: 'agent_break_start', agentId: a.id })
       }
       if (a.onBreakUntilMin > 0 && min >= a.onBreakUntilMin) {
-        events.push({ timeMin: min, type: 'agent_break_end', agentId: a.id })
+        pushEvent({ timeMin: min, type: 'agent_break_end', agentId: a.id })
         a.onBreakUntilMin = 0
       }
     }
@@ -142,7 +156,7 @@ export function runDay(scenario: Scenario): SimResult {
     const callsThisMin = poisson(rng, arrivalRate)
     for (let c = 0; c < callsThisMin; c++) {
       const callId = `C${callCounter++}`
-      events.push({ timeMin: min, type: 'call_arrive', callId })
+      pushEvent({ timeMin: min, type: 'call_arrive', callId })
       queue.push({ arriveMin: min, callId })
     }
 
@@ -154,7 +168,7 @@ export function runDay(scenario: Scenario): SimResult {
       const waitSec = (min - qc.arriveMin) * 60
       const pAbandon = abandonProbability(waitSec, abandonThresholdSec, abandonBeta)
       if (pAbandon > 0 && rng() < pAbandon) {
-        events.push({ timeMin: min, type: 'call_abandon', callId: qc.callId, waitMs: waitSec * 1000 })
+        pushEvent({ timeMin: min, type: 'call_abandon', callId: qc.callId, waitMs: waitSec * 1000 })
         callsAbandoned[intervalIdx]++
       } else {
         queue.push(qc)
@@ -168,7 +182,7 @@ export function runDay(scenario: Scenario): SimResult {
       const waitMs = (min - qc.arriveMin) * 60_000
       const ahtSec = logNormal(rng, effectiveAht, SIGMA_AHT)
       free.busyUntilMin = min + (ahtSec + ACW_SECONDS) / 60
-      events.push({ timeMin: min, type: 'call_answer', callId: qc.callId, agentId: free.id, waitMs })
+      pushEvent({ timeMin: min, type: 'call_answer', callId: qc.callId, agentId: free.id, waitMs })
       callsAnswered[intervalIdx]++
       totalWaitMs[intervalIdx] += waitMs
       if (waitMs / 1000 <= scenario.asa) callsInThreshold[intervalIdx]++

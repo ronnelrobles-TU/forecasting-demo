@@ -6,6 +6,7 @@ interface RunDayMessage {
   type: 'runDay'
   requestId: number
   scenario: Scenario
+  collectEvents?: boolean
 }
 
 interface RunDayResponse {
@@ -24,7 +25,7 @@ self.addEventListener('message', (e: MessageEvent<RunDayMessage>) => {
   const msg = e.data
   if (msg.type === 'runDay') {
     try {
-      const result = runDay(msg.scenario)
+      const result = runDay(msg.scenario, { collectEvents: msg.collectEvents })
       const response: RunDayResponse = { type: 'runDayResult', requestId: msg.requestId, result }
       ;(self as unknown as Worker).postMessage(response)
     } catch (err) {
