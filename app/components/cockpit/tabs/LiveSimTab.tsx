@@ -9,6 +9,8 @@ import { PlayControls } from '../timeline/PlayControls'
 import { TimelineScrubber } from '../timeline/TimelineScrubber'
 import { AgentDotCanvas } from '../agents/AgentDotCanvas'
 import { intervalStatsAt } from '@/lib/animation/intervalAtTime'
+import { TabIntroStrip } from '../onboarding/TabIntroStrip'
+import { TabIntroReopenLink } from '../onboarding/TabIntroReopenLink'
 
 interface LiveData {
   stats: IntervalStat
@@ -57,10 +59,12 @@ export function LiveSimTab({ onLiveChange }: LiveSimTabProps = {}) {
         <span>Live Sim · time machine</span>
         <span className="cockpit-viewport-sub">
           {running ? 'simulating…' : `total SL: ${result ? (result.totals.sl * 100).toFixed(1) : '—'}% · abandons: ${result?.totals.abandons ?? 0}`}
+          {' '}<TabIntroReopenLink tab="live" />
         </span>
       </div>
 
       <div className="cockpit-viewport-body">
+        <TabIntroStrip tab="live" />
         <div className="cockpit-agent-canvas-frame">
           {result
             ? <AgentDotCanvas events={result.events} peakAgents={peakAgents} simTimeMin={simTimeMin} />

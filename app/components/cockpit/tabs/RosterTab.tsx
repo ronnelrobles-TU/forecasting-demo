@@ -10,6 +10,8 @@ import { buildDefaultRoster, totalAgentHours } from '@/lib/kernel/roster'
 import { applyHoop, callsPerInterval } from '@/lib/curve'
 import { requiredAgents } from '@/lib/erlang'
 import type { RosterShift } from '@/lib/types'
+import { TabIntroStrip } from '../onboarding/TabIntroStrip'
+import { TabIntroReopenLink } from '../onboarding/TabIntroReopenLink'
 
 const TOTAL_ITER = 300
 
@@ -90,9 +92,11 @@ export function RosterTab() {
           {roster.length === 0
             ? 'no roster — kernel falling back to Erlang C auto-staffing'
             : `${roster.length} shift${roster.length === 1 ? '' : 's'} · ${usedHours.toFixed(0)} / ${budget} agent-hours`}
+          {' '}<TabIntroReopenLink tab="roster" />
         </span>
       </div>
       <div className="cockpit-viewport-body cockpit-roster-body">
+        <TabIntroStrip tab="roster" />
         <OptimizerControls
           budgetAgentHours={budget}
           onBudgetChange={setBudget}

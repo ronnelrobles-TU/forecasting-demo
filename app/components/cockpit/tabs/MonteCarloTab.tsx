@@ -8,6 +8,8 @@ import { MonteCarloFanChart } from '../monte/MonteCarloFanChart'
 import { MonteCarloStats } from '../monte/MonteCarloStats'
 import type { Scenario } from '@/lib/types'
 import { dayRngSeed } from '@/lib/kernel/monteCarlo'
+import { TabIntroStrip } from '../onboarding/TabIntroStrip'
+import { TabIntroReopenLink } from '../onboarding/TabIntroReopenLink'
 
 const TOTAL_DAYS = 1000
 
@@ -63,9 +65,11 @@ export function MonteCarloTab({ onReplayWorstDay }: MonteCarloTabProps = {}) {
             : summary
               ? `worst day: idx ${summary.worstDayIdx} · seed ${dayRngSeed(scenario.rngSeed, summary.worstDayIdx)}`
               : ''}
+          {' '}<TabIntroReopenLink tab="monte" />
         </span>
       </div>
       <div className="cockpit-viewport-body cockpit-monte-body">
+        <TabIntroStrip tab="monte" />
         <div className="cockpit-monte-chart-frame">
           {summary && !running
             ? <MonteCarloFanChart
