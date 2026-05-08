@@ -1,20 +1,33 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useScenario } from '../ScenarioContext'
 import { runDayInWorker } from '@/app/workers/kernelClient'
-import type { Scenario, SimResult } from '@/lib/types'
-import Chart from 'chart.js/auto'
+import type { IntervalStat, Scenario, SimResult } from '@/lib/types'
+import { useAnimation } from '../timeline/useAnimation'
+import { PlayControls } from '../timeline/PlayControls'
+import { TimelineScrubber } from '../timeline/TimelineScrubber'
+import { AgentDotCanvas } from '../agents/AgentDotCanvas'
+import { intervalStatsAt } from '@/lib/animation/intervalAtTime'
 
-export function LiveSimTab() {
+interface LiveData {
+  stats: IntervalStat
+  abandons: number
+}
+
+export interface LiveSimTabProps {
+  onLiveChange?: (live: LiveData | null) => void
+}
+
+export function LiveSimTab({ onLiveChange }: LiveSimTabProps = {}) {
   const { scenario } = useScenario()
   const [result, setResult] = useState<SimResult | null>(null)
   const [shownScenario, setShownScenario] = useState<Scenario | null>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const chartRef = useRef<Chart | null>(null)
+  const { simTimeMin, setSimTimeMin, playing, setPlaying, speed, setSpeed } = useAnimation()
 
   const running = scenario !== shownScenario
 
+  // Re-run kernel when scenario changes (incl. injectedEvents)
   useEffect(() => {
     let cancelled = false
     runDayInWorker(scenario).then(r => {
@@ -25,48 +38,51 @@ export function LiveSimTab() {
     return () => { cancelled = true }
   }, [scenario])
 
+  // Compute live stats and bubble up so KpiStrip in the cockpit can show them
   useEffect(() => {
-    if (!canvasRef.current || !result) return
-    if (chartRef.current) chartRef.current.destroy()
-    chartRef.current = new Chart(canvasRef.current, {
-      type: 'line',
-      data: {
-        labels: Array.from({ length: 48 }, (_, i) => i % 4 === 0 ? `${String(Math.floor(i / 2)).padStart(2, '0')}:${i % 2 === 0 ? '00' : '30'}` : ''),
-        datasets: [
-          {
-            label: 'Service Level (%)',
-            data: result.perInterval.map(s => s.sl * 100),
-            borderColor: '#3b82f6',
-            backgroundColor: 'rgba(59,130,246,0.15)',
-            fill: true,
-            tension: 0.3,
-            pointRadius: 0,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { labels: { color: '#cbd5e1' } } },
-        scales: {
-          x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.06)' } },
-          y: { min: 0, max: 100, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.06)' } },
-        },
-      },
-    })
-    return () => { chartRef.current?.destroy(); chartRef.current = null }
-  }, [result])
+    if (!result || !onLiveChange) return
+    const stats = intervalStatsAt(result.perInterval, simTimeMin)
+    let abandons = 0
+    for (const e of result.events) {
+      if (e.type === 'call_abandon' && e.timeMin <= simTimeMin) abandons++
+    }
+    onLiveChange({ stats, abandons })
+    return () => onLiveChange(null)
+  }, [result, simTimeMin, onLiveChange])
+
+  const peakAgents = result ? Math.max(1, ...result.perInterval.map(s => s.agents)) : 1
 
   return (
-    <div className="cockpit-viewport">
+    <div className="cockpit-viewport cockpit-live-viewport">
       <div className="cockpit-viewport-header">
-        <span>Live Sim — Phase 1 preview</span>
-        <span className="cockpit-viewport-sub">{running ? 'simulating…' : `total SL: ${result ? (result.totals.sl * 100).toFixed(1) : '—'}%`}</span>
+        <span>Live Sim · time machine</span>
+        <span className="cockpit-viewport-sub">
+          {running ? 'simulating…' : `total SL: ${result ? (result.totals.sl * 100).toFixed(1) : '—'}% · abandons: ${result?.totals.abandons ?? 0}`}
+        </span>
       </div>
+
       <div className="cockpit-viewport-body">
-        <p className="cockpit-viewport-note">Full live animation arrives in Phase 2. This view runs the kernel once per scenario change to verify the pipeline.</p>
-        <div className="cockpit-chart-container">
-          <canvas ref={canvasRef} />
+        <div className="cockpit-agent-canvas-frame">
+          {result
+            ? <AgentDotCanvas events={result.events} peakAgents={peakAgents} simTimeMin={simTimeMin} />
+            : <div className="cockpit-placeholder"><p>Loading sim…</p></div>}
+        </div>
+
+        <div className="cockpit-timeline">
+          <PlayControls
+            playing={playing}
+            speed={speed}
+            simTimeMin={simTimeMin}
+            onPlayToggle={() => setPlaying(!playing)}
+            onSpeedChange={setSpeed}
+            onReset={() => setSimTimeMin(0)}
+          />
+          <TimelineScrubber
+            simTimeMin={simTimeMin}
+            curve={scenario.curve}
+            injectedEvents={scenario.injectedEvents}
+            onSeek={setSimTimeMin}
+          />
         </div>
       </div>
     </div>
