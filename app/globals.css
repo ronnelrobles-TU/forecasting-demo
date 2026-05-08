@@ -1225,3 +1225,198 @@ details[open] .learn-tip summary::before { content: '▼ '; }
   color: #64748b;
   cursor: not-allowed;
 }
+
+/* ───────── Cockpit Phase 4 (Roster Designer) ───────── */
+
+.cockpit-roster-viewport .cockpit-roster-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Controls bar */
+.cockpit-roster-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  flex-wrap: wrap;
+}
+
+.cockpit-roster-auto-btn {
+  background: #a855f7;
+  color: #fff;
+  border: 0;
+  border-radius: 6px;
+  padding: 0.5rem 0.9rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.cockpit-roster-auto-btn:disabled {
+  background: #334155;
+  color: #64748b;
+  cursor: not-allowed;
+}
+
+.cockpit-roster-iter-display {
+  font-size: 0.75rem;
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+
+.cockpit-roster-budget {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+.cockpit-roster-budget-label {
+  font-size: 0.7rem;
+  opacity: 0.6;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.cockpit-roster-budget-slider {
+  width: 140px;
+  accent-color: #a855f7;
+}
+.cockpit-roster-budget-value {
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.cockpit-roster-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+.cockpit-roster-action-btn {
+  background: #334155;
+  color: #e2e8f0;
+  border: 0;
+  border-radius: 4px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.cockpit-roster-action-btn--ghost {
+  background: transparent;
+  border: 1px solid #ef4444;
+  color: #ef4444;
+}
+
+/* Gantt */
+.cockpit-roster-gantt-frame {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 0.75rem;
+  flex: 1;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+}
+.cockpit-roster-gantt {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  flex: 1;
+}
+.cockpit-roster-gantt-axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.6rem;
+  opacity: 0.5;
+  margin-bottom: 0.2rem;
+  padding-left: 0;
+  padding-right: 28px;
+}
+.cockpit-roster-gantt-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 1;
+}
+.cockpit-roster-gantt-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  opacity: 0.5;
+  font-size: 0.85rem;
+}
+.cockpit-roster-gantt-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.cockpit-roster-gantt-row-track {
+  position: relative;
+  flex: 1;
+  height: 24px;
+  background: #1e293b;
+  border-radius: 4px;
+}
+.cockpit-roster-gantt-bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 4px;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  padding: 0 0.4rem;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 600;
+  user-select: none;
+  touch-action: none;
+}
+.cockpit-roster-gantt-bar:active { cursor: grabbing; }
+.cockpit-roster-gantt-bar-label {
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cockpit-roster-gantt-bar-resize {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+  background: rgba(255,255,255,0.2);
+  border-top-right-radius: 4px;
+  border-bottom-right-radius: 4px;
+}
+.cockpit-roster-gantt-remove {
+  background: transparent;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  border-radius: 4px;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  width: 24px;
+}
+.cockpit-roster-gantt-remove:hover { color: #ef4444; border-color: #ef4444; }
+
+/* Coverage */
+.cockpit-roster-coverage-frame {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 0.75rem;
+  height: 180px;
+}
+.cockpit-roster-coverage-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
