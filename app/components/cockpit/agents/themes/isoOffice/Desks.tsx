@@ -1,13 +1,16 @@
 'use client'
 
 import type { AgentVisualState } from '@/lib/animation/agentTimeline'
-import { DESK_POSITIONS, MAX_AGENTS_OFFICE } from './geometry'
+import { DESK_POSITIONS, MAX_AGENTS_OFFICE, BREAK_SEAT_POSITIONS } from './geometry'
 import { AgentSprite } from './AgentSprite'
 import { StatusBubble } from './StatusBubble'
 import { TileGlow } from './TileGlow'
+import type { AnimState } from './animation'
 
 interface DesksProps {
   agents: Array<{ id: string; state: AgentVisualState }>
+  anim?: AnimState
+  bobPhase?: number
 }
 
 const SHIRT_COLOR: Record<AgentVisualState, string> = {
@@ -15,6 +18,10 @@ const SHIRT_COLOR: Record<AgentVisualState, string> = {
   on_call: '#dc2626',
   on_break: '#d97706',
   off_shift: '#475569',
+}
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t
 }
 
 function Chair({ x, y, opacity = 1 }: { x: number; y: number; opacity?: number }) {
@@ -40,21 +47,47 @@ function Desk({ x, y }: { x: number; y: number }) {
   )
 }
 
-export function Desks({ agents }: DesksProps) {
-  // Visible desks = min(agents.length, MAX_AGENTS_OFFICE).
-  // Each desk index 0..5 maps to a fixed home position; agent[i] sits at desk[i].
-  // off_shift -> desk shown empty (chair pushed in, no agent or bubble or glow).
-  // on_break  -> desk shown vacated (chair tilted, no agent at desk; the agent will be rendered in BreakRoom).
+export function Desks({ agents, anim = {}, bobPhase = 0 }: DesksProps) {
   return (
     <g>
       {DESK_POSITIONS.map((pos, i) => {
         const agent = agents[i]
-        if (!agent) {
-          // No agent for this seat at all: hide the entire desk for cleanliness
-          return null
-        }
+        if (!agent) return null
+        const a = anim[agent.id]
         const atDesk = agent.state === 'idle' || agent.state === 'on_call'
         const offShift = agent.state === 'off_shift'
+        const seat = BREAK_SEAT_POSITIONS[i % BREAK_SEAT_POSITIONS.length]
+
+        // Animation overrides
+        let agentX = pos.x
+        let agentY = pos.y - 1
+        let agentOpacity = 1
+        let renderAgentAtDesk = atDesk
+        let bobOffset = 0
+
+        if (a?.kind === 'desk_to_break') {
+          // Walking out: agent slides from desk to break seat
+          agentX = lerp(pos.x, seat.x, a.progress)
+          agentY = lerp(pos.y - 1, seat.y, a.progress)
+          renderAgentAtDesk = true
+        } else if (a?.kind === 'break_to_desk') {
+          // Walking back: agent slides from break seat to desk
+          agentX = lerp(seat.x, pos.x, a.progress)
+          agentY = lerp(seat.y, pos.y - 1, a.progress)
+          renderAgentAtDesk = true
+        } else if (a?.kind === 'fade_in') {
+          agentOpacity = a.progress
+          renderAgentAtDesk = true
+        } else if (a?.kind === 'fade_out') {
+          agentOpacity = 1 - a.progress
+          renderAgentAtDesk = true
+        }
+
+        if (atDesk && agent.state === 'on_call') {
+          bobOffset = Math.sin(bobPhase) * 1
+        }
+
+        const shirtColor = SHIRT_COLOR[agent.state]
 
         return (
           <g key={`desk-${i}`}>
@@ -62,11 +95,21 @@ export function Desks({ agents }: DesksProps) {
             <Chair
               x={pos.x}
               y={pos.y - 7}
-              opacity={offShift ? 0.6 : 1}
+              opacity={offShift ? 0.6 : (a?.kind === 'desk_to_break' || a?.kind === 'break_to_desk' || agent.state === 'on_break' ? 0.7 : 1)}
             />
-            {atDesk && <AgentSprite x={pos.x} y={pos.y - 1} shirtColor={SHIRT_COLOR[agent.state]}/>}
+            {renderAgentAtDesk && (
+              <AgentSprite
+                x={agentX}
+                y={agentY}
+                shirtColor={shirtColor}
+                bobOffset={bobOffset}
+                opacity={agentOpacity}
+              />
+            )}
             <Desk x={pos.x} y={pos.y}/>
-            {atDesk && <StatusBubble x={pos.x} y={pos.y - 1} state={agent.state}/>}
+            {renderAgentAtDesk && agentOpacity > 0.2 && (
+              <StatusBubble x={agentX} y={agentY} state={agent.state}/>
+            )}
           </g>
         )
       })}
@@ -74,5 +117,4 @@ export function Desks({ agents }: DesksProps) {
   )
 }
 
-// Constant re-exported for use in fallback decision in AgentScene.
 export { MAX_AGENTS_OFFICE }

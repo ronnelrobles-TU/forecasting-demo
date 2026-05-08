@@ -4,9 +4,11 @@ import type { AgentVisualState } from '@/lib/animation/agentTimeline'
 import { BREAK_TABLE_POSITION, BREAK_SEAT_POSITIONS, WATER_COOLER_POSITION } from './geometry'
 import { AgentSprite } from './AgentSprite'
 import { StatusBubble } from './StatusBubble'
+import type { AnimState } from './animation'
 
 interface BreakRoomProps {
   agents: Array<{ id: string; state: AgentVisualState }>
+  anim?: AnimState
 }
 
 function Table({ x, y }: { x: number; y: number }) {
@@ -34,8 +36,7 @@ function WaterCooler({ x, y }: { x: number; y: number }) {
   )
 }
 
-export function BreakRoom({ agents }: BreakRoomProps) {
-  // Assign break agents to seat positions in stable order: agent-index order maps to seat-index order.
+export function BreakRoom({ agents, anim }: BreakRoomProps) {
   const breakAgents = agents
     .map((a, i) => ({ a, i }))
     .filter(({ a }) => a.state === 'on_break')
@@ -44,8 +45,10 @@ export function BreakRoom({ agents }: BreakRoomProps) {
     <g>
       <WaterCooler x={WATER_COOLER_POSITION.x} y={WATER_COOLER_POSITION.y}/>
       <Table x={BREAK_TABLE_POSITION.x} y={BREAK_TABLE_POSITION.y}/>
-      {breakAgents.map(({ a }, k) => {
-        const seat = BREAK_SEAT_POSITIONS[k % BREAK_SEAT_POSITIONS.length]
+      {breakAgents.map(({ a, i }) => {
+        const inTransit = anim?.[a.id]?.kind === 'desk_to_break' || anim?.[a.id]?.kind === 'break_to_desk'
+        if (inTransit) return null
+        const seat = BREAK_SEAT_POSITIONS[i % BREAK_SEAT_POSITIONS.length]
         return (
           <g key={`break-${a.id}`}>
             <AgentSprite x={seat.x} y={seat.y} shirtColor="#d97706"/>
