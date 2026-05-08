@@ -1,15 +1,22 @@
 'use client'
 
+import { useState } from 'react'
 import { useScenario } from './ScenarioContext'
 import { campaigns } from '@/lib/campaigns'
 import { HoopSlider } from './controls/HoopSlider'
 import { CurveEditor } from './controls/CurveEditor'
 import { DailyTotalInput } from './controls/DailyTotalInput'
 import { SliderRow } from './controls/SliderRow'
+import { InjectEventModal } from './inject/InjectEventModal'
 import type { CampaignKey } from '@/lib/types'
 
-export function Sidebar() {
-  const { scenario, setCampaign, setHoop, setCurve, setDailyTotal, setNumeric } = useScenario()
+interface SidebarProps {
+  currentSimTimeMin: number
+}
+
+export function Sidebar({ currentSimTimeMin }: SidebarProps) {
+  const { scenario, setCampaign, setHoop, setCurve, setDailyTotal, setNumeric, addInjection, clearInjections } = useScenario()
+  const [modalOpen, setModalOpen] = useState(false)
 
   return (
     <aside className="cockpit-sidebar">
@@ -47,9 +54,27 @@ export function Sidebar() {
         <SliderRow label="Absent. (%)"    value={scenario.abs}    min={0}   max={20}   step={1}  format={v => `${v}%`}   onChange={v => setNumeric('abs', v)} />
       </div>
 
-      <button type="button" className="cockpit-inject-btn" disabled>
-        ⚡ Inject event… <span className="cockpit-inject-soon">(Phase 2)</span>
+      {scenario.injectedEvents.length > 0 && (
+        <div className="cockpit-section">
+          <div className="cockpit-section-label">Active injections ({scenario.injectedEvents.length})</div>
+          <button type="button" className="cockpit-clear-injections" onClick={clearInjections}>Clear all</button>
+        </div>
+      )}
+
+      <button
+        type="button"
+        className="cockpit-inject-btn"
+        onClick={() => setModalOpen(true)}
+      >
+        ⚡ Inject event…
       </button>
+
+      <InjectEventModal
+        open={modalOpen}
+        fireAtMin={currentSimTimeMin}
+        onClose={() => setModalOpen(false)}
+        onPick={preset => addInjection(preset.build(currentSimTimeMin))}
+      />
 
     </aside>
   )

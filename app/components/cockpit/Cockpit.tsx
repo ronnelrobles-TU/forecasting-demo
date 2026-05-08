@@ -11,18 +11,25 @@ import { RosterTab } from './tabs/RosterTab'
 import { ClassicTab } from './tabs/ClassicTab'
 import type { IntervalStat } from '@/lib/types'
 
+interface LiveData {
+  stats: IntervalStat
+  abandons: number
+  simTimeMin: number
+}
+
 export function Cockpit() {
   const [tab, setTab] = useState<TabKey>('live')
-  const [live, setLive] = useState<{ stats: IntervalStat; abandons: number } | null>(null)
+  const [live, setLive] = useState<LiveData | null>(null)
 
   const liveProps: LiveSimTabProps = { onLiveChange: setLive }
+  const simTimeMin = live?.simTimeMin ?? 0
 
   return (
     <ScenarioProvider>
       <div className="cockpit">
         <Header active={tab} onChange={setTab} />
         <div className="cockpit-body">
-          <Sidebar />
+          <Sidebar currentSimTimeMin={tab === 'live' ? simTimeMin : 0} />
           <main className="cockpit-main">
             {tab === 'live'    && <LiveSimTab {...liveProps} />}
             {tab === 'monte'   && <MonteCarloTab />}
@@ -30,7 +37,7 @@ export function Cockpit() {
             {tab === 'classic' && <ClassicTab />}
           </main>
         </div>
-        <KpiStrip live={tab === 'live' ? live : null} />
+        <KpiStrip live={tab === 'live' && live ? { stats: live.stats, abandons: live.abandons } : null} />
       </div>
     </ScenarioProvider>
   )

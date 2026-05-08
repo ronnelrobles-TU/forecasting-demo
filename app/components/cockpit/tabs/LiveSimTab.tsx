@@ -13,6 +13,7 @@ import { intervalStatsAt } from '@/lib/animation/intervalAtTime'
 interface LiveData {
   stats: IntervalStat
   abandons: number
+  simTimeMin: number
 }
 
 export interface LiveSimTabProps {
@@ -27,7 +28,6 @@ export function LiveSimTab({ onLiveChange }: LiveSimTabProps = {}) {
 
   const running = scenario !== shownScenario
 
-  // Re-run kernel when scenario changes (incl. injectedEvents)
   useEffect(() => {
     let cancelled = false
     runDayInWorker(scenario).then(r => {
@@ -38,7 +38,6 @@ export function LiveSimTab({ onLiveChange }: LiveSimTabProps = {}) {
     return () => { cancelled = true }
   }, [scenario])
 
-  // Compute live stats and bubble up so KpiStrip in the cockpit can show them
   useEffect(() => {
     if (!result || !onLiveChange) return
     const stats = intervalStatsAt(result.perInterval, simTimeMin)
@@ -46,7 +45,7 @@ export function LiveSimTab({ onLiveChange }: LiveSimTabProps = {}) {
     for (const e of result.events) {
       if (e.type === 'call_abandon' && e.timeMin <= simTimeMin) abandons++
     }
-    onLiveChange({ stats, abandons })
+    onLiveChange({ stats, abandons, simTimeMin })
     return () => onLiveChange(null)
   }, [result, simTimeMin, onLiveChange])
 
