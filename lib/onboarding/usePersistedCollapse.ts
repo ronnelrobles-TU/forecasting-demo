@@ -20,6 +20,7 @@ export function usePersistedCollapse(tab: TabKey): PersistedCollapse {
   useEffect(() => {
     if (typeof window === 'undefined') return
     const stored = window.localStorage.getItem(storageKey(tab))
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: SSR-safe localStorage hydration; we can't read storage during render server-side, so we set state once on mount
     if (stored === 'collapsed') setCollapsed(true)
   }, [tab])
 
