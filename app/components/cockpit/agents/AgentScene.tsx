@@ -20,22 +20,27 @@ export function AgentScene({ events, peakAgents, simTimeMin }: AgentSceneProps) 
 
   const overCapacity = peakAgents > MAX_AGENTS_OFFICE
   const effectiveTheme = overCapacity && theme === 'office' ? 'dots' : theme
-  const fallbackEngaged = overCapacity && theme === 'office'
   const prevFallbackRef = useRef(false)
 
-  // Show toast when fallback engages (rising edge); dismiss on falling edge
+  // Effect 1: decide whether toast should be shown (rising/falling edge detection)
   useEffect(() => {
-    const prev = prevFallbackRef.current
+    const fallbackEngaged = overCapacity && theme === 'office'
+    const wasEngaged = prevFallbackRef.current
     prevFallbackRef.current = fallbackEngaged
-    if (!prev && fallbackEngaged) {
+
+    if (!wasEngaged && fallbackEngaged) {
       setShowFallbackToast(true)
-      const t = setTimeout(() => setShowFallbackToast(false), 4000)
-      return () => clearTimeout(t)
-    }
-    if (prev && !fallbackEngaged) {
+    } else if (wasEngaged && !fallbackEngaged) {
       setShowFallbackToast(false)
     }
-  }, [fallbackEngaged])
+  }, [overCapacity, theme])
+
+  // Effect 2: auto-dismiss the toast 4 seconds after it appears
+  useEffect(() => {
+    if (!showFallbackToast) return
+    const t = setTimeout(() => setShowFallbackToast(false), 4000)
+    return () => clearTimeout(t)
+  }, [showFallbackToast])
 
   const timelines = useMemo(
     () => buildAgentTimelines(events, peakAgents),
