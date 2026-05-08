@@ -26,12 +26,12 @@ export interface Campaign {
   rules: string
 }
 
-export interface Shift {
+export interface RosterShift {
   id: string
-  agentId: string
-  startMin: number
-  endMin: number
-  breaks: { startMin: number; durationMin: number }[]
+  startMin: number          // minutes from midnight
+  endMin: number            // exclusive
+  agentCount: number        // number of agents working this shift template
+  breaks: { startMin: number; durationMin: number }[]   // shared break windows; auto-staggered by kernel
 }
 
 export interface Scenario {
@@ -44,7 +44,7 @@ export interface Scenario {
   asa: number
   shrink: number
   abs: number
-  roster: Shift[] | null      // null → kernel derives from Erlang C
+  roster: RosterShift[] | null   // null → kernel derives from Erlang C
   rngSeed: number
   injectedEvents: InjectedEvent[]
 }
