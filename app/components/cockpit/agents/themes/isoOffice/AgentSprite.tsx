@@ -4,12 +4,11 @@ interface AgentSpriteProps {
   x: number
   y: number
   shirtColor: string
-  scale?: number          // uniform scale for LOD tiers (1 = full, 0.5 = medium, 0.25 = tiny)
   bob?: boolean           // when true, applies CSS-driven idle bob (GPU-composited, no React re-render)
   opacity?: number        // for fade in/out
 }
 
-export function AgentSprite({ x, y, shirtColor, scale = 1, bob = false, opacity = 1 }: AgentSpriteProps) {
+export function AgentSprite({ x, y, shirtColor, bob = false, opacity = 1 }: AgentSpriteProps) {
   const inner = (
     <>
       <ellipse cx={0} cy={6} rx={4.5} ry={1.4} fill="#1e293b" opacity={0.35}/>
@@ -19,9 +18,8 @@ export function AgentSprite({ x, y, shirtColor, scale = 1, bob = false, opacity 
       <circle cx={2.6} cy={-5.3} r={0.8} fill="#1e293b"/>
     </>
   )
-  const transform = scale === 1 ? `translate(${x}, ${y})` : `translate(${x}, ${y}) scale(${scale})`
   return (
-    <g transform={transform} opacity={opacity}>
+    <g transform={`translate(${x}, ${y})`} opacity={opacity}>
       {bob ? <g className="cockpit-iso-bob">{inner}</g> : inner}
     </g>
   )

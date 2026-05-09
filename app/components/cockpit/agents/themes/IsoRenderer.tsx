@@ -1,16 +1,21 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { AgentRendererProps } from './AgentRenderer'
 import { Room, RoomDefs } from './isoOffice/Room'
 import { Desks } from './isoOffice/Desks'
 import { BreakRoom } from './isoOffice/BreakRoom'
 import { Manager } from './isoOffice/Manager'
 import { TileGlowDefs } from './isoOffice/TileGlow'
-import { VIEWBOX } from './isoOffice/geometry'
+import { computeOfficeLayout, type OfficeLayout } from './isoOffice/geometry'
 import { advanceAnimations, detectTransitions, type AnimState, type StateMap } from './isoOffice/animation'
 
 export function IsoRenderer({ agents, simTimeMin }: AgentRendererProps) {
+  // Compute office layout once per render based on agent count. Floor + walls +
+  // viewBox all derive from this — high counts produce a larger floor and a
+  // bigger viewBox, scaled to fit the panel via xMidYMid meet (zoom-out effect).
+  const layout: OfficeLayout = useMemo(() => computeOfficeLayout(agents.length), [agents.length])
+
   const prevStatesRef = useRef<StateMap>({})
   const animRef = useRef<AnimState>({})
   const lastTickRef = useRef<number | null>(null)
@@ -54,13 +59,16 @@ export function IsoRenderer({ agents, simTimeMin }: AgentRendererProps) {
   }, [])
 
   return (
-    <svg viewBox={`0 0 ${VIEWBOX.w} ${VIEWBOX.h}`} style={{ width: '100%', height: '100%', display: 'block' }}>
+    <svg
+      viewBox={`0 0 ${layout.viewBox.w} ${layout.viewBox.h}`}
+      style={{ width: '100%', height: '100%', display: 'block' }}
+    >
       <RoomDefs/>
       <defs><TileGlowDefs/></defs>
-      <Room/>
-      <BreakRoom agents={agents} anim={animSnapshot}/>
-      <Desks agents={agents} anim={animSnapshot}/>
-      <Manager/>
+      <Room layout={layout}/>
+      <BreakRoom agents={agents} anim={animSnapshot} layout={layout}/>
+      <Desks agents={agents} anim={animSnapshot} layout={layout}/>
+      <Manager layout={layout}/>
     </svg>
   )
 }

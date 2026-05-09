@@ -1,7 +1,9 @@
 'use client'
 
-import { MANAGER_POSITION, PLANT_POSITION } from './geometry'
+import type { OfficeLayout } from './geometry'
 import { AgentSprite } from './AgentSprite'
+
+interface ManagerProps { layout: OfficeLayout }
 
 function ExecChair({ x, y }: { x: number; y: number }) {
   return (
@@ -39,13 +41,15 @@ function Plant({ x, y }: { x: number; y: number }) {
   )
 }
 
-export function Manager() {
+export function Manager({ layout }: ManagerProps) {
+  const desk = layout.manager.deskPosition
+  const plant = layout.manager.plantPosition
   return (
     <g>
-      <ExecChair x={MANAGER_POSITION.x} y={MANAGER_POSITION.y}/>
-      <AgentSprite x={MANAGER_POSITION.x} y={MANAGER_POSITION.y - 2} shirtColor="#a855f7"/>
-      <ExecDesk x={MANAGER_POSITION.x} y={MANAGER_POSITION.y}/>
-      <Plant x={PLANT_POSITION.x} y={PLANT_POSITION.y}/>
+      <ExecChair x={desk.x} y={desk.y}/>
+      <AgentSprite x={desk.x} y={desk.y - 2} shirtColor="#a855f7"/>
+      <ExecDesk x={desk.x} y={desk.y}/>
+      <Plant x={plant.x} y={plant.y}/>
     </g>
   )
 }

@@ -1,45 +1,69 @@
 'use client'
 
-import { FLOOR_CORNERS, isoToScreen, WALL_HEIGHT, MANAGER_ZONE_POINTS, BREAK_ZONE_POINTS } from './geometry'
+import { WALL_HEIGHT, isoToScreen, type OfficeLayout, type ScreenPoint } from './geometry'
 
-const ptsStr = (pts: ReadonlyArray<{ x: number; y: number }>) =>
-  pts.map(p => `${p.x},${p.y}`).join(' ')
+interface RoomProps { layout: OfficeLayout }
 
-// Six windows: 3 along each back wall, at iso steps (1,2), (2.5,3.5), (4,5) along each axis.
+const ptsStr = (pts: ReadonlyArray<ScreenPoint>) => pts.map(p => `${p.x},${p.y}`).join(' ')
+
 const WINDOW_INSET_TOP = 13
 const WINDOW_INSET_BOTTOM = 8
+const WINDOW_HALF_WIDTH = 0.5  // iso units half-width per window
 
-function makeWindowOnNW(jStart: number, jEnd: number) {
-  // NW wall: bottom edge along iso (0, j) for j=0..6. Wall extends UP by WALL_HEIGHT.
-  const bl = isoToScreen(0, jStart)
-  const br = isoToScreen(0, jEnd)
+function makeWindow(midI: number, midJ: number, alongI: boolean, originX: number, originY: number): ScreenPoint[] {
+  // Window centered on iso (midI, midJ).
+  // For NE wall (alongI=true), window spans iso (midI ± WHW, 0).
+  // For NW wall (alongI=false), window spans iso (0, midJ ± WHW).
+  if (alongI) {
+    const bl = isoToScreen(midI - WINDOW_HALF_WIDTH, 0, originX, originY)
+    const br = isoToScreen(midI + WINDOW_HALF_WIDTH, 0, originX, originY)
+    return [
+      { x: bl.x, y: bl.y - WALL_HEIGHT + WINDOW_INSET_TOP },
+      { x: br.x, y: br.y - WALL_HEIGHT + WINDOW_INSET_TOP },
+      { x: br.x, y: br.y - WINDOW_INSET_BOTTOM },
+      { x: bl.x, y: bl.y - WINDOW_INSET_BOTTOM },
+    ]
+  } else {
+    const bl = isoToScreen(0, midJ - WINDOW_HALF_WIDTH, originX, originY)
+    const br = isoToScreen(0, midJ + WINDOW_HALF_WIDTH, originX, originY)
+    return [
+      { x: bl.x, y: bl.y - WALL_HEIGHT + WINDOW_INSET_TOP },
+      { x: br.x, y: br.y - WALL_HEIGHT + WINDOW_INSET_TOP },
+      { x: br.x, y: br.y - WINDOW_INSET_BOTTOM },
+      { x: bl.x, y: bl.y - WINDOW_INSET_BOTTOM },
+    ]
+  }
+}
+
+function makePartition(p1: ScreenPoint, p2: ScreenPoint): ScreenPoint[] {
+  // Low partition: extrude 6px upward in screen y from the iso line p1->p2
   return [
-    { x: bl.x, y: bl.y - WALL_HEIGHT + WINDOW_INSET_TOP },
-    { x: br.x, y: br.y - WALL_HEIGHT + WINDOW_INSET_TOP },
-    { x: br.x, y: br.y - WINDOW_INSET_BOTTOM },
-    { x: bl.x, y: bl.y - WINDOW_INSET_BOTTOM },
+    p1,
+    p2,
+    { x: p2.x, y: p2.y - 6 },
+    { x: p1.x, y: p1.y - 6 },
   ]
 }
 
-function makeWindowOnNE(iStart: number, iEnd: number) {
-  const bl = isoToScreen(iStart, 0)
-  const br = isoToScreen(iEnd, 0)
-  return [
-    { x: bl.x, y: bl.y - WALL_HEIGHT + WINDOW_INSET_TOP },
-    { x: br.x, y: br.y - WALL_HEIGHT + WINDOW_INSET_TOP },
-    { x: br.x, y: br.y - WINDOW_INSET_BOTTOM },
-    { x: bl.x, y: bl.y - WINDOW_INSET_BOTTOM },
-  ]
-}
+export function Room({ layout }: RoomProps) {
+  const { N, E, W, S } = layout.floorCorners
+  const wallTopN: ScreenPoint = { x: N.x, y: N.y - WALL_HEIGHT }
+  const wallTopE: ScreenPoint = { x: E.x, y: E.y - WALL_HEIGHT }
+  const wallTopW: ScreenPoint = { x: W.x, y: W.y - WALL_HEIGHT }
 
-const NW_WINDOWS = [makeWindowOnNW(1, 2), makeWindowOnNW(2.5, 3.5), makeWindowOnNW(4, 5)]
-const NE_WINDOWS = [makeWindowOnNE(1, 2), makeWindowOnNE(2.5, 3.5), makeWindowOnNE(4, 5)]
+  const { tilesW, tilesD, windowsPerWall, origin } = layout
 
-export function Room() {
-  const { N, E, S, W } = FLOOR_CORNERS
-  const wallTopN = { x: N.x, y: N.y - WALL_HEIGHT }
-  const wallTopE = { x: E.x, y: E.y - WALL_HEIGHT }
-  const wallTopW = { x: W.x, y: W.y - WALL_HEIGHT }
+  // Distribute windows evenly along each back wall.
+  const neWindows: ScreenPoint[][] = []
+  for (let k = 0; k < windowsPerWall; k++) {
+    const midI = (k + 0.5) * tilesW / windowsPerWall
+    neWindows.push(makeWindow(midI, 0, true, origin.x, origin.y))
+  }
+  const nwWindows: ScreenPoint[][] = []
+  for (let k = 0; k < windowsPerWall; k++) {
+    const midJ = (k + 0.5) * tilesD / windowsPerWall
+    nwWindows.push(makeWindow(0, midJ, false, origin.x, origin.y))
+  }
 
   return (
     <g>
@@ -49,55 +73,23 @@ export function Room() {
       <line x1={N.x} y1={wallTopN.y} x2={N.x} y2={N.y} stroke="#475569" strokeWidth="1.2"/>
 
       {/* Windows */}
-      {NW_WINDOWS.map((w, i) => <polygon key={`nww${i}`} points={ptsStr(w)} fill="url(#vO-win)" stroke="#0c4a6e" strokeWidth="0.6"/>)}
-      {NE_WINDOWS.map((w, i) => <polygon key={`new${i}`} points={ptsStr(w)} fill="url(#vO-win)" stroke="#0c4a6e" strokeWidth="0.6"/>)}
+      {nwWindows.map((w, i) => <polygon key={`nww${i}`} points={ptsStr(w)} fill="url(#vO-win)" stroke="#0c4a6e" strokeWidth="0.6"/>)}
+      {neWindows.map((w, i) => <polygon key={`new${i}`} points={ptsStr(w)} fill="url(#vO-win)" stroke="#0c4a6e" strokeWidth="0.6"/>)}
 
       {/* Floor */}
       <polygon points={ptsStr([N, E, S, W])} fill="url(#vO-floor)" stroke="#475569" strokeWidth="1"/>
 
       {/* Zone tints */}
-      <polygon points={ptsStr(MANAGER_ZONE_POINTS)} fill="url(#vO-mgrZone)" opacity="0.7"/>
-      <polygon points={ptsStr(BREAK_ZONE_POINTS)} fill="url(#vO-brkZone)" opacity="0.7"/>
+      <polygon points={ptsStr(layout.manager.zonePoints)} fill="url(#vO-mgrZone)" opacity="0.7"/>
+      <polygon points={ptsStr(layout.breakRoom.zonePoints)} fill="url(#vO-brkZone)" opacity="0.7"/>
 
-      {/* Low partition walls dividing zones from main floor */}
-      {/* Manager partition: front edge from iso(4,0) to iso(4,2) and side from iso(4,2) to iso(6,2) */}
-      <polygon
-        points={ptsStr([
-          isoToScreen(4, 0),
-          isoToScreen(4, 2),
-          { x: isoToScreen(4, 2).x, y: isoToScreen(4, 2).y - 6 },
-          { x: isoToScreen(4, 0).x, y: isoToScreen(4, 0).y - 6 },
-        ])}
-        fill="#94a3b8" stroke="#475569" strokeWidth="0.4"
-      />
-      <polygon
-        points={ptsStr([
-          isoToScreen(4, 2),
-          isoToScreen(6, 2),
-          { x: isoToScreen(6, 2).x, y: isoToScreen(6, 2).y - 6 },
-          { x: isoToScreen(4, 2).x, y: isoToScreen(4, 2).y - 6 },
-        ])}
-        fill="#a1aab9" stroke="#475569" strokeWidth="0.4"
-      />
-      {/* Break partition */}
-      <polygon
-        points={ptsStr([
-          isoToScreen(0, 4),
-          isoToScreen(2, 4),
-          { x: isoToScreen(2, 4).x, y: isoToScreen(2, 4).y - 6 },
-          { x: isoToScreen(0, 4).x, y: isoToScreen(0, 4).y - 6 },
-        ])}
-        fill="#a1aab9" stroke="#475569" strokeWidth="0.4"
-      />
-      <polygon
-        points={ptsStr([
-          isoToScreen(2, 4),
-          isoToScreen(2, 6),
-          { x: isoToScreen(2, 6).x, y: isoToScreen(2, 6).y - 6 },
-          { x: isoToScreen(2, 4).x, y: isoToScreen(2, 4).y - 6 },
-        ])}
-        fill="#94a3b8" stroke="#475569" strokeWidth="0.4"
-      />
+      {/* Low partitions dividing zones from the main floor */}
+      {layout.manager.partitionEdges.map(([p1, p2], i) => (
+        <polygon key={`mgrP${i}`} points={ptsStr(makePartition(p1, p2))} fill="#94a3b8" stroke="#475569" strokeWidth="0.4"/>
+      ))}
+      {layout.breakRoom.partitionEdges.map(([p1, p2], i) => (
+        <polygon key={`brkP${i}`} points={ptsStr(makePartition(p1, p2))} fill="#94a3b8" stroke="#475569" strokeWidth="0.4"/>
+      ))}
     </g>
   )
 }

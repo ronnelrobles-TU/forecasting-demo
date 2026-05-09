@@ -1,7 +1,7 @@
 'use client'
 
 import type { AgentVisualState } from '@/lib/animation/agentTimeline'
-import { BREAK_TABLE_POSITION, computeBreakSeatPositions, computeDeskLayout, WATER_COOLER_POSITION } from './geometry'
+import type { OfficeLayout } from './geometry'
 import { AgentSprite } from './AgentSprite'
 import { StatusBubble } from './StatusBubble'
 import type { AnimState } from './animation'
@@ -9,6 +9,7 @@ import type { AnimState } from './animation'
 interface BreakRoomProps {
   agents: Array<{ id: string; state: AgentVisualState }>
   anim?: AnimState
+  layout: OfficeLayout
 }
 
 function Table({ x, y }: { x: number; y: number }) {
@@ -36,33 +37,22 @@ function WaterCooler({ x, y }: { x: number; y: number }) {
   )
 }
 
-export function BreakRoom({ agents, anim }: BreakRoomProps) {
-  const breakAgents = agents
-    .map((a, i) => ({ a, i }))
-    .filter(({ a }) => a.state === 'on_break')
-
-  // Allocate enough seats for ~25% of total agent pool, minimum 8.
-  const maxBreakSeats = Math.max(8, Math.ceil(agents.length * 0.25))
-  const seatPositions = computeBreakSeatPositions(maxBreakSeats)
-
-  // Re-use the same LOD tier logic as Desks so break-room sprites match
-  // sprite scale and bubble visibility across agent-count tiers.
-  const layout = computeDeskLayout(agents.length)
-  const showBubble = layout.tier === 1
-  const spriteScale = layout.spriteScale
+export function BreakRoom({ agents, anim, layout }: BreakRoomProps) {
+  const breakAgents = agents.map((a, i) => ({ a, i })).filter(({ a }) => a.state === 'on_break')
+  const seatPositions = layout.breakRoom.seatPositions
 
   return (
     <g>
-      <WaterCooler x={WATER_COOLER_POSITION.x} y={WATER_COOLER_POSITION.y}/>
-      <Table x={BREAK_TABLE_POSITION.x} y={BREAK_TABLE_POSITION.y}/>
+      <WaterCooler x={layout.breakRoom.waterCoolerPosition.x} y={layout.breakRoom.waterCoolerPosition.y}/>
+      <Table x={layout.breakRoom.tableCenter.x} y={layout.breakRoom.tableCenter.y}/>
       {breakAgents.map(({ a, i }) => {
         const inTransit = anim?.[a.id]?.kind === 'desk_to_break' || anim?.[a.id]?.kind === 'break_to_desk'
         if (inTransit) return null
         const seat = seatPositions[i % seatPositions.length]
         return (
           <g key={`break-${a.id}`}>
-            <AgentSprite x={seat.x} y={seat.y} shirtColor="#d97706" scale={spriteScale}/>
-            {showBubble && <StatusBubble x={seat.x} y={seat.y} state="on_break"/>}
+            <AgentSprite x={seat.x} y={seat.y} shirtColor="#d97706"/>
+            <StatusBubble x={seat.x} y={seat.y} state="on_break"/>
           </g>
         )
       })}
