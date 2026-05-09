@@ -126,6 +126,58 @@ export const BREAK_SEAT_POSITIONS: ScreenPoint[] = Array.from({ length: SEAT_COU
   }
 })
 
+/**
+ * Compute break-room seat positions sized to the requested max-on-break count.
+ *
+ * Always includes the original 8-seat ring around the break table at iso(1, 5).
+ * If more seats are needed, fills the remainder of the break-room zone
+ * (iso 0..2, 4..6) with a packed grid (step 0.4 iso units), skipping a small
+ * exclusion radius around the table center. Candidates are sorted back-to-front
+ * (i+j ascending) for SVG depth ordering.
+ *
+ * Used by BreakRoom.tsx to render seated agents and by Desks.tsx walk-lerp
+ * targets so transition animations land on the correct seat slot.
+ */
+export function computeBreakSeatPositions(maxBreakAgents: number): ScreenPoint[] {
+  const tableCenter = BREAK_TABLE_POSITION
+  const seats: ScreenPoint[] = []
+
+  // Ring 1 (existing): 8 seats around the table
+  const RING1_RX = 18
+  const RING1_RY = 9
+  const RING1_COUNT = 8
+  for (let k = 0; k < RING1_COUNT; k++) {
+    const angle = (k / RING1_COUNT) * 2 * Math.PI
+    seats.push({
+      x: tableCenter.x + Math.cos(angle) * RING1_RX,
+      y: tableCenter.y + Math.sin(angle) * RING1_RY,
+    })
+  }
+
+  // If we need more seats, fill the rest of the break-room zone in a packed grid.
+  // Break zone: iso (0..2, 4..6). Skip the table area (around iso(1, 5)).
+  if (maxBreakAgents > RING1_COUNT) {
+    const candidates: Array<{ i: number; j: number }> = []
+    for (let i = 0.2; i <= 2.0; i += 0.4) {
+      for (let j = 4.0; j <= 6.0; j += 0.4) {
+        // Skip positions too close to the table center (iso 1, 5)
+        const di = i - 1
+        const dj = j - 5
+        if (di * di + dj * dj < 0.36) continue   // 0.6 iso-unit radius around table
+        candidates.push({ i, j })
+      }
+    }
+    // Sort by depth (i+j ascending) for back-to-front order
+    candidates.sort((a, b) => (a.i + a.j) - (b.i + b.j))
+    for (const c of candidates) {
+      seats.push(isoToScreen(c.i, c.j))
+      if (seats.length >= maxBreakAgents) break
+    }
+  }
+
+  return seats
+}
+
 // Zone polygons (for floor-tint rendering)
 export const MANAGER_ZONE_POINTS = [
   isoToScreen(4, 0),

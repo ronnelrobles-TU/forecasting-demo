@@ -9,6 +9,7 @@ import {
   TILE_H,
   MAX_AGENTS_OFFICE,
   computeDeskLayout,
+  computeBreakSeatPositions,
 } from '@/app/components/cockpit/agents/themes/isoOffice/geometry'
 
 describe('isoToScreen', () => {
@@ -106,5 +107,17 @@ describe('computeDeskLayout', () => {
     const layout = computeDeskLayout(0)
     expect(layout.positions.length).toBe(0)
     expect(layout.tier).toBe(1)
+  })
+})
+
+describe('computeBreakSeatPositions', () => {
+  it('returns at least 8 seats (the original ring) for small max', () => {
+    expect(computeBreakSeatPositions(5).length).toBeGreaterThanOrEqual(8)
+  })
+  it('grows the seat count to accommodate higher max', () => {
+    const small = computeBreakSeatPositions(8)
+    const big = computeBreakSeatPositions(40)
+    expect(big.length).toBeGreaterThan(small.length)
+    expect(big.length).toBeLessThanOrEqual(40 + 8)  // at most maxBreakAgents extras + ring 1
   })
 })

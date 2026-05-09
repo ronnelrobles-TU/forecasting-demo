@@ -1,7 +1,7 @@
 'use client'
 
 import type { AgentVisualState } from '@/lib/animation/agentTimeline'
-import { BREAK_TABLE_POSITION, BREAK_SEAT_POSITIONS, WATER_COOLER_POSITION } from './geometry'
+import { BREAK_TABLE_POSITION, computeBreakSeatPositions, computeDeskLayout, WATER_COOLER_POSITION } from './geometry'
 import { AgentSprite } from './AgentSprite'
 import { StatusBubble } from './StatusBubble'
 import type { AnimState } from './animation'
@@ -41,6 +41,16 @@ export function BreakRoom({ agents, anim }: BreakRoomProps) {
     .map((a, i) => ({ a, i }))
     .filter(({ a }) => a.state === 'on_break')
 
+  // Allocate enough seats for ~25% of total agent pool, minimum 8.
+  const maxBreakSeats = Math.max(8, Math.ceil(agents.length * 0.25))
+  const seatPositions = computeBreakSeatPositions(maxBreakSeats)
+
+  // Re-use the same LOD tier logic as Desks so break-room sprites match
+  // sprite scale and bubble visibility across agent-count tiers.
+  const layout = computeDeskLayout(agents.length)
+  const showBubble = layout.tier === 1
+  const spriteScale = layout.spriteScale
+
   return (
     <g>
       <WaterCooler x={WATER_COOLER_POSITION.x} y={WATER_COOLER_POSITION.y}/>
@@ -48,11 +58,11 @@ export function BreakRoom({ agents, anim }: BreakRoomProps) {
       {breakAgents.map(({ a, i }) => {
         const inTransit = anim?.[a.id]?.kind === 'desk_to_break' || anim?.[a.id]?.kind === 'break_to_desk'
         if (inTransit) return null
-        const seat = BREAK_SEAT_POSITIONS[i % BREAK_SEAT_POSITIONS.length]
+        const seat = seatPositions[i % seatPositions.length]
         return (
           <g key={`break-${a.id}`}>
-            <AgentSprite x={seat.x} y={seat.y} shirtColor="#d97706"/>
-            <StatusBubble x={seat.x} y={seat.y} state="on_break"/>
+            <AgentSprite x={seat.x} y={seat.y} shirtColor="#d97706" scale={spriteScale}/>
+            {showBubble && <StatusBubble x={seat.x} y={seat.y} state="on_break"/>}
           </g>
         )
       })}

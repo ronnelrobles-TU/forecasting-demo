@@ -1,7 +1,7 @@
 'use client'
 
 import type { AgentVisualState } from '@/lib/animation/agentTimeline'
-import { computeDeskLayout, MAX_AGENTS_OFFICE, BREAK_SEAT_POSITIONS } from './geometry'
+import { computeDeskLayout, MAX_AGENTS_OFFICE, computeBreakSeatPositions } from './geometry'
 import { AgentSprite } from './AgentSprite'
 import { StatusBubble } from './StatusBubble'
 import { TileGlow } from './TileGlow'
@@ -55,6 +55,7 @@ function Desk({ x, y, scale = 1, withMonitor = true }: { x: number; y: number; s
 export function Desks({ agents, anim = {} }: DesksProps) {
   const layout = computeDeskLayout(agents.length)
   const { positions, tier, spriteScale } = layout
+  const breakSeats = computeBreakSeatPositions(Math.max(8, Math.ceil(agents.length * 0.25)))
 
   return (
     <g>
@@ -64,7 +65,7 @@ export function Desks({ agents, anim = {} }: DesksProps) {
         const a = anim[agent.id]
         const atDesk = agent.state === 'idle' || agent.state === 'on_call'
         const offShift = agent.state === 'off_shift'
-        const seat = BREAK_SEAT_POSITIONS[i % BREAK_SEAT_POSITIONS.length]
+        const seat = breakSeats[i % breakSeats.length]
 
         let agentX = pos.x
         let agentY = pos.y - 1
