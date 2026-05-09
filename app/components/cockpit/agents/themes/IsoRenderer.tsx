@@ -14,7 +14,6 @@ export function IsoRenderer({ agents, simTimeMin }: AgentRendererProps) {
   const prevStatesRef = useRef<StateMap>({})
   const animRef = useRef<AnimState>({})
   const lastTickRef = useRef<number | null>(null)
-  const [bobPhase, setBobPhase] = useState(0)
   // animSnapshot mirrors animRef.current, set inside the rAF loop / transition
   // detector. We read this (not the ref) during render so we don't violate
   // react-hooks/refs while still letting the rAF loop mutate animRef freely.
@@ -34,19 +33,20 @@ export function IsoRenderer({ agents, simTimeMin }: AgentRendererProps) {
     prevStatesRef.current = currStates
   }, [simTimeMin]) // eslint-disable-line react-hooks/exhaustive-deps -- currStates derived from agents/simTimeMin; avoid object identity churn
 
-  // requestAnimationFrame loop: advance animations + drive idle bob
+  // requestAnimationFrame loop: advance in-flight transitions only.
+  // The idle bob is now a pure CSS animation (.cockpit-iso-bob), so the loop
+  // only does React work when there are active transitions. A static office
+  // (everyone at their desk) costs ~0 React work — only the GPU animates.
   useEffect(() => {
     let raf = 0
     function tick(now: number) {
-      const last = lastTickRef.current
-      const dt = last == null ? 0 : (now - last) / 1000
+      const dt = lastTickRef.current === null ? 0 : (now - lastTickRef.current) / 1000
       lastTickRef.current = now
       const before = Object.keys(animRef.current).length
-      animRef.current = advanceAnimations(animRef.current, dt)
-      const after = Object.keys(animRef.current).length
-      // 1Hz bob: phase in [0, 2π)
-      setBobPhase(p => (p + dt * 2 * Math.PI) % (2 * Math.PI))
-      if (before !== after || before > 0) setAnimSnapshot(animRef.current)
+      if (before > 0) {
+        animRef.current = advanceAnimations(animRef.current, dt)
+        setAnimSnapshot(animRef.current)
+      }
       raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
@@ -59,7 +59,7 @@ export function IsoRenderer({ agents, simTimeMin }: AgentRendererProps) {
       <defs><TileGlowDefs/></defs>
       <Room/>
       <BreakRoom agents={agents} anim={animSnapshot}/>
-      <Desks agents={agents} anim={animSnapshot} bobPhase={bobPhase}/>
+      <Desks agents={agents} anim={animSnapshot}/>
       <Manager/>
     </svg>
   )

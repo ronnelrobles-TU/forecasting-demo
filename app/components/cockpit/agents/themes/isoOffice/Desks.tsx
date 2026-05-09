@@ -10,7 +10,6 @@ import type { AnimState } from './animation'
 interface DesksProps {
   agents: Array<{ id: string; state: AgentVisualState }>
   anim?: AnimState
-  bobPhase?: number
 }
 
 const SHIRT_COLOR: Record<AgentVisualState, string> = {
@@ -53,7 +52,7 @@ function Desk({ x, y, scale = 1, withMonitor = true }: { x: number; y: number; s
   )
 }
 
-export function Desks({ agents, anim = {}, bobPhase = 0 }: DesksProps) {
+export function Desks({ agents, anim = {} }: DesksProps) {
   const layout = computeDeskLayout(agents.length)
   const { positions, tier, spriteScale } = layout
 
@@ -71,7 +70,6 @@ export function Desks({ agents, anim = {}, bobPhase = 0 }: DesksProps) {
         let agentY = pos.y - 1
         let agentOpacity = 1
         let renderAgentAtDesk = atDesk
-        let bobOffset = 0
 
         if (a?.kind === 'desk_to_break') {
           agentX = lerp(pos.x, seat.x, a.progress)
@@ -89,9 +87,9 @@ export function Desks({ agents, anim = {}, bobPhase = 0 }: DesksProps) {
           renderAgentAtDesk = true
         }
 
-        if (atDesk && agent.state === 'on_call') {
-          bobOffset = Math.sin(bobPhase) * 1
-        }
+        // Idle bob is now CSS-driven (cockpit-iso-bob class). Only on_call agents
+        // actually at their desk should bob — agents in transition do not.
+        const isOnCall = atDesk && agent.state === 'on_call'
 
         const shirtColor = SHIRT_COLOR[agent.state]
 
@@ -104,7 +102,7 @@ export function Desks({ agents, anim = {}, bobPhase = 0 }: DesksProps) {
                 x={agentX}
                 y={agentY}
                 shirtColor={shirtColor}
-                bobOffset={bobOffset}
+                bob={isOnCall}
                 opacity={agentOpacity}
                 scale={spriteScale}
               />
@@ -129,7 +127,7 @@ export function Desks({ agents, anim = {}, bobPhase = 0 }: DesksProps) {
                 x={agentX}
                 y={agentY}
                 shirtColor={shirtColor}
-                bobOffset={bobOffset}
+                bob={isOnCall}
                 opacity={agentOpacity}
                 scale={spriteScale}
               />

@@ -1625,3 +1625,15 @@ details[open] .learn-tip summary::before { content: '▼ '; }
   z-index: 3;
   box-shadow: 0 4px 12px rgba(0,0,0,0.4);
 }
+
+/* ───────── Cockpit iso-office: GPU-driven idle bob for on_call agents ───────── */
+@keyframes cockpit-iso-agent-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1px); }
+}
+
+.cockpit-iso-bob {
+  animation: cockpit-iso-agent-bob 1s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
