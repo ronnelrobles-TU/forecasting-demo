@@ -13,6 +13,11 @@ export const FLOOR_TILES_W = 6
 export const FLOOR_TILES_D = 6
 export const WALL_HEIGHT = 50
 
+/**
+ * @deprecated The office no longer caps agents at this value; a dynamic packed
+ * grid via {@link computeDeskLayout} handles 100+ agents. Still exported because
+ * AgentScene.tsx fallback logic references it (cleanup in a later task).
+ */
 export const MAX_AGENTS_OFFICE = 6
 
 export function isoToScreen(i: number, j: number): ScreenPoint {
@@ -20,6 +25,61 @@ export function isoToScreen(i: number, j: number): ScreenPoint {
     x: FLOOR_ORIGIN.x + (i - j) * (TILE_W / 2),
     y: FLOOR_ORIGIN.y + (i + j) * (TILE_H / 2),
   }
+}
+
+export interface DeskLayout {
+  positions: ScreenPoint[]      // one per agent, generated to fit agentCount
+  tileSpacing: number            // 1.0 / 0.5 / 0.25
+  spriteScale: number            // same as tileSpacing
+  tier: 1 | 2 | 3                // LOD tier
+}
+
+/**
+ * Compute a packed iso desk grid sized to the requested agent count.
+ *
+ * The agent-floor zone is iso (1..5, 1..5) — a 4x4 region between the manager
+ * corner (i>=4 && j<=2) and break room (i<=2 && j>=4). To fit more agents we
+ * densify by halving the tile spacing.
+ *
+ * Tiers (drives downstream LOD in Desks.tsx):
+ *   - tier 1: 1..16 agents,  spacing 1.0  (4x4 = 16 slots minus diagonal corners)
+ *   - tier 2: 17..64,        spacing 0.5
+ *   - tier 3: 65+,           spacing 0.25
+ *
+ * Positions are sorted back-to-front (i+j ascending) for SVG depth order.
+ */
+export function computeDeskLayout(agentCount: number): DeskLayout {
+  let tileSpacing: number
+  let tier: 1 | 2 | 3
+  if (agentCount <= 16) {
+    tileSpacing = 1.0
+    tier = 1
+  } else if (agentCount <= 64) {
+    tileSpacing = 0.5
+    tier = 2
+  } else {
+    tileSpacing = 0.25
+    tier = 3
+  }
+
+  const minI = 1
+  const maxI = 5
+  const minJ = 1
+  const maxJ = 5
+  const candidates: Array<{ i: number; j: number }> = []
+  for (let i = minI; i <= maxI - tileSpacing / 2; i += tileSpacing) {
+    for (let j = minJ; j <= maxJ - tileSpacing / 2; j += tileSpacing) {
+      // Skip positions that overlap the manager corner or break room.
+      if (i >= 4 && j <= 2) continue
+      if (i <= 2 && j >= 4) continue
+      candidates.push({ i, j })
+    }
+  }
+  candidates.sort((a, b) => (a.i + a.j) - (b.i + b.j))
+  const taken = candidates.slice(0, Math.min(agentCount, candidates.length))
+  const positions: ScreenPoint[] = taken.map(c => isoToScreen(c.i, c.j))
+
+  return { positions, tileSpacing, spriteScale: tileSpacing, tier }
 }
 
 // Floor diamond corner screen points (for floor polygon and zone tints)
