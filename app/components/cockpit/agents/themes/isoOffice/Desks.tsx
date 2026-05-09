@@ -94,8 +94,8 @@ export function Desks({ agents, anim = {} }: DesksProps) {
 
         const shirtColor = SHIRT_COLOR[agent.state]
 
-        // Tier 3: tiny sprite only — no chair, no glow, no bubble, no desk.
-        if (tier === 3) {
+        // Tier 3 / Tier 4: tiny sprite only — no chair, no glow, no bubble, no desk.
+        if (tier === 3 || tier === 4) {
           if (!renderAgentAtDesk) return null
           return (
             <g key={`desk-${i}`}>

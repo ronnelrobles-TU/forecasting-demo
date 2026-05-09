@@ -49,7 +49,7 @@ describe('layout constants', () => {
 })
 
 describe('computeDeskLayout', () => {
-  it('returns tier 1 for small agent counts', () => {
+  it('returns tier 1 (spacing 1.0) for small agent counts that fit', () => {
     const layout = computeDeskLayout(6)
     expect(layout.tier).toBe(1)
     expect(layout.tileSpacing).toBe(1.0)
@@ -57,26 +57,34 @@ describe('computeDeskLayout', () => {
     expect(layout.positions.length).toBe(6)
   })
 
-  it('returns tier 2 for medium counts (17-64)', () => {
-    const layout = computeDeskLayout(50)
+  it('returns tier 2 when count exceeds tier 1 capacity', () => {
+    // tier 1 capacity is 12; agentCount=13 should bump us to tier 2
+    const layout = computeDeskLayout(13)
     expect(layout.tier).toBe(2)
     expect(layout.tileSpacing).toBe(0.5)
-    expect(layout.spriteScale).toBe(0.5)
-    expect(layout.positions.length).toBe(50)
+    expect(layout.positions.length).toBe(13)
   })
 
-  it('returns tier 3 for large counts (65+)', () => {
-    const layout = computeDeskLayout(200)
-    expect(layout.tier).toBe(3)
-    expect(layout.tileSpacing).toBe(0.25)
-    expect(layout.spriteScale).toBe(0.25)
-    expect(layout.positions.length).toBe(200)
+  it('renders all requested agents at the chosen tier (no silent drop)', () => {
+    for (const n of [10, 12, 13, 30, 60, 63, 70, 100, 200]) {
+      const layout = computeDeskLayout(n)
+      expect(layout.positions.length).toBe(n)  // all agents placed
+    }
   })
 
-  it('caps positions at the available grid capacity (does not crash beyond capacity)', () => {
-    const layout = computeDeskLayout(10000)
+  it('chooses the smallest tier that fits', () => {
+    // tier 3 capacity ~239; tier 4 should kick in above that
+    const layout250 = computeDeskLayout(250)
+    expect(layout250.tier).toBe(4)
+    expect(layout250.positions.length).toBe(250)
+  })
+
+  it('caps at densest tier capacity when even tier 4 is exceeded', () => {
+    const layout = computeDeskLayout(100_000)
+    expect(layout.tier).toBe(4)
     expect(layout.positions.length).toBeGreaterThan(0)
-    expect(layout.positions.length).toBeLessThanOrEqual(10000)
+    // It returns whatever tier 4 can fit (some large number, but not 100_000)
+    expect(layout.positions.length).toBeLessThan(100_000)
   })
 
   it('positions are sorted back-to-front by i+j depth', () => {
@@ -105,5 +113,11 @@ describe('computeBreakSeatPositions', () => {
     const big = computeBreakSeatPositions(40)
     expect(big.length).toBeGreaterThan(small.length)
     expect(big.length).toBeLessThanOrEqual(40 + 8)  // at most maxBreakAgents extras + ring 1
+  })
+})
+
+describe('computeBreakSeatPositions capacity', () => {
+  it('returns at least 50 seats when 50 are requested', () => {
+    expect(computeBreakSeatPositions(50).length).toBeGreaterThanOrEqual(50)
   })
 })

@@ -22,9 +22,33 @@ export function isoToScreen(i: number, j: number): ScreenPoint {
 
 export interface DeskLayout {
   positions: ScreenPoint[]      // one per agent, generated to fit agentCount
-  tileSpacing: number            // 1.0 / 0.5 / 0.25
+  tileSpacing: number            // 1.0 / 0.5 / 0.25 / 0.125
   spriteScale: number            // same as tileSpacing
-  tier: 1 | 2 | 3                // LOD tier
+  tier: 1 | 2 | 3 | 4            // LOD tier
+}
+
+// Constants describing each LOD tier. Capacity is computed from
+// generatePositionsForSpacing so we never silently drop agents at boundaries.
+const TIER_CONFIGS: Array<{ tier: 1 | 2 | 3 | 4; spacing: number }> = [
+  { tier: 1, spacing: 1.0 },
+  { tier: 2, spacing: 0.5 },
+  { tier: 3, spacing: 0.25 },
+  { tier: 4, spacing: 0.125 },  // densest tier for 500+ agents
+]
+
+function generatePositionsForSpacing(spacing: number): ScreenPoint[] {
+  const candidates: Array<{ i: number; j: number }> = []
+  const minI = 1, maxI = 5, minJ = 1, maxJ = 5
+  for (let i = minI; i <= maxI - spacing / 2 + 1e-9; i += spacing) {
+    for (let j = minJ; j <= maxJ - spacing / 2 + 1e-9; j += spacing) {
+      // Skip positions that overlap the manager corner or break room.
+      if (i >= 4 && j <= 2) continue
+      if (i <= 2 && j >= 4) continue
+      candidates.push({ i, j })
+    }
+  }
+  candidates.sort((a, b) => (a.i + a.j) - (b.i + b.j))
+  return candidates.map(c => isoToScreen(c.i, c.j))
 }
 
 /**
@@ -34,45 +58,34 @@ export interface DeskLayout {
  * corner (i>=4 && j<=2) and break room (i<=2 && j>=4). To fit more agents we
  * densify by halving the tile spacing.
  *
- * Tiers (drives downstream LOD in Desks.tsx):
- *   - tier 1: 1..16 agents,  spacing 1.0  (4x4 = 16 slots minus diagonal corners)
- *   - tier 2: 17..64,        spacing 0.5
- *   - tier 3: 65+,           spacing 0.25
+ * Tier selection is capacity-driven: we generate positions at each spacing
+ * and pick the smallest (least-dense) tier whose actual capacity fits the
+ * requested agentCount. This avoids silent drops at threshold boundaries
+ * (e.g. tier 1 spacing 1.0 only yields 12 positions, not 16).
  *
  * Positions are sorted back-to-front (i+j ascending) for SVG depth order.
  */
 export function computeDeskLayout(agentCount: number): DeskLayout {
-  let tileSpacing: number
-  let tier: 1 | 2 | 3
-  if (agentCount <= 16) {
-    tileSpacing = 1.0
-    tier = 1
-  } else if (agentCount <= 64) {
-    tileSpacing = 0.5
-    tier = 2
-  } else {
-    tileSpacing = 0.25
-    tier = 3
-  }
-
-  const minI = 1
-  const maxI = 5
-  const minJ = 1
-  const maxJ = 5
-  const candidates: Array<{ i: number; j: number }> = []
-  for (let i = minI; i <= maxI - tileSpacing / 2; i += tileSpacing) {
-    for (let j = minJ; j <= maxJ - tileSpacing / 2; j += tileSpacing) {
-      // Skip positions that overlap the manager corner or break room.
-      if (i >= 4 && j <= 2) continue
-      if (i <= 2 && j >= 4) continue
-      candidates.push({ i, j })
+  for (const { tier, spacing } of TIER_CONFIGS) {
+    const positions = generatePositionsForSpacing(spacing)
+    if (positions.length >= agentCount) {
+      return {
+        positions: positions.slice(0, agentCount),
+        tileSpacing: spacing,
+        spriteScale: spacing,
+        tier,
+      }
     }
   }
-  candidates.sort((a, b) => (a.i + a.j) - (b.i + b.j))
-  const taken = candidates.slice(0, Math.min(agentCount, candidates.length))
-  const positions: ScreenPoint[] = taken.map(c => isoToScreen(c.i, c.j))
-
-  return { positions, tileSpacing, spriteScale: tileSpacing, tier }
+  // Densest tier still overflows — render what we can at the densest spacing.
+  const last = TIER_CONFIGS[TIER_CONFIGS.length - 1]
+  const positions = generatePositionsForSpacing(last.spacing)
+  return {
+    positions,
+    tileSpacing: last.spacing,
+    spriteScale: last.spacing,
+    tier: last.tier,
+  }
 }
 
 // Floor diamond corner screen points (for floor polygon and zone tints)
@@ -137,14 +150,16 @@ export function computeBreakSeatPositions(maxBreakAgents: number): ScreenPoint[]
 
   // If we need more seats, fill the rest of the break-room zone in a packed grid.
   // Break zone: iso (0..2, 4..6). Skip the table area (around iso(1, 5)).
+  // Tightened to step 0.25 with a 0.5 iso-unit exclusion radius so we comfortably
+  // accommodate ~50 break-room agents (was 31 at step 0.4 / 0.6 radius).
   if (maxBreakAgents > RING1_COUNT) {
     const candidates: Array<{ i: number; j: number }> = []
-    for (let i = 0.2; i <= 2.0; i += 0.4) {
-      for (let j = 4.0; j <= 6.0; j += 0.4) {
+    for (let i = 0.2; i <= 2.0; i += 0.25) {
+      for (let j = 4.0; j <= 6.0; j += 0.25) {
         // Skip positions too close to the table center (iso 1, 5)
         const di = i - 1
         const dj = j - 5
-        if (di * di + dj * dj < 0.36) continue   // 0.6 iso-unit radius around table
+        if (di * di + dj * dj < 0.25) continue   // 0.5 iso-unit radius around table
         candidates.push({ i, j })
       }
     }
