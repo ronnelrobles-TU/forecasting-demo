@@ -1,13 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import {
   isoToScreen,
-  DESK_POSITIONS,
   BREAK_SEAT_POSITIONS,
   MANAGER_POSITION,
   FLOOR_ORIGIN,
   TILE_W,
   TILE_H,
-  MAX_AGENTS_OFFICE,
   computeDeskLayout,
   computeBreakSeatPositions,
 } from '@/app/components/cockpit/agents/themes/isoOffice/geometry'
@@ -40,19 +38,7 @@ describe('isoToScreen', () => {
 })
 
 describe('layout constants', () => {
-  it('exactly 6 desk positions for the agent pool', () => {
-    expect(DESK_POSITIONS).toHaveLength(6)
-    expect(MAX_AGENTS_OFFICE).toBe(6)
-  })
-
-  it('every desk position has a screen-coords pair', () => {
-    for (const d of DESK_POSITIONS) {
-      expect(typeof d.x).toBe('number')
-      expect(typeof d.y).toBe('number')
-    }
-  })
-
-  it('at least 8 break-seat positions (≥ MAX_AGENTS_OFFICE + 2 headroom)', () => {
+  it('at least 8 break-seat positions (the original ring)', () => {
     expect(BREAK_SEAT_POSITIONS.length).toBeGreaterThanOrEqual(8)
   })
 

@@ -1,7 +1,7 @@
 'use client'
 
 import type { AgentVisualState } from '@/lib/animation/agentTimeline'
-import { computeDeskLayout, MAX_AGENTS_OFFICE, computeBreakSeatPositions } from './geometry'
+import { computeDeskLayout, computeBreakSeatPositions } from './geometry'
 import { AgentSprite } from './AgentSprite'
 import { StatusBubble } from './StatusBubble'
 import { TileGlow } from './TileGlow'
@@ -143,5 +143,3 @@ export function Desks({ agents, anim = {} }: DesksProps) {
     </g>
   )
 }
-
-export { MAX_AGENTS_OFFICE }

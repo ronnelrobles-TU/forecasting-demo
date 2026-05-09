@@ -13,13 +13,6 @@ export const FLOOR_TILES_W = 6
 export const FLOOR_TILES_D = 6
 export const WALL_HEIGHT = 50
 
-/**
- * @deprecated The office no longer caps agents at this value; a dynamic packed
- * grid via {@link computeDeskLayout} handles 100+ agents. Still exported because
- * AgentScene.tsx fallback logic references it (cleanup in a later task).
- */
-export const MAX_AGENTS_OFFICE = 6
-
 export function isoToScreen(i: number, j: number): ScreenPoint {
   return {
     x: FLOOR_ORIGIN.x + (i - j) * (TILE_W / 2),
@@ -89,18 +82,6 @@ export const FLOOR_CORNERS = {
   S: isoToScreen(FLOOR_TILES_W, FLOOR_TILES_D),
   W: isoToScreen(0, FLOOR_TILES_D),
 } as const
-
-// 6 main agent desks: 2 rows x 3 columns, diagonal grid
-export const DESK_ISO_POSITIONS: Array<{ i: number; j: number }> = [
-  { i: 1.5, j: 1.5 },
-  { i: 2.5, j: 1.5 },
-  { i: 3.5, j: 1.5 },
-  { i: 1.5, j: 3.0 },
-  { i: 2.5, j: 3.0 },
-  { i: 3.5, j: 3.0 },
-]
-
-export const DESK_POSITIONS: ScreenPoint[] = DESK_ISO_POSITIONS.map(p => isoToScreen(p.i, p.j))
 
 // Manager at iso(5, 1) — back-right corner
 export const MANAGER_ISO = { i: 5, j: 1 }
