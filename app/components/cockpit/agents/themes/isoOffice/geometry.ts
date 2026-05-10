@@ -1,10 +1,11 @@
-// Iso office layout. Floor + walls + zones + windows all derive from agentCount
-// via computeOfficeLayout(agentCount). The SVG viewBox grows with the floor so
-// every agent stays at full sprite/desk/chair/bubble detail; high counts produce
-// a "zoomed out" appearance via xMidYMid meet aspect-ratio scaling.
+// Iso building layout. Defines a multi-room call-center floor plan: perimeter
+// walls all around, reception (front), agent floor (center) of cubicle pods,
+// 4-5 manager mini-offices (NE side), training room, break room, restrooms,
+// and a small gym (NW side). All positions derive from computeBuildingLayout
+// (agentCount).
 //
-// iso(i,j): i increases toward the NE (right) wall; j increases toward the NW (left) wall.
-// Screen mapping (relative to a per-render origin):
+// iso(i,j): i increases toward the NE (right) wall; j increases toward the NW
+// (left) wall. Screen mapping (relative to a per-render origin):
 //   iso(i,j) -> (originX + (i-j)*TILE_W/2, originY + (i+j)*TILE_H/2)
 
 export interface ScreenPoint { x: number; y: number }
@@ -13,8 +14,7 @@ export const TILE_W = 33.33   // pixel width of one iso tile
 export const TILE_H = 16.67   // pixel height of one iso tile
 export const WALL_HEIGHT = 50
 
-const PADDING = 24
-const ZONE_TILES = 2          // manager + break corners are each 2x2 iso tiles
+const PADDING = 32
 
 export function isoToScreen(i: number, j: number, originX: number, originY: number): ScreenPoint {
   return {
@@ -23,175 +23,461 @@ export function isoToScreen(i: number, j: number, originX: number, originY: numb
   }
 }
 
-export interface OfficeLayout {
-  // Iso dimensions (square floor)
+// ---------- Layout types ----------
+
+export interface IsoBounds { iMin: number; iMax: number; jMin: number; jMax: number }
+
+export interface RoomBounds {
+  isoBounds: IsoBounds
+  zonePoints: ScreenPoint[]                              // 4-pt floor polygon (for tinting)
+  wallSegments: Array<[ScreenPoint, ScreenPoint]>        // interior walls (excluding building perimeter)
+}
+
+export interface CubiclePod {
+  centerIso: { i: number; j: number }
+  desks: ScreenPoint[]                                   // 4 positions (front-left, front-right, back-right, back-left)
+  partitionWalls: Array<[ScreenPoint, ScreenPoint]>      // outer perimeter of the pod (4 segments)
+}
+
+export interface ReceptionRoom extends RoomBounds {
+  doorPosition: ScreenPoint                              // visible door on the south (front) wall
+  doorWidth: number                                      // width of the double-door opening, in iso units along the wall
+  securityDeskPosition: ScreenPoint
+  guardPosition: ScreenPoint
+}
+
+export interface ManagerOffice extends RoomBounds {
+  deskPosition: ScreenPoint
+  managerPosition: ScreenPoint
+  doorPosition: ScreenPoint                              // door on west wall of office (opens into agent floor)
+  whiteboardPosition: ScreenPoint
+}
+
+export interface BreakRoomLayout extends RoomBounds {
+  tableCenter: ScreenPoint
+  waterCoolerPosition: ScreenPoint
+  vendingMachinePosition: ScreenPoint
+  seatPositions: ScreenPoint[]
+}
+
+export interface TrainingRoomLayout extends RoomBounds {
+  whiteboardPosition: ScreenPoint
+  studentSeats: ScreenPoint[]
+}
+
+export interface RestroomsLayout extends RoomBounds {
+  doorPositions: ScreenPoint[]                           // 2 doors (M, F)
+}
+
+export interface GymLayout extends RoomBounds {
+  treadmillPosition: ScreenPoint
+  weightsPosition: ScreenPoint
+}
+
+export interface AgentFloorLayout extends RoomBounds {
+  pods: CubiclePod[]
+}
+
+export interface BuildingLayout {
   tilesW: number
   tilesD: number
-  // SVG viewBox sized to fit floor + walls + padding
   viewBox: { w: number; h: number }
-  // Floor origin (N corner) in screen space
-  origin: ScreenPoint
-  // Floor diamond corners in screen space
-  floorCorners: { N: ScreenPoint; E: ScreenPoint; S: ScreenPoint; W: ScreenPoint }
-  // Number of windows distributed along each back wall
+  origin: ScreenPoint                                    // N corner of building
+  buildingCorners: { N: ScreenPoint; E: ScreenPoint; S: ScreenPoint; W: ScreenPoint }
   windowsPerWall: number
-  // Manager corner (back-right): zone iso bounds + decoration positions
-  manager: {
-    zonePoints: ScreenPoint[]                          // 4-point parallelogram on the floor
-    deskPosition: ScreenPoint
-    plantPosition: ScreenPoint
-    partitionEdges: Array<[ScreenPoint, ScreenPoint]>  // pairs of iso-screen pts where low partitions sit
+
+  rooms: {
+    reception: ReceptionRoom
+    agentFloor: AgentFloorLayout
+    managerOffices: ManagerOffice[]
+    breakRoom: BreakRoomLayout
+    trainingRoom: TrainingRoomLayout
+    restrooms: RestroomsLayout
+    gym: GymLayout
   }
-  // Break room (front-left)
-  breakRoom: {
-    zonePoints: ScreenPoint[]
-    tableCenter: ScreenPoint
-    waterCoolerPosition: ScreenPoint
-    seatPositions: ScreenPoint[]                       // dynamically sized to fit ~25% of agentCount, min 8
-    partitionEdges: Array<[ScreenPoint, ScreenPoint]>
-  }
-  // Agent floor: one home-desk position per agent
+
+  // Flat array of every desk position in the agent floor, in stable
+  // back-to-front order (sorted by i+j). agents[i] -> deskPositions[i].
   deskPositions: ScreenPoint[]
 }
 
+// ---------- Layout computation ----------
+
+// Pod geometry: a 2x2 cluster of desks. Desk spacing within a pod is 0.7 iso
+// tiles. Pods are placed on a 2x2 iso-tile grid (so the gap between pods is
+// 1.3 iso tiles, leaving a clear walking aisle).
+const POD_DESK_SPACING = 0.7
+const POD_SPACING_I = 2     // iso tiles between pod centers along i
+const POD_SPACING_J = 2     // iso tiles between pod centers along j
+
+// Building footprint constants. Agent floor and manager-office strip grow
+// based on agent count; the rest of the rooms are fixed-size (reception,
+// training, break, restrooms, gym).
+const TRAINING_BOUNDS: IsoBounds = { iMin: 0, iMax: 10, jMin: 0, jMax: 6 }
+const BREAK_BOUNDS:    IsoBounds = { iMin: 0, iMax: 10, jMin: 6, jMax: 12 }
+const RESTROOM_BOUNDS: IsoBounds = { iMin: 0, iMax: 6, jMin: 12, jMax: 16 }
+const GYM_BOUNDS:      IsoBounds = { iMin: 0, iMax: 6, jMin: 16, jMax: 20 }
+// Reception runs across the front (south) edge with a fixed depth of 4 iso tiles.
+const RECEPTION_DEPTH = 4
+// Agent-floor bounds:
+//   iMin = 10 (east of NW rooms), iMax = depends on building width
+//   jMin = 6  (south of training), jMax = building depth - reception depth
+const AGENT_FLOOR_I_MIN = 10
+const AGENT_FLOOR_J_MIN = 6
+// Manager office strip width (along i): 6 iso tiles for each office.
+const MANAGER_OFFICE_WIDTH = 6
+// Building must be at least this deep to fit the NW rooms + reception.
+const MIN_BUILDING_DEPTH = 20 + RECEPTION_DEPTH    // = 24
+
 /**
- * Compute the full iso office layout for a given agent count.
+ * Compute the full building layout for a given agent count.
  *
- * Pick the smallest square floor whose agent zone fits agentCount at 1.0 desk
- * spacing. Agent zone capacity at floor size N ≈ (N-2)² - 2 * ZONE_TILES².
- * Solve (N-2)² - 8 >= agentCount → N >= 2 + sqrt(agentCount + 8). All positions
- * (manager corner back-right, break corner front-left, walls, windows, etc.)
- * derive from this floor size and the chosen origin.
+ * The number of cubicle pods (and hence the agent-floor footprint) scales with
+ * agentCount; the number of manager mini-offices scales as max(2, ceil(N/35)).
+ * Every other room is a fixed footprint. The building's overall iso width and
+ * depth are sized so all rooms fit without overlap.
  */
-export function computeOfficeLayout(agentCount: number): OfficeLayout {
-  const minFloor = Math.max(6, Math.ceil(2 + Math.sqrt(agentCount + 8)))
-  const tilesW = minFloor
-  const tilesD = minFloor
+export function computeBuildingLayout(agentCount: number): BuildingLayout {
+  // 1. Decide how many pods we need (4 desks/pod, never less than 1 pod).
+  const podCount = Math.max(1, Math.ceil(agentCount / 4))
 
-  // Floor diamond width = (tilesW + tilesD) * TILE_W / 2 = tilesW * TILE_W (since W==D)
-  const floorWidth = tilesW * TILE_W
-  const floorHeight = tilesW * TILE_H
+  // 2. Decide manager office count (one per ~35 agents, min 2, max 6).
+  const managerCount = Math.max(2, Math.min(6, Math.ceil(agentCount / 35)))
 
-  const viewBoxW = floorWidth + PADDING * 2
-  const viewBoxH = floorHeight + WALL_HEIGHT + PADDING * 2
+  // 3. Decide agent-floor pod grid. Use roughly square aspect (cols ~ rows).
+  const podCols = Math.max(1, Math.ceil(Math.sqrt(podCount)))
+  const podRows = Math.max(1, Math.ceil(podCount / podCols))
 
-  const originX = viewBoxW / 2          // N corner is centered horizontally
-  const originY = WALL_HEIGHT + PADDING // N corner is below the wall top
+  // 4. Each pod takes POD_SPACING_I × POD_SPACING_J iso tiles. Plus a half-pod
+  //    margin on every side of the agent floor for hallway space.
+  const agentFloorIsoW = podCols * POD_SPACING_I + 2     // 1-tile margin each side
+  const agentFloorIsoD = podRows * POD_SPACING_J + 2
+
+  // 5. Manager strip depth: each office is (managerStripDepth / managerCount)
+  //    iso tiles deep. Minimum 3 deep per office.
+  const managerStripDepth = Math.max(managerCount * 4, agentFloorIsoD)
+
+  // 6. Building footprint:
+  //    Width tilesW = max(agent-floor + manager strip, training/break width = 10)
+  //    Depth tilesD = max(MIN_BUILDING_DEPTH, NW rooms + agent floor + reception)
+  const tilesW = AGENT_FLOOR_I_MIN + agentFloorIsoW + MANAGER_OFFICE_WIDTH
+  const tilesD = Math.max(
+    MIN_BUILDING_DEPTH,
+    AGENT_FLOOR_J_MIN + Math.max(agentFloorIsoD, managerStripDepth) + RECEPTION_DEPTH,
+  )
+
+  // 7. Compute viewBox + origin (N corner centered horizontally).
+  const buildingScreenW = (tilesW + tilesD) * (TILE_W / 2)
+  const buildingScreenH = (tilesW + tilesD) * (TILE_H / 2)
+  const viewBoxW = buildingScreenW + PADDING * 2
+  const viewBoxH = buildingScreenH + WALL_HEIGHT + PADDING * 2
+  // N corner sits at the top of the diamond. Center horizontally.
+  // Diamond ranges from x = origin.x - tilesD * TILE_W/2 (W corner)
+  // to x = origin.x + tilesW * TILE_W/2 (E corner).
+  const originX = PADDING + tilesD * (TILE_W / 2)
+  const originY = WALL_HEIGHT + PADDING
 
   const origin: ScreenPoint = { x: originX, y: originY }
 
-  // Floor corners
+  // 8. Building corners.
   const N = isoToScreen(0, 0, originX, originY)
   const E = isoToScreen(tilesW, 0, originX, originY)
   const S = isoToScreen(tilesW, tilesD, originX, originY)
   const W = isoToScreen(0, tilesD, originX, originY)
 
-  // Distribute roughly 1 window per 2 iso tiles along each back wall.
-  const windowsPerWall = Math.max(3, Math.floor(tilesW / 2))
+  // 9. Build each room.
+  const trainingRoom = makeTrainingRoom(originX, originY)
+  const breakRoom = makeBreakRoom(agentCount, originX, originY)
+  const restrooms = makeRestrooms(originX, originY)
+  const gym = makeGym(originX, originY)
 
-  // Manager corner: iso (tilesW-ZONE_TILES, 0) to (tilesW, ZONE_TILES)
-  const mgrI = tilesW - ZONE_TILES
-  const mgrZonePoints = [
-    isoToScreen(mgrI, 0, originX, originY),
-    isoToScreen(tilesW, 0, originX, originY),
-    isoToScreen(tilesW, ZONE_TILES, originX, originY),
-    isoToScreen(mgrI, ZONE_TILES, originX, originY),
-  ]
-  const managerDesk = isoToScreen(tilesW - 1, 1, originX, originY)
-  const plantPosition = isoToScreen(tilesW - 0.4, 0.4, originX, originY)
-  const mgrPartitionEdges: Array<[ScreenPoint, ScreenPoint]> = [
-    [isoToScreen(mgrI, 0, originX, originY), isoToScreen(mgrI, ZONE_TILES, originX, originY)],
-    [isoToScreen(mgrI, ZONE_TILES, originX, originY), isoToScreen(tilesW, ZONE_TILES, originX, originY)],
-  ]
+  // Reception: spans front edge between manager strip and west wall.
+  const receptionBounds: IsoBounds = {
+    iMin: 0,
+    iMax: tilesW,
+    jMin: tilesD - RECEPTION_DEPTH,
+    jMax: tilesD,
+  }
+  const reception = makeReception(receptionBounds, originX, originY)
 
-  // Break corner: iso (0, tilesD-ZONE_TILES) to (ZONE_TILES, tilesD)
-  const brkJ = tilesD - ZONE_TILES
-  const brkZonePoints = [
-    isoToScreen(0, brkJ, originX, originY),
-    isoToScreen(ZONE_TILES, brkJ, originX, originY),
-    isoToScreen(ZONE_TILES, tilesD, originX, originY),
-    isoToScreen(0, tilesD, originX, originY),
-  ]
-  const breakTable = isoToScreen(1, tilesD - 1, originX, originY)
-  const waterCooler = isoToScreen(0.3, brkJ, originX, originY)
-  const brkPartitionEdges: Array<[ScreenPoint, ScreenPoint]> = [
-    [isoToScreen(0, brkJ, originX, originY), isoToScreen(ZONE_TILES, brkJ, originX, originY)],
-    [isoToScreen(ZONE_TILES, brkJ, originX, originY), isoToScreen(ZONE_TILES, tilesD, originX, originY)],
-  ]
+  // Manager offices: along the east edge, j 0..managerStripDepth (capped to tilesD - RECEPTION_DEPTH).
+  const mgrJMax = Math.min(managerStripDepth, tilesD - RECEPTION_DEPTH)
+  const managerOffices = makeManagerOffices(
+    managerCount,
+    {
+      iMin: tilesW - MANAGER_OFFICE_WIDTH,
+      iMax: tilesW,
+      jMin: 0,
+      jMax: mgrJMax,
+    },
+    originX,
+    originY,
+  )
 
-  // Break seats: sized for ~25% of agents, min 8
-  const maxBreakAgents = Math.max(8, Math.ceil(agentCount * 0.25))
-  const seatPositions = computeBreakSeats(maxBreakAgents, breakTable, brkJ, tilesD, originX, originY)
+  // Agent floor.
+  const agentFloorBounds: IsoBounds = {
+    iMin: AGENT_FLOOR_I_MIN,
+    iMax: tilesW - MANAGER_OFFICE_WIDTH,
+    jMin: AGENT_FLOOR_J_MIN,
+    jMax: tilesD - RECEPTION_DEPTH,
+  }
+  const agentFloor = makeAgentFloor(podCount, podCols, podRows, agentFloorBounds, originX, originY)
 
-  // Desk positions in agent zone (iso 1..tilesW-1, 1..tilesD-1) excluding manager + break corners
-  const deskPositions = computeDesks(agentCount, tilesW, tilesD, originX, originY, mgrI, brkJ)
+  // Distribute windows along the back walls (NE + NW). One window per ~3 iso tiles.
+  const windowsPerWall = Math.max(3, Math.floor(Math.max(tilesW, tilesD) / 3))
 
   return {
     tilesW,
     tilesD,
     viewBox: { w: viewBoxW, h: viewBoxH },
     origin,
-    floorCorners: { N, E, S, W },
+    buildingCorners: { N, E, S, W },
     windowsPerWall,
-    manager: {
-      zonePoints: mgrZonePoints,
-      deskPosition: managerDesk,
-      plantPosition,
-      partitionEdges: mgrPartitionEdges,
+    rooms: {
+      reception,
+      agentFloor,
+      managerOffices,
+      breakRoom,
+      trainingRoom,
+      restrooms,
+      gym,
     },
-    breakRoom: {
-      zonePoints: brkZonePoints,
-      tableCenter: breakTable,
-      waterCoolerPosition: waterCooler,
-      seatPositions,
-      partitionEdges: brkPartitionEdges,
-    },
-    deskPositions,
+    deskPositions: agentFloor.pods.flatMap(p => p.desks).slice(0, agentCount),
   }
 }
 
-function computeDesks(
-  agentCount: number,
-  tilesW: number,
-  tilesD: number,
+// ---------- Helpers ----------
+
+function isoRect(b: IsoBounds, originX: number, originY: number): ScreenPoint[] {
+  return [
+    isoToScreen(b.iMin, b.jMin, originX, originY),
+    isoToScreen(b.iMax, b.jMin, originX, originY),
+    isoToScreen(b.iMax, b.jMax, originX, originY),
+    isoToScreen(b.iMin, b.jMax, originX, originY),
+  ]
+}
+
+function rectWalls(b: IsoBounds, originX: number, originY: number): Array<[ScreenPoint, ScreenPoint]> {
+  const NW = isoToScreen(b.iMin, b.jMin, originX, originY)
+  const NE = isoToScreen(b.iMax, b.jMin, originX, originY)
+  const SE = isoToScreen(b.iMax, b.jMax, originX, originY)
+  const SW = isoToScreen(b.iMin, b.jMax, originX, originY)
+  return [
+    [NW, NE],
+    [NE, SE],
+    [SE, SW],
+    [SW, NW],
+  ]
+}
+
+// ---------- Room builders ----------
+
+function makeAgentFloor(
+  podCount: number,
+  podCols: number,
+  podRows: number,
+  bounds: IsoBounds,
   originX: number,
   originY: number,
-  mgrI: number,
-  brkJ: number,
-): ScreenPoint[] {
-  const positions: ScreenPoint[] = []
-  // Iso (1, 1) to (tilesW-1, tilesD-1) excluding manager + break corners.
-  // 1.0 spacing for desks; back-to-front by i+j for SVG depth ordering.
-  const candidates: Array<{ i: number; j: number }> = []
-  for (let i = 1; i <= tilesW - 1; i++) {
-    for (let j = 1; j <= tilesD - 1; j++) {
-      // Skip manager corner: i >= mgrI && j < ZONE_TILES
-      if (i >= mgrI && j < ZONE_TILES) continue
-      // Skip break corner: i < ZONE_TILES && j >= brkJ
-      if (i < ZONE_TILES && j >= brkJ) continue
-      candidates.push({ i, j })
+): AgentFloorLayout {
+  const pods: CubiclePod[] = []
+  // Margin: 1 iso tile from each side of the agent-floor bounds.
+  const i0 = bounds.iMin + 1
+  const j0 = bounds.jMin + 1
+  let placed = 0
+  for (let r = 0; r < podRows; r++) {
+    for (let c = 0; c < podCols; c++) {
+      if (placed >= podCount) break
+      const ci = i0 + c * POD_SPACING_I + POD_SPACING_I / 2
+      const cj = j0 + r * POD_SPACING_J + POD_SPACING_J / 2
+      pods.push(makePod(ci, cj, originX, originY))
+      placed++
     }
   }
-  candidates.sort((a, b) => (a.i + a.j) - (b.i + b.j))
-  for (const c of candidates.slice(0, agentCount)) {
-    positions.push(isoToScreen(c.i, c.j, originX, originY))
+  // Sort pod desks back-to-front (low i+j first) for stable agent assignment.
+  // Keep pod ordering as-is, but note: pods.flatMap(desks) will already be
+  // back-to-front because the loop visits pods in row-major order with rows
+  // stepping front-ward (j increases) and cols left-to-right.
+  return {
+    isoBounds: bounds,
+    zonePoints: isoRect(bounds, originX, originY),
+    wallSegments: rectWalls(bounds, originX, originY),
+    pods,
   }
-  return positions
+}
+
+function makePod(ci: number, cj: number, originX: number, originY: number): CubiclePod {
+  // 4 desks: 2x2 grid centered at (ci, cj), spaced POD_DESK_SPACING apart.
+  const off = POD_DESK_SPACING / 2
+  const desks: ScreenPoint[] = [
+    isoToScreen(ci - off, cj - off, originX, originY),  // back-left
+    isoToScreen(ci + off, cj - off, originX, originY),  // back-right
+    isoToScreen(ci - off, cj + off, originX, originY),  // front-left
+    isoToScreen(ci + off, cj + off, originX, originY),  // front-right
+  ]
+  // Pod outer perimeter (2x2 cluster boundary).
+  const half = POD_DESK_SPACING + 0.05
+  const NW = isoToScreen(ci - half, cj - half, originX, originY)
+  const NE = isoToScreen(ci + half, cj - half, originX, originY)
+  const SE = isoToScreen(ci + half, cj + half, originX, originY)
+  const SW = isoToScreen(ci - half, cj + half, originX, originY)
+  return {
+    centerIso: { i: ci, j: cj },
+    desks,
+    partitionWalls: [
+      [NW, NE],
+      [NE, SE],
+      [SE, SW],
+      [SW, NW],
+    ],
+  }
+}
+
+function makeManagerOffices(
+  count: number,
+  stripBounds: IsoBounds,
+  originX: number,
+  originY: number,
+): ManagerOffice[] {
+  const offices: ManagerOffice[] = []
+  const stripDepth = stripBounds.jMax - stripBounds.jMin
+  const officeDepth = stripDepth / count
+  for (let k = 0; k < count; k++) {
+    const b: IsoBounds = {
+      iMin: stripBounds.iMin,
+      iMax: stripBounds.iMax,
+      jMin: stripBounds.jMin + k * officeDepth,
+      jMax: stripBounds.jMin + (k + 1) * officeDepth,
+    }
+    const ci = (b.iMin + b.iMax) / 2
+    const cj = (b.jMin + b.jMax) / 2
+    offices.push({
+      isoBounds: b,
+      zonePoints: isoRect(b, originX, originY),
+      wallSegments: rectWalls(b, originX, originY),
+      // Desk in the center-east of the office (manager faces toward door / west).
+      deskPosition: isoToScreen(ci + 0.6, cj, originX, originY),
+      managerPosition: isoToScreen(ci + 0.6, cj - 0.3, originX, originY),
+      // Door on the west wall (opening into agent floor).
+      doorPosition: isoToScreen(b.iMin, cj, originX, originY),
+      // Whiteboard on the east (back) wall.
+      whiteboardPosition: isoToScreen(b.iMax - 0.2, cj, originX, originY),
+    })
+  }
+  return offices
+}
+
+function makeReception(b: IsoBounds, originX: number, originY: number): ReceptionRoom {
+  const ci = (b.iMin + b.iMax) / 2
+  const cj = (b.jMin + b.jMax) / 2
+  return {
+    isoBounds: b,
+    zonePoints: isoRect(b, originX, originY),
+    wallSegments: rectWalls(b, originX, originY),
+    // Front double door: at the center of the south wall (i in middle, j = jMax).
+    doorPosition: isoToScreen(ci, b.jMax, originX, originY),
+    doorWidth: 4,
+    // Security desk in the center of the lobby, slightly back.
+    securityDeskPosition: isoToScreen(ci, cj - 0.5, originX, originY),
+    guardPosition: isoToScreen(ci, cj - 1.0, originX, originY),
+  }
+}
+
+function makeBreakRoom(agentCount: number, originX: number, originY: number): BreakRoomLayout {
+  const b = BREAK_BOUNDS
+  const ci = (b.iMin + b.iMax) / 2
+  const cj = (b.jMin + b.jMax) / 2
+  const tableCenter = isoToScreen(ci, cj, originX, originY)
+  const waterCooler = isoToScreen(b.iMin + 0.5, b.jMin + 0.5, originX, originY)
+  const vending = isoToScreen(b.iMax - 0.5, b.jMin + 0.5, originX, originY)
+
+  // Break seats: a ring of 8 around the table + grid fill if more capacity needed.
+  const maxBreakAgents = Math.max(8, Math.ceil(agentCount * 0.25))
+  const seats = computeBreakSeats(maxBreakAgents, tableCenter, b, originX, originY)
+
+  return {
+    isoBounds: b,
+    zonePoints: isoRect(b, originX, originY),
+    wallSegments: rectWalls(b, originX, originY),
+    tableCenter,
+    waterCoolerPosition: waterCooler,
+    vendingMachinePosition: vending,
+    seatPositions: seats,
+  }
+}
+
+function makeTrainingRoom(originX: number, originY: number): TrainingRoomLayout {
+  const b = TRAINING_BOUNDS
+  // Whiteboard at the back (north / low j edge) center.
+  const whiteboardPosition = isoToScreen((b.iMin + b.iMax) / 2, b.jMin + 0.3, originX, originY)
+  // Student seats: 4 rows × 6 cols facing the whiteboard.
+  const studentSeats: ScreenPoint[] = []
+  const rows = 4
+  const cols = 6
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const i = b.iMin + 1.5 + c * 1.2
+      const j = b.jMin + 1.8 + r * 1.0
+      if (i >= b.iMax - 0.5 || j >= b.jMax - 0.5) continue
+      studentSeats.push(isoToScreen(i, j, originX, originY))
+    }
+  }
+  return {
+    isoBounds: b,
+    zonePoints: isoRect(b, originX, originY),
+    wallSegments: rectWalls(b, originX, originY),
+    whiteboardPosition,
+    studentSeats,
+  }
+}
+
+function makeRestrooms(originX: number, originY: number): RestroomsLayout {
+  const b = RESTROOM_BOUNDS
+  const ci = (b.iMin + b.iMax) / 2
+  // Two doors on the east wall (at iMax) splitting the room conceptually.
+  const doorPositions: ScreenPoint[] = [
+    isoToScreen(b.iMax, (b.jMin + ci - b.iMin / 2) / 1, originX, originY),
+    isoToScreen(b.iMax, (b.jMax + ci - b.iMin / 2) / 1, originX, originY),
+  ]
+  // Simpler: two doors on the east wall at j = jMin+1 and j = jMax-1.
+  const doors: ScreenPoint[] = [
+    isoToScreen(b.iMax, b.jMin + 1.2, originX, originY),
+    isoToScreen(b.iMax, b.jMax - 1.2, originX, originY),
+  ]
+  void doorPositions
+  return {
+    isoBounds: b,
+    zonePoints: isoRect(b, originX, originY),
+    wallSegments: rectWalls(b, originX, originY),
+    doorPositions: doors,
+  }
+}
+
+function makeGym(originX: number, originY: number): GymLayout {
+  const b = GYM_BOUNDS
+  const ci = (b.iMin + b.iMax) / 2
+  const cj = (b.jMin + b.jMax) / 2
+  return {
+    isoBounds: b,
+    zonePoints: isoRect(b, originX, originY),
+    wallSegments: rectWalls(b, originX, originY),
+    treadmillPosition: isoToScreen(ci - 0.6, cj - 0.5, originX, originY),
+    weightsPosition: isoToScreen(ci + 0.8, cj + 0.5, originX, originY),
+  }
 }
 
 function computeBreakSeats(
   maxBreakAgents: number,
   tableCenter: ScreenPoint,
-  brkJ: number,
-  tilesD: number,
+  b: IsoBounds,
   originX: number,
   originY: number,
 ): ScreenPoint[] {
   const seats: ScreenPoint[] = []
 
-  // Ring of 8 around the table
-  const RING_RX = 18
-  const RING_RY = 9
+  // Ring of 8 around the table.
+  const RING_RX = 24
+  const RING_RY = 12
   const RING_COUNT = 8
   for (let k = 0; k < RING_COUNT; k++) {
     const angle = (k / RING_COUNT) * 2 * Math.PI
@@ -201,21 +487,19 @@ function computeBreakSeats(
     })
   }
 
-  // Additional grid seats in the break room zone if more capacity is needed.
-  // Step 0.2 gives ~80 candidate slots in a 2x2 iso break zone, comfortably
-  // accommodating ~50 break-room agents (25% of 200).
   if (maxBreakAgents > RING_COUNT) {
     const candidates: Array<{ i: number; j: number }> = []
-    for (let i = 0.2; i <= 1.8 + 1e-9; i += 0.2) {
-      for (let j = brkJ + 0.2; j <= tilesD - 0.2 + 1e-9; j += 0.2) {
-        // Skip a small exclusion radius around the table center (iso (1, tilesD-1))
-        const di = i - 1
-        const dj = j - (tilesD - 1)
-        if (di * di + dj * dj < 0.16) continue   // 0.4 iso-unit exclusion
+    const ci = (b.iMin + b.iMax) / 2
+    const cj = (b.jMin + b.jMax) / 2
+    for (let i = b.iMin + 0.4; i <= b.iMax - 0.4 + 1e-9; i += 0.35) {
+      for (let j = b.jMin + 0.4; j <= b.jMax - 0.4 + 1e-9; j += 0.35) {
+        const di = i - ci
+        const dj = j - cj
+        if (di * di + dj * dj < 0.6) continue   // exclusion radius around the table
         candidates.push({ i, j })
       }
     }
-    candidates.sort((a, b) => (a.i + a.j) - (b.i + b.j))
+    candidates.sort((a, b2) => (a.i + a.j) - (b2.i + b2.j))
     for (const c of candidates) {
       seats.push(isoToScreen(c.i, c.j, originX, originY))
       if (seats.length >= maxBreakAgents) break

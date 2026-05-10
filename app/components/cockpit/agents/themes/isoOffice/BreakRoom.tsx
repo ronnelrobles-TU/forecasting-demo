@@ -1,7 +1,7 @@
 'use client'
 
 import type { AgentVisualState } from '@/lib/animation/agentTimeline'
-import type { OfficeLayout } from './geometry'
+import type { BuildingLayout } from './geometry'
 import { AgentSprite } from './AgentSprite'
 import { StatusBubble } from './StatusBubble'
 import type { AnimState } from './animation'
@@ -9,7 +9,7 @@ import type { AnimState } from './animation'
 interface BreakRoomProps {
   agents: Array<{ id: string; state: AgentVisualState }>
   anim?: AnimState
-  layout: OfficeLayout
+  layout: BuildingLayout
 }
 
 function Table({ x, y }: { x: number; y: number }) {
@@ -37,14 +37,39 @@ function WaterCooler({ x, y }: { x: number; y: number }) {
   )
 }
 
+function VendingMachine({ x, y }: { x: number; y: number }) {
+  return (
+    <g transform={`translate(${x}, ${y - 26})`}>
+      {/* Shadow */}
+      <ellipse cx={0} cy={13} rx={7} ry={2} fill="#1e293b" opacity={0.4}/>
+      {/* Body */}
+      <rect x={-6} y={-3} width={12} height={16} fill="#dc2626" stroke="#7f1d1d" strokeWidth={0.5} rx={0.5}/>
+      {/* Glass front */}
+      <rect x={-5} y={-2} width={10} height={11} fill="#1e293b" opacity={0.55} stroke="#7f1d1d" strokeWidth={0.3}/>
+      {/* Snack rows */}
+      <line x1={-5} y1={1} x2={5} y2={1} stroke="#fbbf24" strokeWidth={0.3} opacity={0.7}/>
+      <line x1={-5} y1={4} x2={5} y2={4} stroke="#fbbf24" strokeWidth={0.3} opacity={0.7}/>
+      <line x1={-5} y1={7} x2={5} y2={7} stroke="#fbbf24" strokeWidth={0.3} opacity={0.7}/>
+      {/* Buttons / coin slot */}
+      <rect x={-4.5} y={10} width={1} height={2} fill="#0f172a"/>
+      <rect x={-3} y={10} width={1} height={2} fill="#0f172a"/>
+      <rect x={-1.5} y={10} width={1} height={2} fill="#0f172a"/>
+      <rect x={0} y={10} width={1} height={2} fill="#0f172a"/>
+      <rect x={3} y={10} width={2.5} height={1} fill="#fbbf24"/>
+    </g>
+  )
+}
+
 export function BreakRoom({ agents, anim, layout }: BreakRoomProps) {
   const breakAgents = agents.map((a, i) => ({ a, i })).filter(({ a }) => a.state === 'on_break')
-  const seatPositions = layout.breakRoom.seatPositions
+  const seatPositions = layout.rooms.breakRoom.seatPositions
+  const r = layout.rooms.breakRoom
 
   return (
     <g>
-      <WaterCooler x={layout.breakRoom.waterCoolerPosition.x} y={layout.breakRoom.waterCoolerPosition.y}/>
-      <Table x={layout.breakRoom.tableCenter.x} y={layout.breakRoom.tableCenter.y}/>
+      <WaterCooler x={r.waterCoolerPosition.x} y={r.waterCoolerPosition.y}/>
+      <VendingMachine x={r.vendingMachinePosition.x} y={r.vendingMachinePosition.y}/>
+      <Table x={r.tableCenter.x} y={r.tableCenter.y}/>
       {breakAgents.map(({ a, i }) => {
         const inTransit = anim?.[a.id]?.kind === 'desk_to_break' || anim?.[a.id]?.kind === 'break_to_desk'
         if (inTransit) return null

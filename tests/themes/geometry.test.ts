@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { computeOfficeLayout, isoToScreen, TILE_W, TILE_H } from '@/app/components/cockpit/agents/themes/isoOffice/geometry'
+import {
+  computeBuildingLayout,
+  isoToScreen,
+  TILE_W,
+  TILE_H,
+  type IsoBounds,
+} from '@/app/components/cockpit/agents/themes/isoOffice/geometry'
 
 describe('isoToScreen', () => {
   it('maps (0,0) to provided origin', () => {
@@ -13,45 +19,162 @@ describe('isoToScreen', () => {
   })
 })
 
-describe('computeOfficeLayout', () => {
-  it('floor grows with agent count', () => {
-    const small = computeOfficeLayout(6)
-    const big = computeOfficeLayout(200)
+function rectsOverlap(a: IsoBounds, b: IsoBounds): boolean {
+  // Strict overlap: shared interior area > 0. Touching edges don't count.
+  return (
+    a.iMin < b.iMax && b.iMin < a.iMax &&
+    a.jMin < b.jMax && b.jMin < a.jMax
+  )
+}
+
+describe('computeBuildingLayout', () => {
+  it('building grows with agent count', () => {
+    const small = computeBuildingLayout(6)
+    const big = computeBuildingLayout(200)
     expect(big.tilesW).toBeGreaterThan(small.tilesW)
+    expect(big.tilesD).toBeGreaterThanOrEqual(small.tilesD)
   })
 
-  it('places exactly agentCount desks (no silent drop)', () => {
-    for (const n of [1, 6, 12, 30, 60, 100, 200, 500]) {
-      const layout = computeOfficeLayout(n)
-      expect(layout.deskPositions.length).toBe(n)
-    }
-  })
-
-  it('viewBox grows with floor', () => {
-    const small = computeOfficeLayout(6)
-    const big = computeOfficeLayout(200)
+  it('viewBox grows with building', () => {
+    const small = computeBuildingLayout(6)
+    const big = computeBuildingLayout(200)
     expect(big.viewBox.w).toBeGreaterThan(small.viewBox.w)
     expect(big.viewBox.h).toBeGreaterThan(small.viewBox.h)
   })
 
-  it('manager position is in the back-right', () => {
-    const layout = computeOfficeLayout(50)
-    expect(layout.manager.deskPosition.x).toBeGreaterThan(layout.origin.x)
+  it('places one desk per agent (no silent drop) up to pod capacity', () => {
+    for (const n of [1, 4, 8, 12, 30, 60, 100, 150, 200, 500]) {
+      const layout = computeBuildingLayout(n)
+      expect(layout.deskPositions.length).toBe(n)
+    }
   })
 
-  it('break room position is in the front-left', () => {
-    const layout = computeOfficeLayout(50)
-    expect(layout.breakRoom.tableCenter.x).toBeLessThan(layout.origin.x)
+  it('pod count = ceil(agentCount / 4) for non-trivial agent counts', () => {
+    for (const n of [4, 8, 12, 16, 30, 100, 150, 200]) {
+      const layout = computeBuildingLayout(n)
+      expect(layout.rooms.agentFloor.pods.length).toBe(Math.ceil(n / 4))
+    }
   })
 
-  it('break room has at least 8 seats and grows with agent count', () => {
-    expect(computeOfficeLayout(6).breakRoom.seatPositions.length).toBeGreaterThanOrEqual(8)
-    expect(computeOfficeLayout(200).breakRoom.seatPositions.length).toBeGreaterThanOrEqual(50)
+  it('total desks across pods >= agentCount', () => {
+    for (const n of [1, 4, 50, 150, 200, 500]) {
+      const layout = computeBuildingLayout(n)
+      const totalDesks = layout.rooms.agentFloor.pods.reduce(
+        (sum, p) => sum + p.desks.length,
+        0,
+      )
+      expect(totalDesks).toBeGreaterThanOrEqual(n)
+    }
   })
 
-  it('windowsPerWall grows with floor size', () => {
-    const small = computeOfficeLayout(6)
-    const big = computeOfficeLayout(100)
+  it('every cubicle pod has exactly 4 desks and 4 partition walls', () => {
+    const layout = computeBuildingLayout(150)
+    for (const pod of layout.rooms.agentFloor.pods) {
+      expect(pod.desks.length).toBe(4)
+      expect(pod.partitionWalls.length).toBe(4)
+    }
+  })
+
+  it('manager office count scales as max(2, ceil(agentCount/35))', () => {
+    expect(computeBuildingLayout(1).rooms.managerOffices.length).toBe(2)
+    expect(computeBuildingLayout(35).rooms.managerOffices.length).toBe(2)
+    expect(computeBuildingLayout(36).rooms.managerOffices.length).toBe(2) // ceil(36/35)=2
+    expect(computeBuildingLayout(70).rooms.managerOffices.length).toBe(2) // ceil(70/35)=2
+    expect(computeBuildingLayout(71).rooms.managerOffices.length).toBe(3) // ceil(71/35)=3
+    expect(computeBuildingLayout(150).rooms.managerOffices.length).toBe(Math.max(2, Math.ceil(150 / 35))) // 5
+    expect(computeBuildingLayout(500).rooms.managerOffices.length).toBeLessThanOrEqual(6) // capped
+  })
+
+  it('each manager office has desk, manager, door, whiteboard positions', () => {
+    const layout = computeBuildingLayout(150)
+    for (const o of layout.rooms.managerOffices) {
+      expect(o.deskPosition).toBeDefined()
+      expect(o.managerPosition).toBeDefined()
+      expect(o.doorPosition).toBeDefined()
+      expect(o.whiteboardPosition).toBeDefined()
+    }
+  })
+
+  it('reception has door, security desk, guard positions', () => {
+    const layout = computeBuildingLayout(50)
+    expect(layout.rooms.reception.doorPosition).toBeDefined()
+    expect(layout.rooms.reception.securityDeskPosition).toBeDefined()
+    expect(layout.rooms.reception.guardPosition).toBeDefined()
+    expect(layout.rooms.reception.doorWidth).toBeGreaterThan(0)
+  })
+
+  it('break room has table, water cooler, vending machine, and seats', () => {
+    const layout = computeBuildingLayout(100)
+    expect(layout.rooms.breakRoom.tableCenter).toBeDefined()
+    expect(layout.rooms.breakRoom.waterCoolerPosition).toBeDefined()
+    expect(layout.rooms.breakRoom.vendingMachinePosition).toBeDefined()
+    expect(layout.rooms.breakRoom.seatPositions.length).toBeGreaterThanOrEqual(8)
+  })
+
+  it('break room seat count grows with agent count', () => {
+    expect(computeBuildingLayout(6).rooms.breakRoom.seatPositions.length).toBeGreaterThanOrEqual(8)
+    expect(computeBuildingLayout(200).rooms.breakRoom.seatPositions.length).toBeGreaterThanOrEqual(50)
+  })
+
+  it('training room has whiteboard and student seats', () => {
+    const layout = computeBuildingLayout(50)
+    expect(layout.rooms.trainingRoom.whiteboardPosition).toBeDefined()
+    expect(layout.rooms.trainingRoom.studentSeats.length).toBeGreaterThan(0)
+  })
+
+  it('restrooms have exactly 2 doors (M, F)', () => {
+    const layout = computeBuildingLayout(50)
+    expect(layout.rooms.restrooms.doorPositions.length).toBe(2)
+  })
+
+  it('gym has treadmill and weights', () => {
+    const layout = computeBuildingLayout(50)
+    expect(layout.rooms.gym.treadmillPosition).toBeDefined()
+    expect(layout.rooms.gym.weightsPosition).toBeDefined()
+  })
+
+  it('windowsPerWall grows with building size', () => {
+    const small = computeBuildingLayout(6)
+    const big = computeBuildingLayout(200)
     expect(big.windowsPerWall).toBeGreaterThanOrEqual(small.windowsPerWall)
+  })
+
+  it('all rooms have non-overlapping iso bounds', () => {
+    const layout = computeBuildingLayout(150)
+    const allRooms: Array<{ name: string; bounds: IsoBounds }> = [
+      { name: 'reception', bounds: layout.rooms.reception.isoBounds },
+      { name: 'agentFloor', bounds: layout.rooms.agentFloor.isoBounds },
+      { name: 'breakRoom', bounds: layout.rooms.breakRoom.isoBounds },
+      { name: 'trainingRoom', bounds: layout.rooms.trainingRoom.isoBounds },
+      { name: 'restrooms', bounds: layout.rooms.restrooms.isoBounds },
+      { name: 'gym', bounds: layout.rooms.gym.isoBounds },
+      ...layout.rooms.managerOffices.map((o, i) => ({
+        name: `managerOffice-${i}`,
+        bounds: o.isoBounds,
+      })),
+    ]
+    for (let a = 0; a < allRooms.length; a++) {
+      for (let b = a + 1; b < allRooms.length; b++) {
+        expect(
+          rectsOverlap(allRooms[a].bounds, allRooms[b].bounds),
+          `${allRooms[a].name} overlaps ${allRooms[b].name}`,
+        ).toBe(false)
+      }
+    }
+  })
+
+  it('all rooms fit within the building footprint', () => {
+    const layout = computeBuildingLayout(150)
+    const inBuilding = (b: IsoBounds) =>
+      b.iMin >= 0 && b.iMax <= layout.tilesW && b.jMin >= 0 && b.jMax <= layout.tilesD
+    expect(inBuilding(layout.rooms.reception.isoBounds)).toBe(true)
+    expect(inBuilding(layout.rooms.agentFloor.isoBounds)).toBe(true)
+    expect(inBuilding(layout.rooms.breakRoom.isoBounds)).toBe(true)
+    expect(inBuilding(layout.rooms.trainingRoom.isoBounds)).toBe(true)
+    expect(inBuilding(layout.rooms.restrooms.isoBounds)).toBe(true)
+    expect(inBuilding(layout.rooms.gym.isoBounds)).toBe(true)
+    for (const o of layout.rooms.managerOffices) {
+      expect(inBuilding(o.isoBounds)).toBe(true)
+    }
   })
 })

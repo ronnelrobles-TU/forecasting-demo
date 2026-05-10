@@ -2,19 +2,24 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { AgentRendererProps } from './AgentRenderer'
-import { Room, RoomDefs } from './isoOffice/Room'
-import { Desks } from './isoOffice/Desks'
+import { Building, BuildingDefs } from './isoOffice/Building'
+import { AgentFloor } from './isoOffice/AgentFloor'
+import { ManagerOffices } from './isoOffice/ManagerOffices'
+import { Reception, ReceptionDefs } from './isoOffice/Reception'
 import { BreakRoom } from './isoOffice/BreakRoom'
-import { Manager } from './isoOffice/Manager'
+import { TrainingRoom } from './isoOffice/TrainingRoom'
+import { Restrooms } from './isoOffice/Restrooms'
+import { Gym } from './isoOffice/Gym'
 import { TileGlowDefs } from './isoOffice/TileGlow'
-import { computeOfficeLayout, type OfficeLayout } from './isoOffice/geometry'
+import { computeBuildingLayout, type BuildingLayout } from './isoOffice/geometry'
 import { advanceAnimations, detectTransitions, type AnimState, type StateMap } from './isoOffice/animation'
 
 export function IsoRenderer({ agents, simTimeMin }: AgentRendererProps) {
-  // Compute office layout once per render based on agent count. Floor + walls +
-  // viewBox all derive from this — high counts produce a larger floor and a
-  // bigger viewBox, scaled to fit the panel via xMidYMid meet (zoom-out effect).
-  const layout: OfficeLayout = useMemo(() => computeOfficeLayout(agents.length), [agents.length])
+  // Compute building layout once per render based on agent count. Floor + walls
+  // + viewBox all derive from this — high counts produce a larger building and
+  // a bigger viewBox, scaled to fit the panel via xMidYMid meet (zoom-out
+  // effect).
+  const layout: BuildingLayout = useMemo(() => computeBuildingLayout(agents.length), [agents.length])
 
   const prevStatesRef = useRef<StateMap>({})
   const animRef = useRef<AnimState>({})
@@ -63,12 +68,27 @@ export function IsoRenderer({ agents, simTimeMin }: AgentRendererProps) {
       viewBox={`0 0 ${layout.viewBox.w} ${layout.viewBox.h}`}
       style={{ width: '100%', height: '100%', display: 'block' }}
     >
-      <RoomDefs/>
+      <BuildingDefs/>
+      <ReceptionDefs/>
       <defs><TileGlowDefs/></defs>
-      <Room layout={layout}/>
+
+      {/* Building shell: perimeter walls, floor, room tints, interior dividers, windows, front door cut-out. */}
+      <Building layout={layout}/>
+
+      {/* NW back wing: training, break, restrooms, gym (drawn back-to-front). */}
+      <TrainingRoom layout={layout}/>
       <BreakRoom agents={agents} anim={animSnapshot} layout={layout}/>
-      <Desks agents={agents} anim={animSnapshot} layout={layout}/>
-      <Manager layout={layout}/>
+      <Restrooms layout={layout}/>
+      <Gym layout={layout}/>
+
+      {/* Manager mini-offices along the NE strip. */}
+      <ManagerOffices layout={layout}/>
+
+      {/* Agent floor: cubicle pods + desks + agents. */}
+      <AgentFloor agents={agents} anim={animSnapshot} layout={layout}/>
+
+      {/* Reception at the front (drawn last so it sits on top of the front wall door cut-out). */}
+      <Reception layout={layout}/>
     </svg>
   )
 }
