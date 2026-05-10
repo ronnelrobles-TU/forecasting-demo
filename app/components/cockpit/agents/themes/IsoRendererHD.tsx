@@ -46,11 +46,18 @@ import {
   eventVisualFlags,
 } from './isoOffice/injectedEventVisuals'
 import { SceneClock } from './isoOffice/SceneClock'
+import { ActivityCounter, type ActivityCounts } from './isoOffice/ActivityCounter'
+import { StatusLegend } from './isoOffice/StatusLegend'
+import { CameraControls } from './isoOffice/CameraControls'
 import type { AgentVisualState } from '@/lib/animation/agentTimeline'
 import { buildHDScene, destroyHDScene, type HDSceneState } from './isoOfficeHD/scene'
 import { updateAgentLayer } from './isoOfficeHD/frame'
 import { paintLighting } from './isoOfficeHD/lightingPaint'
+import { paintTileGlows } from './isoOfficeHD/tileGlow'
+import { updateNpcs } from './isoOfficeHD/npcs'
+import { updateSmokeLayer } from './isoOfficeHD/smoke'
 import { EventBanner } from './isoOffice/EventBanner'
+import { isWalkingPhase } from './isoOffice/journey'
 
 const SHIFT_END_LOOKAHEAD_MIN = 3
 const EMPTY_ACTIVITIES: Record<string, ActivityAssignment> = {}
@@ -64,6 +71,7 @@ export function IsoRendererHD({
   events,
   deskCapacity,
   shrinkPct,
+  absenteeismPct,
   perInterval,
   simSpeed,
   injectedEvents,
@@ -232,6 +240,26 @@ export function IsoRendererHD({
   // Bump this whenever the scene gets rebuilt so dependent effects re-run.
   const [sceneNonce, setSceneNonce] = useState(0)
 
+  // Capture the seed values for the scene init in a ref so the mount effect
+  // doesn't re-fire when they change minute-to-minute. The scene uses them
+  // ONCE at build time (NPC seeding, absent-marker positions); dynamic state
+  // is updated through the per-frame ticker instead. The ref is updated in
+  // an effect so render stays pure (React 19 react-hooks/refs rule).
+  const initSeedRef = useRef({
+    simTimeMin,
+    agentCount: agents.length,
+    absentTailStart: agents.length - absentSlots,
+    absenteeismPct,
+  })
+  useEffect(() => {
+    initSeedRef.current = {
+      simTimeMin,
+      agentCount: agents.length,
+      absentTailStart: agents.length - absentSlots,
+      absenteeismPct,
+    }
+  }, [simTimeMin, agents.length, absentSlots, absenteeismPct])
+
   // Mount Pixi app + scene whenever the layout changes (size, agent count).
   useEffect(() => {
     let mounted = true
@@ -263,7 +291,13 @@ export function IsoRendererHD({
       app.canvas.style.height = '100%'
       app.canvas.style.display = 'block'
       containerRef.current.appendChild(app.canvas)
-      const scene = buildHDScene(app, layout)
+      const seed = initSeedRef.current
+      const scene = buildHDScene(app, layout, {
+        agentCount: seed.agentCount,
+        absentTailStart: seed.absentTailStart,
+        absenteeismPct: seed.absenteeismPct,
+        simTimeMin: seed.simTimeMin,
+      })
       appRef.current = app
       createdApp = app
       sceneRef.current = scene
@@ -290,6 +324,12 @@ export function IsoRendererHD({
   // Per-frame agent updates via Pixi's ticker. We intentionally avoid React
   // setState in the hot loop — sprite mutations happen directly on the Pixi
   // containers and the renderer pushes a single GPU pass per frame.
+  // Round 8: also drives the NPC layer (janitors / exec / delivery), the
+  // smoke particle layer, and per-frame tile glow halos under at-desk agents.
+  // Sim minute is read through a ref so the effect doesn't re-register every
+  // tick when simTimeMin advances.
+  const simTimeMinRef = useRef(simTimeMin)
+  useEffect(() => { simTimeMinRef.current = simTimeMin }, [simTimeMin])
   useEffect(() => {
     const scene = sceneRef.current
     if (!scene) return
@@ -310,6 +350,9 @@ export function IsoRendererHD({
       const sceneNow = sceneRef.current
       if (!sceneNow) return
       updateAgentLayer(sceneNow, agents, journeysRef.current, effectiveActivities, now)
+      paintTileGlows(sceneNow.tileGlows, agents, journeysRef.current, layout.deskPositions)
+      updateNpcs(sceneNow.npcs, layout, simTimeMinRef.current, now)
+      updateSmokeLayer(sceneNow.smoke, now)
     }
     ticker.add(onTick)
     return () => { ticker.remove(onTick) }
@@ -336,6 +379,54 @@ export function IsoRendererHD({
     scene.cameraLayer.x = camera.panX
     scene.cameraLayer.y = camera.panY
   }, [sceneNonce, camera])
+
+  // ── Activity counts for the on-canvas overlay ─────────────────────────
+  // The Pixi ticker mutates `journeysRef.current` directly each frame, so we
+  // sample those mutations into a state snapshot every 250 ms (the activity
+  // scheduler updates on a sim-minute timescale — far slower than 60fps).
+  // This keeps the render path pure (no ref reads during render).
+  const [activityCounts, setActivityCounts] = useState<ActivityCounts>(() => ({
+    atDesks: 0, inTraining: 0, inGym: 0, onBreak: 0,
+    smoking: 0, chatting: 0, waterCooler: 0, restroom: 0, walking: 0,
+  }))
+  const agentsRef = useRef(agents)
+  useEffect(() => { agentsRef.current = agents }, [agents])
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const journeys = journeysRef.current
+      const ags = agentsRef.current
+      const counts: ActivityCounts = {
+        atDesks: 0, inTraining: 0, inGym: 0, onBreak: 0,
+        smoking: 0, chatting: 0, waterCooler: 0, restroom: 0, walking: 0,
+      }
+      for (let i = 0; i < ags.length; i++) {
+        const a = ags[i]
+        const j = journeys[a.id]
+        const k = j?.phase.kind
+        if (k === 'gone' || a.state === 'off_shift') continue
+        if (k && isWalkingPhase(j!.phase)) { counts.walking++; continue }
+        if (k === 'at_break_table' || a.state === 'on_break') { counts.onBreak++; continue }
+        if (k === 'outside_for_lunch') { counts.onBreak++; continue }
+        if (k === 'inside_restroom' || k === 'entering_restroom' || k === 'exiting_restroom') {
+          counts.restroom++; continue
+        }
+        if (k === 'in_room') {
+          const room = j!.phase.kind === 'in_room' ? j!.phase.targetRoom : null
+          if (room === 'training') counts.inTraining++
+          else if (room === 'gym') counts.inGym++
+          else if (room === 'water_cooler') counts.waterCooler++
+          else if (room === 'patio') counts.smoking++
+          else if (room === 'chat') counts.chatting++
+          else counts.atDesks++
+          continue
+        }
+        if (k === 'at_chat_spot') { counts.chatting++; continue }
+        counts.atDesks++
+      }
+      setActivityCounts(counts)
+    }, 250)
+    return () => window.clearInterval(id)
+  }, [])
 
   // Wheel zoom + drag-pan.
   useEffect(() => {
@@ -417,10 +508,26 @@ export function IsoRendererHD({
         className={`cockpit-iso-hd ${camera.scale !== 1 || camera.panX !== 0 || camera.panY !== 0 ? 'cockpit-iso-hd--zoomed' : ''}`}
         style={{ width: '100%', height: '100%', display: 'block', cursor: 'grab' }}
       />
-      {/* Reuse the DOM-level overlays so HD has the same chrome as SVG. */}
+      {/* Reuse the DOM-level overlays so HD has the same chrome as SVG.
+          Round 8: ActivityCounter and StatusLegend are now included so
+          HD has the same on-canvas readout strip the SVG theme has. */}
       <div className="cockpit-scene-overlay cockpit-scene-overlay--top-right-lower">
         <SceneClock simTimeMin={simTimeMin}/>
+        <ActivityCounter counts={activityCounts}/>
+        <StatusLegend/>
       </div>
+
+      {/* Camera controls — reset / +/- buttons. Calls into the local camera
+          state setter (HD doesn't use the SVG's useCamera hook). */}
+      <div className="cockpit-scene-overlay cockpit-scene-overlay--top-right-camera">
+        <CameraControls
+          scale={camera.scale}
+          onReset={() => setCamera({ ...INITIAL_CAMERA })}
+          onZoomIn={() => setCamera(c => ({ ...c, scale: Math.min(4, c.scale * 1.2) }))}
+          onZoomOut={() => setCamera(c => ({ ...c, scale: Math.max(0.5, c.scale / 1.2) }))}
+        />
+      </div>
+
       {visualFlags.outageActive && (
         <div className="cockpit-outage-banner" role="status">
           <span aria-hidden="true">⚠️</span>

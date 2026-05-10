@@ -24,6 +24,17 @@ import {
   type BuildingLayout,
   type ScreenPoint,
 } from '../isoOffice/geometry'
+import {
+  drawGymFurniture,
+  drawTrainingFurniture,
+  drawBreakRoomFurniture,
+  drawRestroomFurniture,
+  drawManagerOfficesFurniture,
+  drawReceptionFurniture,
+  drawSmokingPatio,
+  buildGuardSprite,
+  buildManagerSprites,
+} from './furniture'
 
 const FRONT_WALL_HEIGHT = 8
 const PARTITION_HEIGHT = 6
@@ -295,6 +306,27 @@ export function buildScenery(layout: BuildingLayout): SceneryLayer {
     drawChair(desks, deskPos.x, deskPos.y - 7, 0.55)
   }
   container.addChild(desks)
+
+  // ── Room furniture (Round 8: HD parity with SVG).
+  // Draw into a fresh Graphics so the static furniture sits over room tints
+  // and floor, but under agents (which are added in their own layer above
+  // scenery). Order: gym, training, break, restrooms, manager offices,
+  // reception, smoking patio. The patio extends outside the perimeter wall,
+  // so we draw it last so it visually overlaps the front wall edge.
+  const roomFurniture = new Graphics()
+  drawGymFurniture(roomFurniture, layout)
+  drawTrainingFurniture(roomFurniture, layout)
+  drawBreakRoomFurniture(roomFurniture, layout)
+  drawRestroomFurniture(roomFurniture, layout)
+  drawManagerOfficesFurniture(roomFurniture, layout)
+  drawReceptionFurniture(roomFurniture, layout)
+  drawSmokingPatio(roomFurniture, layout)
+  container.addChild(roomFurniture)
+
+  // Static occupants: security guard at reception desk, manager in each office.
+  // These aren't part of the simulation roster so they live in the static scene.
+  container.addChild(buildGuardSprite(layout))
+  container.addChild(buildManagerSprites(layout))
 
   return {
     container,
