@@ -438,32 +438,38 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
 
   // SVG ref for keyboard focus.
   const svgRef = useRef<SVGSVGElement | null>(null)
-  // Keyboard shortcuts: + / − zoom, arrows pan, 0 reset. Bound to window
-  // so they work whether or not the SVG is currently focused — the office
-  // is the dominant element on the page so this is fine UX.
+  // Stable refs to the camera methods so the keyboard effect doesn't depend
+  // on the camera object identity (which changes when scale/pan move). If we
+  // depended on `camera` directly the listener would re-register on every
+  // pan/zoom (and on every parent rAF-driven re-render), which combined with
+  // the per-frame setState ticks from Round 6 was tripping React 19's
+  // max-update-depth guard.
+  const cameraRef = useRef(camera)
+  useEffect(() => { cameraRef.current = camera }, [camera])
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       // Ignore when typing in inputs / textareas.
       const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase()
       if (tag === 'input' || tag === 'textarea' || tag === 'select') return
       if ((e.target as HTMLElement | null)?.isContentEditable) return
+      const cam = cameraRef.current
       switch (e.key) {
         case '+':
         case '=':
-          camera.zoomIn(); break
+          cam.zoomIn(); break
         case '-':
         case '_':
-          camera.zoomOut(); break
+          cam.zoomOut(); break
         case '0':
-          camera.reset(); break
+          cam.reset(); break
         case 'ArrowLeft':
-          camera.panBy(40, 0); break
+          cam.panBy(40, 0); break
         case 'ArrowRight':
-          camera.panBy(-40, 0); break
+          cam.panBy(-40, 0); break
         case 'ArrowUp':
-          camera.panBy(0, 40); break
+          cam.panBy(0, 40); break
         case 'ArrowDown':
-          camera.panBy(0, -40); break
+          cam.panBy(0, -40); break
         default:
           return
       }
@@ -471,12 +477,25 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [camera])
+  }, [])
 
-  // Show a brief "Press 0 to reset" hint when zoomed in.
+  // Show a brief "Press 0 to reset" hint when zoomed in. The hint lives in
+  // its own bottom-left overlay (Round 6.1: previously sat in the top-right
+  // camera controls strip where the inline-flex layout floated it into the
+  // wrong place on some viewports). Auto-fades after a few seconds via CSS
+  // animation; we re-mount it on each new "zoomed-away" transition so the
+  // animation replays.
   const zoomedAway = Math.abs(camera.state.scale - 1) > 0.01
     || camera.state.panX !== 0
     || camera.state.panY !== 0
+  const [hintNonce, setHintNonce] = useState(0)
+  const wasZoomedAwayRef = useRef(false)
+  useEffect(() => {
+    if (zoomedAway && !wasZoomedAwayRef.current) {
+      setHintNonce(n => (n + 1) & 0xffff)
+    }
+    wasZoomedAwayRef.current = zoomedAway
+  }, [zoomedAway])
 
   return (
     <>
@@ -628,10 +647,19 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
         onZoomIn={camera.zoomIn}
         onZoomOut={camera.zoomOut}
       />
-      {zoomedAway && (
-        <div className="cockpit-camera-hint" aria-live="polite">Press 0 to reset</div>
-      )}
     </div>
+
+    {/* "Press 0 to reset" hint — bottom-left of the office canvas. Fades
+        in/out via CSS; remounted (via key) on each zoom-away transition so
+        the animation replays. */}
+    {zoomedAway && (
+      <div
+        key={`hint-${hintNonce}`}
+        className="cockpit-scene-overlay cockpit-scene-overlay--bottom-left"
+      >
+        <div className="cockpit-camera-hint" aria-live="polite">Press 0 to reset view</div>
+      </div>
+    )}
 
     {/* Outage banner across the top of the office — sits above the EventBanner
         toasts so it reads first. */}

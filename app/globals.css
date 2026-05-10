@@ -1657,6 +1657,15 @@ details[open] .learn-tip summary::before { content: '▼ '; }
   right: 0.5rem;
   align-items: flex-end;
 }
+.cockpit-scene-overlay--bottom-left {
+  /* Round 6.1: dedicated bottom-left overlay for the camera "press 0 to
+     reset" hint. Previously it lived inside the top-right camera-controls
+     row, where the inline-flex container floated it into the wrong place
+     on some viewports. */
+  bottom: 0.6rem;
+  left: 0.6rem;
+  align-items: flex-start;
+}
 
 .cockpit-scene-clock {
   display: inline-flex;

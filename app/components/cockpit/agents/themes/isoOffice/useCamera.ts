@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 /**
  * Camera state for the iso-office SVG.
@@ -378,14 +378,25 @@ export function useCamera(opts: CameraOptions): CameraApi {
     }
   }, [])
 
-  const vbX = baseX - state.panX / state.scale
-  const vbY = baseY - state.panY / state.scale
-  const vbW = baseW / state.scale
-  const vbH = baseH / state.scale
+  const viewBox = useMemo(() => {
+    const vbX = baseX - state.panX / state.scale
+    const vbY = baseY - state.panY / state.scale
+    const vbW = baseW / state.scale
+    const vbH = baseH / state.scale
+    return { x: vbX, y: vbY, w: vbW, h: vbH }
+  }, [baseX, baseY, baseW, baseH, state.panX, state.panY, state.scale])
 
-  return {
+  // Memoize the API object so it has stable identity across renders when none
+  // of its observable fields change. Without this, IsoRenderer's keyboard
+  // useEffect (which depends on `camera`) re-registers on every parent
+  // re-render — and during heavy rAF-driven re-render cycles (Round 6 added
+  // the camera, which compounded with the existing journey/positions ticks),
+  // React 19's "max update depth" guard misclassifies the cascade as a
+  // runaway update inside the useAnimation rAF. Stable identity breaks the
+  // cascade.
+  return useMemo(() => ({
     state,
-    viewBox: { x: vbX, y: vbY, w: vbW, h: vbH },
+    viewBox,
     dragging,
     reset,
     zoomIn,
@@ -396,7 +407,7 @@ export function useCamera(opts: CameraOptions): CameraApi {
     onTouchStart,
     onTouchMove,
     onTouchEnd,
-  }
+  }), [state, viewBox, dragging, reset, zoomIn, zoomOut, panBy, onWheel, onMouseDown, onTouchStart, onTouchMove, onTouchEnd])
 }
 
 // Exported for tests.
