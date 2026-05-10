@@ -38,8 +38,10 @@ const LIGHTNING_DUR_MS       = 700
 const LIGHTNING_SPAWN_INTERVAL_MS = 650
 
 const PUFF_MAX               = 60
-const PUFF_DUR_MS            = 900
-const QUESTION_MARK_DUR_MS   = 1200
+// Round 15: bumped puff lifetime from 900ms → 2500ms and `?` markers from
+// 1.2s → 4s so flash_absent feedback persists long enough to be noticed.
+const PUFF_DUR_MS            = 2500
+const QUESTION_MARK_DUR_MS   = 4000
 
 interface PhoneParticle { id: number; spawnAt: number; from: ScreenPoint; to: ScreenPoint; ctrl: ScreenPoint }
 interface AbandonParticle { id: number; spawnAt: number; at: ScreenPoint }
@@ -289,8 +291,10 @@ export function DramaticEffectsLayer({ layout, state, agents, events, positions 
       for (const p of puffsRef.current) {
         const t = Math.min(1, Math.max(0, (now - p.spawnAt) / PUFF_DUR_MS))
         if (t <= 0) continue
-        const r = 3 + t * 12
-        const opacity = (1 - t) * 0.7
+        // Round 15: bigger expansion so the longer-lived puff stays readable.
+        const r = 4 + t * 22
+        // Hold near full opacity for the first 25% of life, then fade out.
+        const opacity = t < 0.25 ? 0.85 : Math.max(0, 0.85 * (1 - (t - 0.25) / 0.75))
         const c = document.createElementNS(NS, 'circle')
         c.setAttribute('cx', String(p.at.x + p.offsetX))
         c.setAttribute('cy', String(p.at.y + p.offsetY))
@@ -304,14 +308,18 @@ export function DramaticEffectsLayer({ layout, state, agents, events, positions 
       for (const q of questionsRef.current) {
         const t = Math.min(1, Math.max(0, (now - q.spawnAt) / QUESTION_MARK_DUR_MS))
         if (t <= 0) continue
-        const opacity = t < 0.7 ? 1 : Math.max(0, 1 - (t - 0.7) / 0.3)
+        // Round 15: hold the marker visible for the first 75% of its 4s life,
+        // grow it slightly + drift up so it's impossible to miss.
+        const opacity = t < 0.75 ? 1 : Math.max(0, 1 - (t - 0.75) / 0.25)
         const text = document.createElementNS(NS, 'text')
         text.setAttribute('x', String(q.at.x))
-        text.setAttribute('y', String(q.at.y - t * 12))
+        text.setAttribute('y', String(q.at.y - t * 24))
         text.setAttribute('text-anchor', 'middle')
-        text.setAttribute('font-size', '14')
+        text.setAttribute('font-size', String(18 + t * 6))
         text.setAttribute('font-weight', '900')
         text.setAttribute('fill', '#dc2626')
+        text.setAttribute('stroke', '#fff')
+        text.setAttribute('stroke-width', '0.6')
         text.setAttribute('opacity', String(opacity))
         text.textContent = '?'
         g.appendChild(text)

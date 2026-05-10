@@ -13,7 +13,9 @@
 
 import type { ActiveInjectedEvent } from './injectedEventVisuals'
 
-const FLASH_RECENT_MIN = 5         // a "flash absent" is "recent" for 5 sim min
+// Round 15: bumped from 5 → 8 sim-min so the puff/edge-flash/counter window
+// matches the EventBanner's display window (FLASH_DISPLAY_MIN = 8).
+const FLASH_RECENT_MIN = 8         // a "flash absent" is "recent" for 8 sim min
 const SURGE_RAMP_MIN = 2           // ramp-in over 2 sim min so the drama eases in
 const OUTAGE_RAMP_MIN = 1
 const STAFF_DROP_RAMP_MIN = 1

@@ -11,7 +11,9 @@ import type { InjectedEvent } from '@/lib/types'
  *     after firing, so the banner has time to be read at any sim speed.
  */
 
-const FLASH_DISPLAY_MIN = 5
+// Round 15: bumped from 5 → 8 sim-min so the flash_absent toast persists
+// long enough to be read at 1× speed (≈8s wall-clock). Tunable here only.
+const FLASH_DISPLAY_MIN = 8
 
 export interface ActiveInjectedEvent {
   ev: InjectedEvent

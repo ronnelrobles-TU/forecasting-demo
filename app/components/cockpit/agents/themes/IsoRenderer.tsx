@@ -869,6 +869,27 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
       </div>
     )}
 
+    {/* Round 15: stronger flash_absent feedback — full-canvas red edge that
+        pulses 3× over 3s + a giant "−N AGENTS UNAVAILABLE" counter that
+        fades over 4s. Both keyed on the most recent flash event id so they
+        replay on each fresh fire. */}
+    {dramaticState.flashAbsentRecent && dramaticState.flashAbsentEvents.length > 0 && (
+      <>
+        <div
+          key={`flash-edge-${dramaticState.flashAbsentEvents[dramaticState.flashAbsentEvents.length - 1].id}`}
+          className="cockpit-flash-absent-edge"
+          aria-hidden="true"
+        />
+        <div
+          key={`flash-counter-${dramaticState.flashAbsentEvents[dramaticState.flashAbsentEvents.length - 1].id}`}
+          className="cockpit-flash-absent-counter"
+          role="status"
+        >
+          −{Math.round(dramaticState.flashAbsentCount)} AGENTS UNAVAILABLE
+        </div>
+      </>
+    )}
+
     {/* Outage banner across the top of the office — sits above the EventBanner
         toasts so it reads first. */}
     {visualFlags.outageActive && (

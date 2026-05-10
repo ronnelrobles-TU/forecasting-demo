@@ -29,8 +29,10 @@ const LIGHTNING_DUR_MS = 700
 const LIGHTNING_SPAWN_INTERVAL_MS = 650
 
 const PUFF_MAX = 60
-const PUFF_DUR_MS = 900
-const QUESTION_DUR_MS = 1200
+// Round 15: bumped puff lifetime from 900ms → 2500ms and `?` markers from
+// 1.2s → 4s so flash_absent feedback persists long enough to be noticed.
+const PUFF_DUR_MS = 2500
+const QUESTION_DUR_MS = 4000
 
 interface PhoneP { gfx: Text; spawnAt: number; from: ScreenPoint; to: ScreenPoint; ctrl: ScreenPoint }
 interface AbandonP { gfx: Text; spawnAt: number; at: ScreenPoint }
@@ -88,7 +90,7 @@ interface PosLite { pos: ScreenPoint; visible: boolean }
 const phoneStyle = new TextStyle({ fontSize: 14 })
 const abandonStyle = new TextStyle({ fontSize: 11, fontWeight: '800', fill: 0xdc2626 })
 const lightningStyle = new TextStyle({ fontSize: 18 })
-const questionStyle = new TextStyle({ fontSize: 14, fontWeight: '900', fill: 0xdc2626 })
+const questionStyle = new TextStyle({ fontSize: 22, fontWeight: '900', fill: 0xdc2626, stroke: { color: 0xffffff, width: 1 } })
 
 // Round 13: super-sample dramatic-effect text for HD crispness. Same logic
 // as the agent bubble TEXT_RESOLUTION in agents.ts — bake the glyph texture
@@ -290,11 +292,13 @@ export function updateDramaticLayer(
       continue
     }
     if (t <= 0) continue
-    const r = 3 + t * 12
+    // Round 15: bigger expansion + slower fade so the longer-lived puff
+    // stays readable across the whole 2.5s window.
+    const r = 4 + t * 22
     p.gfx.x = p.at.x + p.offsetX
     p.gfx.y = p.at.y + p.offsetY
     p.gfx.scale.set(r)
-    p.gfx.alpha = (1 - t) * 0.7
+    p.gfx.alpha = t < 0.25 ? 0.85 : Math.max(0, 0.85 * (1 - (t - 0.25) / 0.75))
   }
   for (let i = layer.questions.length - 1; i >= 0; i--) {
     const q = layer.questions[i]
@@ -306,7 +310,9 @@ export function updateDramaticLayer(
     }
     if (t <= 0) continue
     q.gfx.x = q.at.x
-    q.gfx.y = q.at.y - t * 12
-    q.gfx.alpha = t < 0.7 ? 1 : Math.max(0, 1 - (t - 0.7) / 0.3)
+    q.gfx.y = q.at.y - t * 24
+    // Round 15: hold full opacity for first 75% of the 4s life, then fade.
+    q.gfx.alpha = t < 0.75 ? 1 : Math.max(0, 1 - (t - 0.75) / 0.25)
+    q.gfx.scale.set(1 + t * 0.4)
   }
 }

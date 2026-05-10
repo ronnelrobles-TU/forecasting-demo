@@ -40,8 +40,10 @@ describe('activeInjectedEvents', () => {
     expect(activeInjectedEvents(evs, 719).length).toBe(0)
     expect(activeInjectedEvents(evs, 720).length).toBe(1)
     expect(activeInjectedEvents(evs, 723).length).toBe(1)
-    // After 5 minutes it dismisses.
-    expect(activeInjectedEvents(evs, 725).length).toBe(0)
+    // Round 15: bumped FLASH_DISPLAY_MIN from 5 → 8 sim-min so flash visuals
+    // persist long enough to read at 1× speed. Still on at +7m, gone at +8m.
+    expect(activeInjectedEvents(evs, 727).length).toBe(1)
+    expect(activeInjectedEvents(evs, 728).length).toBe(0)
   })
 })
 

@@ -751,6 +751,23 @@ export function IsoRendererHD({
           📞 CALLS WAITING: {queueDepth}
         </div>
       )}
+      {/* Round 15: stronger flash_absent feedback (parity with SVG). */}
+      {dramaticState.flashAbsentRecent && dramaticState.flashAbsentEvents.length > 0 && (
+        <>
+          <div
+            key={`flash-edge-${dramaticState.flashAbsentEvents[dramaticState.flashAbsentEvents.length - 1].id}`}
+            className="cockpit-flash-absent-edge"
+            aria-hidden="true"
+          />
+          <div
+            key={`flash-counter-${dramaticState.flashAbsentEvents[dramaticState.flashAbsentEvents.length - 1].id}`}
+            className="cockpit-flash-absent-counter"
+            role="status"
+          >
+            −{Math.round(dramaticState.flashAbsentCount)} AGENTS UNAVAILABLE
+          </div>
+        </>
+      )}
       {visualFlags.outageActive && (
         <div className="cockpit-outage-banner" role="status">
           <span aria-hidden="true">⚠️</span>

@@ -103,7 +103,9 @@ export function Sidebar({ currentSimTimeMin }: SidebarProps) {
         open={modalOpen}
         fireAtMin={currentSimTimeMin}
         onClose={() => setModalOpen(false)}
-        onPick={preset => addInjection(preset.build(currentSimTimeMin))}
+        onSubmit={events => {
+          for (const ev of events) addInjection(ev)
+        }}
       />
 
     </aside>

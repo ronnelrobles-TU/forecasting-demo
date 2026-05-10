@@ -1151,6 +1151,259 @@ details[open] .learn-tip summary::before { content: '▼ '; }
   align-self: flex-end;
 }
 
+/* ───────── Round 15: Inject modal — customizer ───────── */
+/*
+ * The inject modal grew sliders + a pending-stack list, so the body needs
+ * to scroll instead of growing past the viewport. The customizer rows live
+ * inside an animated expandable card.
+ */
+.cockpit-modal--inject {
+  width: min(560px, 94vw);
+  max-height: 88vh;
+  overflow-y: auto;
+}
+.cockpit-modal-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+.cockpit-modal-pending-pill {
+  background: rgba(220, 38, 38, 0.18);
+  color: #fecaca;
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.cockpit-modal-item-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 0.4rem;
+}
+.cockpit-modal-item-card.is-expanded {
+  border-color: #475569;
+  background: #111c33;
+}
+.cockpit-modal-item-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.4rem;
+  align-items: stretch;
+}
+.cockpit-modal-item-card .cockpit-modal-item {
+  background: transparent;
+  border: 0;
+  padding: 0.45rem 0.55rem;
+}
+.cockpit-modal-item-card .cockpit-modal-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.cockpit-modal-customize-btn {
+  background: rgba(148, 163, 184, 0.12);
+  border: 1px solid #334155;
+  border-radius: 4px;
+  color: #cbd5f5;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.cockpit-modal-customize-btn:hover {
+  background: rgba(148, 163, 184, 0.22);
+}
+
+/* Tuner expansion area */
+.cockpit-modal-tuner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.6rem 0.55rem;
+  border-top: 1px dashed #334155;
+}
+.cockpit-modal-tuner-row {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 0.6rem;
+  align-items: center;
+}
+.cockpit-modal-tuner-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+.cockpit-modal-slider {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+.cockpit-modal-slider input[type='range'] {
+  width: 100%;
+  accent-color: #ef4444;
+}
+.cockpit-modal-slider-value {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #f8fafc;
+  min-width: 70px;
+  text-align: right;
+}
+.cockpit-modal-duration {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.cockpit-modal-quickpicks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.cockpit-modal-quickpick {
+  background: transparent;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  color: #cbd5f5;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cockpit-modal-quickpick:hover { background: rgba(255, 255, 255, 0.05); }
+.cockpit-modal-quickpick.is-active {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.7);
+  color: #fecaca;
+}
+.cockpit-modal-fire-at {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.cockpit-modal-fire-at input[type='time'] {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  color: #f8fafc;
+  padding: 0.25rem 0.4rem;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  color-scheme: dark;
+}
+.cockpit-modal-fire-at-reset {
+  background: transparent;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  border-radius: 4px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+.cockpit-modal-tuner-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  margin-top: 0.2rem;
+}
+.cockpit-modal-stack-btn,
+.cockpit-modal-fire-btn,
+.cockpit-modal-pending-fire {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.7);
+  color: #fecaca;
+  border-radius: 5px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+}
+.cockpit-modal-stack-btn {
+  background: transparent;
+  border-color: #334155;
+  color: #cbd5f5;
+}
+.cockpit-modal-stack-btn:hover { background: rgba(148, 163, 184, 0.1); }
+.cockpit-modal-fire-btn:hover,
+.cockpit-modal-pending-fire:hover {
+  background: rgba(239, 68, 68, 0.3);
+}
+.cockpit-modal-kind-select {
+  width: 100%;
+}
+
+/* Pending stack */
+.cockpit-modal-pending {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.6rem;
+  background: #0a1326;
+  border: 1px solid #334155;
+  border-radius: 6px;
+}
+.cockpit-modal-pending-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #cbd5f5;
+}
+.cockpit-modal-pending-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.cockpit-modal-pending-row {
+  display: grid;
+  grid-template-columns: 110px 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.74rem;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid #1e293b;
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+}
+.cockpit-modal-pending-kind {
+  font-weight: 700;
+  color: #fecaca;
+  text-transform: uppercase;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+}
+.cockpit-modal-pending-mag { color: #cbd5f5; }
+.cockpit-modal-pending-remove {
+  background: transparent;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  border-radius: 3px;
+  width: 22px;
+  height: 22px;
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+.cockpit-modal-pending-remove:hover { color: #ef4444; border-color: #ef4444; }
+.cockpit-modal-pending-fire {
+  align-self: flex-end;
+}
+
 /* Clear-injections button */
 .cockpit-clear-injections {
   background: transparent;
@@ -2583,4 +2836,71 @@ details[open] .learn-tip summary::before { content: '▼ '; }
 .cockpit-dramatic-strip-row--flash_absent {
   background: linear-gradient(90deg, rgba(127, 29, 29, 0.95), rgba(239, 68, 68, 0.95), rgba(127, 29, 29, 0.95));
   animation: cockpit-event-flash 0.9s ease-in-out infinite;
+}
+
+/* ───────── Round 15: Stronger flash_absent feedback ───────── */
+
+/*
+ * Full-canvas red border that pulses 3 times over 3 seconds the moment a
+ * flash_absent fires. Wall-clock animation (3s total) so it reads regardless
+ * of sim speed. The element is mounted only while flashAbsentRecent is true,
+ * keyed on a per-event id so it replays on each fresh event.
+ */
+.cockpit-flash-absent-edge {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+  box-shadow:
+    inset 0 0 0 0 rgba(239, 68, 68, 0),
+    inset 0 0 0 0 rgba(239, 68, 68, 0);
+  animation: cockpit-flash-absent-edge-pulse 1s ease-in-out 3;
+  border-radius: inherit;
+}
+@keyframes cockpit-flash-absent-edge-pulse {
+  0%, 100% {
+    box-shadow:
+      inset 0 0 0 0 rgba(239, 68, 68, 0),
+      inset 0 0 60px rgba(239, 68, 68, 0);
+    background: rgba(239, 68, 68, 0);
+  }
+  50% {
+    box-shadow:
+      inset 0 0 0 12px rgba(239, 68, 68, 0.85),
+      inset 0 0 120px rgba(239, 68, 68, 0.45);
+    background: rgba(239, 68, 68, 0.08);
+  }
+}
+
+/*
+ * Big "−N AGENTS UNAVAILABLE" overlay that floats over the agent floor and
+ * fades over 4 seconds. Wall-clock animation. Sits below the EventBanner so
+ * it doesn't clash with the cinematic toast cards.
+ */
+.cockpit-flash-absent-counter {
+  position: absolute;
+  top: 38%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 6;
+  font-weight: 900;
+  font-size: clamp(2.2rem, 5vw, 3.8rem);
+  letter-spacing: 0.04em;
+  color: #fecaca;
+  text-shadow:
+    0 0 18px rgba(239, 68, 68, 0.85),
+    0 0 32px rgba(127, 29, 29, 0.7),
+    0 4px 8px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+  text-align: center;
+  white-space: nowrap;
+  animation: cockpit-flash-absent-counter 4s ease-out forwards;
+  font-variant-numeric: tabular-nums;
+}
+@keyframes cockpit-flash-absent-counter {
+  0%   { opacity: 0; transform: translate(-50%, -30%) scale(0.6); }
+  15%  { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+  30%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  85%  { opacity: 1; transform: translate(-50%, -55%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -65%) scale(0.95); }
 }
