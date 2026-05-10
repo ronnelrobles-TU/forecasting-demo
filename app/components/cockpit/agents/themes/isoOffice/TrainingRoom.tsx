@@ -1,8 +1,17 @@
 'use client'
 
+import type { AgentVisualState } from '@/lib/animation/agentTimeline'
 import type { BuildingLayout } from './geometry'
+import { AgentSprite } from './AgentSprite'
+import type { AnimState } from './animation'
+import type { ActivityAssignment } from './activity'
 
-interface TrainingRoomProps { layout: BuildingLayout }
+interface TrainingRoomProps {
+  layout: BuildingLayout
+  agents?: Array<{ id: string; state: AgentVisualState }>
+  activities?: Record<string, ActivityAssignment>
+  anim?: AnimState
+}
 
 function StudentChair({ x, y }: { x: number; y: number }) {
   return (
@@ -29,14 +38,27 @@ function Whiteboard({ x, y }: { x: number; y: number }) {
   )
 }
 
-export function TrainingRoom({ layout }: TrainingRoomProps) {
+export function TrainingRoom({ layout, agents = [], activities, anim }: TrainingRoomProps) {
   const t = layout.rooms.trainingRoom
+  const trainingAgents = activities
+    ? agents.filter(a => activities[a.id]?.activity === 'in_training')
+    : []
   return (
     <g>
       <Whiteboard x={t.whiteboardPosition.x} y={t.whiteboardPosition.y}/>
       {t.studentSeats.map((s, i) => (
         <StudentChair key={`tc${i}`} x={s.x} y={s.y}/>
       ))}
+      {trainingAgents.map(a => {
+        const animEntry = anim?.[a.id]
+        if (animEntry?.kind === 'desk_to_room' || animEntry?.kind === 'room_to_desk') return null
+        const pos = activities![a.id].position
+        return (
+          <g key={`student-${a.id}`}>
+            <AgentSprite x={pos.x} y={pos.y - 1} shirtColor="#22c55e"/>
+          </g>
+        )
+      })}
     </g>
   )
 }

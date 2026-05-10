@@ -58,6 +58,9 @@ export interface BreakRoomLayout extends RoomBounds {
   waterCoolerPosition: ScreenPoint
   vendingMachinePosition: ScreenPoint
   seatPositions: ScreenPoint[]
+  // Cluster of standing positions near the water cooler for the
+  // at_water_cooler activity (informal hangouts).
+  waterCoolerCluster: ScreenPoint[]
 }
 
 export interface TrainingRoomLayout extends RoomBounds {
@@ -76,6 +79,11 @@ export interface GymLayout extends RoomBounds {
 
 export interface AgentFloorLayout extends RoomBounds {
   pods: CubiclePod[]
+  // Pairs of nearby points where idle agents can stand chatting in the aisles
+  // between pods. Each pair is two points 8px apart (one for each chatter).
+  chattingHotspots: Array<[ScreenPoint, ScreenPoint]>
+  // Slow loop of waypoints for the janitor NPC (perimeter of the agent floor).
+  janitorPath: ScreenPoint[]
 }
 
 export interface BuildingLayout {
@@ -298,11 +306,45 @@ function makeAgentFloor(
   // Keep pod ordering as-is, but note: pods.flatMap(desks) will already be
   // back-to-front because the loop visits pods in row-major order with rows
   // stepping front-ward (j increases) and cols left-to-right.
+
+  // Chatting hotspots: pairs of points in the aisles BETWEEN adjacent pod
+  // columns (along the i-axis). Each pair is two standing positions ~8px apart
+  // in screen space, suitable for two agents standing facing each other.
+  const chattingHotspots: Array<[ScreenPoint, ScreenPoint]> = []
+  for (let r = 0; r < podRows; r++) {
+    for (let c = 0; c < podCols - 1; c++) {
+      // Aisle midpoint between pod (r,c) and pod (r,c+1) along i.
+      const aisleI = i0 + c * POD_SPACING_I + POD_SPACING_I  // i = boundary between cols
+      const aisleJ = j0 + r * POD_SPACING_J + POD_SPACING_J / 2
+      const center = isoToScreen(aisleI, aisleJ, originX, originY)
+      chattingHotspots.push([
+        { x: center.x - 4, y: center.y },
+        { x: center.x + 4, y: center.y },
+      ])
+    }
+  }
+
+  // Janitor path: perimeter loop around the agent floor (8 waypoints).
+  const pad = 0.5
+  const inset = (i: number, j: number) => isoToScreen(i, j, originX, originY)
+  const janitorPath: ScreenPoint[] = [
+    inset(bounds.iMin + pad, bounds.jMin + pad),                         // NW
+    inset((bounds.iMin + bounds.iMax) / 2, bounds.jMin + pad),           // N
+    inset(bounds.iMax - pad, bounds.jMin + pad),                         // NE
+    inset(bounds.iMax - pad, (bounds.jMin + bounds.jMax) / 2),           // E
+    inset(bounds.iMax - pad, bounds.jMax - pad),                         // SE
+    inset((bounds.iMin + bounds.iMax) / 2, bounds.jMax - pad),           // S
+    inset(bounds.iMin + pad, bounds.jMax - pad),                         // SW
+    inset(bounds.iMin + pad, (bounds.jMin + bounds.jMax) / 2),           // W
+  ]
+
   return {
     isoBounds: bounds,
     zonePoints: isoRect(bounds, originX, originY),
     wallSegments: rectWalls(bounds, originX, originY),
     pods,
+    chattingHotspots,
+    janitorPath,
   }
 }
 
@@ -388,12 +430,27 @@ function makeBreakRoom(agentCount: number, originX: number, originY: number): Br
   const ci = (b.iMin + b.iMax) / 2
   const cj = (b.jMin + b.jMax) / 2
   const tableCenter = isoToScreen(ci, cj, originX, originY)
-  const waterCooler = isoToScreen(b.iMin + 0.5, b.jMin + 0.5, originX, originY)
-  const vending = isoToScreen(b.iMax - 0.5, b.jMin + 0.5, originX, originY)
+  // Water cooler + vending machine sit along the back (low-j) wall but pushed
+  // INWARD (higher j, larger i for cooler / smaller i for vending) so that
+  // their drawn body — which extends ~22-26px upward in screen y from the
+  // anchor point — still falls inside the room polygon. The previous values
+  // (jMin + 0.5) put the rendered body OUT of the room because the y-offset
+  // pulled it above the back wall (vending landed in the training room).
+  const waterCooler = isoToScreen(b.iMin + 1.2, b.jMin + 2.3, originX, originY)
+  const vending = isoToScreen(b.iMax - 1.2, b.jMin + 2.3, originX, originY)
 
   // Break seats: a ring of 8 around the table + grid fill if more capacity needed.
   const maxBreakAgents = Math.max(8, Math.ceil(agentCount * 0.25))
   const seats = computeBreakSeats(maxBreakAgents, tableCenter, b, originX, originY)
+
+  // Cluster of 4 standing positions near the water cooler for the
+  // at_water_cooler activity (small offsets, all inside the room).
+  const waterCoolerCluster: ScreenPoint[] = [
+    { x: waterCooler.x - 12, y: waterCooler.y + 6 },
+    { x: waterCooler.x + 14, y: waterCooler.y + 4 },
+    { x: waterCooler.x - 4,  y: waterCooler.y + 14 },
+    { x: waterCooler.x + 18, y: waterCooler.y + 12 },
+  ]
 
   return {
     isoBounds: b,
@@ -403,6 +460,7 @@ function makeBreakRoom(agentCount: number, originX: number, originY: number): Br
     waterCoolerPosition: waterCooler,
     vendingMachinePosition: vending,
     seatPositions: seats,
+    waterCoolerCluster,
   }
 }
 

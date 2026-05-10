@@ -5,7 +5,20 @@ import {
   TILE_W,
   TILE_H,
   type IsoBounds,
+  type ScreenPoint,
 } from '@/app/components/cockpit/agents/themes/isoOffice/geometry'
+
+function pointInPoly(p: ScreenPoint, poly: ScreenPoint[]): boolean {
+  let inside = false
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i].x, yi = poly[i].y
+    const xj = poly[j].x, yj = poly[j].y
+    const intersect = ((yi > p.y) !== (yj > p.y)) &&
+      (p.x < (xj - xi) * (p.y - yi) / (yj - yi) + xi)
+    if (intersect) inside = !inside
+  }
+  return inside
+}
 
 describe('isoToScreen', () => {
   it('maps (0,0) to provided origin', () => {
@@ -160,6 +173,53 @@ describe('computeBuildingLayout', () => {
           `${allRooms[a].name} overlaps ${allRooms[b].name}`,
         ).toBe(false)
       }
+    }
+  })
+
+  // Round-2 bug-fix invariants.
+  it('water cooler iso anchor falls inside the break-room polygon', () => {
+    const layout = computeBuildingLayout(150)
+    expect(pointInPoly(layout.rooms.breakRoom.waterCoolerPosition, layout.rooms.breakRoom.zonePoints)).toBe(true)
+  })
+
+  it('vending machine iso anchor falls inside the break-room polygon', () => {
+    const layout = computeBuildingLayout(150)
+    expect(pointInPoly(layout.rooms.breakRoom.vendingMachinePosition, layout.rooms.breakRoom.zonePoints)).toBe(true)
+  })
+
+  it('vending machine is NOT inside the training room polygon (regression)', () => {
+    const layout = computeBuildingLayout(150)
+    expect(pointInPoly(layout.rooms.breakRoom.vendingMachinePosition, layout.rooms.trainingRoom.zonePoints)).toBe(false)
+  })
+
+  it('all break-room seat positions fall inside the break-room polygon', () => {
+    const layout = computeBuildingLayout(150)
+    for (const seat of layout.rooms.breakRoom.seatPositions) {
+      expect(pointInPoly(seat, layout.rooms.breakRoom.zonePoints)).toBe(true)
+    }
+  })
+
+  it('water-cooler cluster positions fall inside the break-room polygon', () => {
+    const layout = computeBuildingLayout(150)
+    expect(layout.rooms.breakRoom.waterCoolerCluster.length).toBeGreaterThan(0)
+    for (const p of layout.rooms.breakRoom.waterCoolerCluster) {
+      expect(pointInPoly(p, layout.rooms.breakRoom.zonePoints)).toBe(true)
+    }
+  })
+
+  it('chatting hotspots fall inside the agent floor polygon', () => {
+    const layout = computeBuildingLayout(150)
+    for (const [a, b] of layout.rooms.agentFloor.chattingHotspots) {
+      expect(pointInPoly(a, layout.rooms.agentFloor.zonePoints)).toBe(true)
+      expect(pointInPoly(b, layout.rooms.agentFloor.zonePoints)).toBe(true)
+    }
+  })
+
+  it('janitor path is a non-empty loop within the agent floor polygon', () => {
+    const layout = computeBuildingLayout(150)
+    expect(layout.rooms.agentFloor.janitorPath.length).toBeGreaterThanOrEqual(4)
+    for (const p of layout.rooms.agentFloor.janitorPath) {
+      expect(pointInPoly(p, layout.rooms.agentFloor.zonePoints)).toBe(true)
     }
   })
 

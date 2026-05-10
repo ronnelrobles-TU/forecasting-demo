@@ -1,8 +1,17 @@
 'use client'
 
+import type { AgentVisualState } from '@/lib/animation/agentTimeline'
 import type { BuildingLayout } from './geometry'
+import { AgentSprite } from './AgentSprite'
+import type { AnimState } from './animation'
+import type { ActivityAssignment } from './activity'
 
-interface GymProps { layout: BuildingLayout }
+interface GymProps {
+  layout: BuildingLayout
+  agents?: Array<{ id: string; state: AgentVisualState }>
+  activities?: Record<string, ActivityAssignment>
+  anim?: AnimState
+}
 
 function Treadmill({ x, y }: { x: number; y: number }) {
   return (
@@ -49,12 +58,27 @@ function Weights({ x, y }: { x: number; y: number }) {
   )
 }
 
-export function Gym({ layout }: GymProps) {
+export function Gym({ layout, agents = [], activities, anim }: GymProps) {
   const g = layout.rooms.gym
+  const gymAgents = activities
+    ? agents.filter(a => activities[a.id]?.activity === 'in_gym')
+    : []
   return (
     <g>
       <Treadmill x={g.treadmillPosition.x} y={g.treadmillPosition.y}/>
       <Weights x={g.weightsPosition.x} y={g.weightsPosition.y}/>
+      {gymAgents.map(a => {
+        const animEntry = anim?.[a.id]
+        if (animEntry?.kind === 'desk_to_room' || animEntry?.kind === 'room_to_desk') return null
+        const pos = activities![a.id].position
+        // Bob the treadmill agents (the first one of every pair).
+        const bob = activities![a.id].position === g.treadmillPosition
+        return (
+          <g key={`gym-${a.id}`}>
+            <AgentSprite x={pos.x} y={pos.y - 4} shirtColor="#22c55e" bob={bob}/>
+          </g>
+        )
+      })}
     </g>
   )
 }

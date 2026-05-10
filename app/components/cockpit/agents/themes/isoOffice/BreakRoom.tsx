@@ -5,11 +5,15 @@ import type { BuildingLayout } from './geometry'
 import { AgentSprite } from './AgentSprite'
 import { StatusBubble } from './StatusBubble'
 import type { AnimState } from './animation'
+import type { ActivityAssignment } from './activity'
 
 interface BreakRoomProps {
   agents: Array<{ id: string; state: AgentVisualState }>
   anim?: AnimState
   layout: BuildingLayout
+  // Activity assignments (computed by IsoRenderer). BreakRoom uses this to
+  // render water-cooler agents in addition to on_break agents.
+  activities?: Record<string, ActivityAssignment>
 }
 
 function Table({ x, y }: { x: number; y: number }) {
@@ -60,24 +64,48 @@ function VendingMachine({ x, y }: { x: number; y: number }) {
   )
 }
 
-export function BreakRoom({ agents, anim, layout }: BreakRoomProps) {
-  const breakAgents = agents.map((a, i) => ({ a, i })).filter(({ a }) => a.state === 'on_break')
-  const seatPositions = layout.rooms.breakRoom.seatPositions
+export function BreakRoom({ agents, anim, layout, activities }: BreakRoomProps) {
   const r = layout.rooms.breakRoom
+  const seatPositions = r.seatPositions
+
+  // Stable seat assignment for on_break agents: map by their position in the
+  // ON-BREAK subset (not the original agents array). This avoids two agents
+  // landing on the same seat just because their indices in `agents` happen
+  // to alias under modulo.
+  const breakAgents = agents.filter(a => a.state === 'on_break')
+  const waterCoolerAgents = activities
+    ? agents.filter(a => activities[a.id]?.activity === 'at_water_cooler')
+    : []
 
   return (
     <g>
       <WaterCooler x={r.waterCoolerPosition.x} y={r.waterCoolerPosition.y}/>
       <VendingMachine x={r.vendingMachinePosition.x} y={r.vendingMachinePosition.y}/>
       <Table x={r.tableCenter.x} y={r.tableCenter.y}/>
-      {breakAgents.map(({ a, i }) => {
-        const inTransit = anim?.[a.id]?.kind === 'desk_to_break' || anim?.[a.id]?.kind === 'break_to_desk'
-        if (inTransit) return null
-        const seat = seatPositions[i % seatPositions.length]
+      {/* On_break agents at their assigned table seats. */}
+      {breakAgents.map((a, idx) => {
+        const animEntry = anim?.[a.id]
+        // Don't double-render: the AgentFloor handles the desk_to_break /
+        // break_to_desk lerp in its own pass. Skip here while the walk is in
+        // flight.
+        if (animEntry?.kind === 'desk_to_break' || animEntry?.kind === 'break_to_desk') return null
+        const seat = seatPositions[idx % seatPositions.length]
         return (
           <g key={`break-${a.id}`}>
             <AgentSprite x={seat.x} y={seat.y} shirtColor="#d97706"/>
             <StatusBubble x={seat.x} y={seat.y} state="on_break"/>
+          </g>
+        )
+      })}
+      {/* Water-cooler hangouts (idle agents informally chatting near the cooler). */}
+      {waterCoolerAgents.map(a => {
+        const animEntry = anim?.[a.id]
+        // Hide while walking — AgentFloor draws the lerp.
+        if (animEntry?.kind === 'desk_to_room' || animEntry?.kind === 'room_to_desk') return null
+        const pos = activities![a.id].position
+        return (
+          <g key={`wc-${a.id}`}>
+            <AgentSprite x={pos.x} y={pos.y} shirtColor="#22c55e"/>
           </g>
         )
       })}
