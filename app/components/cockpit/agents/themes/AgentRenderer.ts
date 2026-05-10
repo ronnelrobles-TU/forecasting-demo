@@ -48,6 +48,12 @@ export interface AgentRendererProps {
   // boundaries from the smoothed Erlang curve. Null/empty → fall back to
   // the legacy interval-curve activation (`activeAgentIndicesAllocated`).
   roster?: RosterShift[] | null
+  // Video-playback fix: whether the timeline is currently playing. When
+  // false the IsoRenderer treats new sim-state changes as scrub events —
+  // it snaps each agent to the deterministic position for `simTimeMin`
+  // (no in-flight walks). When true, normal journey animations run.
+  // Renderers that don't have stateful animations (Dots) can ignore.
+  playing?: boolean
 }
 
 export type AgentRendererComponent = ComponentType<AgentRendererProps>

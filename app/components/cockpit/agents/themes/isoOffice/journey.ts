@@ -665,6 +665,121 @@ export function isAtBreakTable(phase: JourneyPhase): boolean {
   return phase.kind === 'at_break_table'
 }
 
+// ── Snap-to-deterministic-state ───────────────────────────────────────────
+//
+// Video-playback semantics. When sim time jumps (scrub), reverses (rewind),
+// or pauses with stale in-flight journeys, the renderer rebuilds journeys
+// from scratch with this function — instantly placing each agent at their
+// "where should they be at simTimeMin" position with NO walking animation.
+//
+// The phase is always a stable resting phase (at_desk / on_call_at_desk /
+// in_room / at_break_table / at_chat_spot / inside_restroom / gone) sized
+// with `until` set so it never auto-advances on its own.
+
+// Inputs: the agent's effective sim state (already shift-corrected by the
+// caller) plus their display activity (computed by the activity scheduler).
+// We don't reach into ActivityAssignment by import here to avoid a circular
+// dependency between journey.ts and activity.ts.
+export type SnapActivity =
+  | 'at_desk'
+  | 'in_training'
+  | 'in_gym'
+  | 'in_restroom'
+  | 'chatting'
+  | 'at_water_cooler'
+  | 'at_break_table'
+
+const FAR_FUTURE_MS = 1e15
+
+// Compose a resting phase that depicts the agent's correct position for
+// `simTime` immediately, no animation. Activity overrides the desk only when
+// sim state is `idle` (matches the runtime activity dispatcher's gate).
+export function snapPhaseFor(
+  agentId: string,
+  homeDeskPosition: ScreenPoint,
+  effectiveState: AgentVisualState,
+  activity: SnapActivity,
+  activityPosition: ScreenPoint | null,
+  layout: BuildingLayout,
+): JourneyPhase {
+  if (effectiveState === 'off_shift') return { kind: 'gone' }
+  if (effectiveState === 'on_call') {
+    return { kind: 'on_call_at_desk', pos: homeDeskPosition }
+  }
+  if (effectiveState === 'on_break') {
+    const seat = pickBreakSeat(agentId, layout.rooms.breakRoom.seatPositions)
+    return { kind: 'at_break_table', pos: seat, until: FAR_FUTURE_MS }
+  }
+  // idle: respect the activity scatter, snapping to the room's resting slot.
+  switch (activity) {
+    case 'in_training':
+      return activityPosition
+        ? { kind: 'in_room', targetRoom: 'training', pos: activityPosition, until: FAR_FUTURE_MS }
+        : { kind: 'at_desk', pos: homeDeskPosition }
+    case 'in_gym':
+      return activityPosition
+        ? { kind: 'in_room', targetRoom: 'gym', pos: activityPosition, until: FAR_FUTURE_MS }
+        : { kind: 'at_desk', pos: homeDeskPosition }
+    case 'at_water_cooler':
+      return activityPosition
+        ? { kind: 'in_room', targetRoom: 'water_cooler', pos: activityPosition, until: FAR_FUTURE_MS }
+        : { kind: 'at_desk', pos: homeDeskPosition }
+    case 'chatting':
+      return activityPosition
+        ? { kind: 'at_chat_spot', pos: activityPosition, until: FAR_FUTURE_MS }
+        : { kind: 'at_desk', pos: homeDeskPosition }
+    case 'in_restroom':
+      // Hidden inside the restroom — opacity 0, off-screen.
+      return { kind: 'inside_restroom', pos: homeDeskPosition, until: FAR_FUTURE_MS }
+    case 'at_break_table': {
+      const seat = pickBreakSeat(agentId, layout.rooms.breakRoom.seatPositions)
+      return { kind: 'at_break_table', pos: seat, until: FAR_FUTURE_MS }
+    }
+    case 'at_desk':
+    default:
+      return { kind: 'at_desk', pos: homeDeskPosition }
+  }
+}
+
+// Build a fully-snapped journey for an agent. Used on time jump / reversal /
+// pause-with-stale-state. The resulting journey has no `pendingSimState`,
+// the phase is a stable resting phase, and `lastKnownPosition` is the
+// snapped position so subsequent walks (after play resumes) source from
+// here instead of teleporting to a door.
+export function snapJourneyFor(
+  agentId: string,
+  homeDeskPosition: ScreenPoint,
+  effectiveState: AgentVisualState,
+  activity: SnapActivity,
+  activityPosition: ScreenPoint | null,
+  layout: BuildingLayout,
+  nowMs: number,
+): VisualJourney {
+  const phase = snapPhaseFor(agentId, homeDeskPosition, effectiveState, activity, activityPosition, layout)
+  // Resolve the snapped on-screen position so lastKnownPosition is correct
+  // even when the phase doesn't carry an explicit `pos` (gone / inside).
+  const resolved = (() => {
+    switch (phase.kind) {
+      case 'at_desk':
+      case 'on_call_at_desk':
+      case 'at_break_table':
+      case 'in_room':
+      case 'at_chat_spot':
+        return phase.pos
+      default:
+        return homeDeskPosition
+    }
+  })()
+  return {
+    agentId,
+    phase,
+    phaseStartedAt: nowMs,
+    pendingSimState: null,
+    homeDeskPosition,
+    lastKnownPosition: resolved,
+  }
+}
+
 // Returns true if the agent is currently in a non-break room (gym/training/patio).
 // Used by the room components to know whether to render the agent.
 export function isInRoom(phase: JourneyPhase, room: RoomKind): boolean {

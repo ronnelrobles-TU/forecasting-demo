@@ -31,6 +31,8 @@ import {
   startWalkBackToDesk,
   isWalkingPhase,
   journeyPosition,
+  snapJourneyFor,
+  type SnapActivity,
   type VisualJourney,
   type RoomKind,
 } from './isoOffice/journey'
@@ -51,7 +53,14 @@ const EMPTY_ACTIVITIES: Record<string, ActivityAssignment> = {}
 
 export interface RenderedPosition { pos: ScreenPoint; opacity: number; visible: boolean }
 
-export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absenteeismPct, shrinkPct, perInterval, simSpeed, injectedEvents, roster }: AgentRendererProps) {
+// Threshold (in sim minutes) above which a simTimeMin delta is treated as
+// a "scrub jump" rather than smooth playback. At 0.25× speed sim advances
+// 6 sim-min/sec, so 2 sim-min ≈ 0.33s real — slow enough to ignore frame
+// jitter while still catching any user scrub. Backward deltas always snap
+// regardless of magnitude.
+const TIME_JUMP_THRESHOLD_SIM_MIN = 2
+
+export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absenteeismPct, shrinkPct, perInterval, simSpeed, injectedEvents, roster, playing = true }: AgentRendererProps) {
   // Fast mode: at sim speeds > 1× the user is fast-forwarding, and journey
   // animations (1.5s walks, 2.5s break sits, 4s lunch outside) take longer
   // in real time than the actual sim event they're meant to depict — the
@@ -195,6 +204,97 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
     }
   }, [agents, layout])
 
+  // ── Video-playback snap ──────────────────────────────────────────────
+  //
+  // The journey state machine plays in wall-clock time. When sim time
+  // jumps (scrub) or reverses (rewind) or pauses with stale walks, the
+  // animations diverge from the simulation: agents stay mid-walk, walk
+  // through walls, or visit positions for old sim times. To restore the
+  // "video frame seek" model, we detect those events and rebuild every
+  // journey to a deterministic resting phase that matches the agent's
+  // *effective* state at the new simTimeMin — no walking animation.
+  //
+  // The detector fires when:
+  //   1. simTimeMin moves backward (always — even small reversals).
+  //   2. simTimeMin jumps forward by more than TIME_JUMP_THRESHOLD_SIM_MIN.
+  //   3. The timeline is paused AND any journey is currently in flight
+  //      (walking / mid-fade) — those would otherwise stay frozen mid-air.
+  const lastSimTimeRef = useRef<number>(simTimeMin)
+  // Helper to compute the agent's resting position from the same inputs the
+  // transition effect uses (effective state + activity assignment).
+  function snapAllJourneys(now: number): Record<string, VisualJourney> {
+    const next: Record<string, VisualJourney> = {}
+    for (let i = 0; i < agents.length; i++) {
+      const a = agents[i]
+      const desk = layout.deskPositions[Number(a.id.replace(/^A/, '')) || 0]
+        ?? journeysRef.current[a.id]?.homeDeskPosition
+        ?? { x: 0, y: 0 }
+
+      let effectiveState: AgentVisualState = a.state
+      if (!isActiveByIndex[i]) effectiveState = 'off_shift'
+      else if (
+        a.state !== 'off_shift'
+        && hasUpcomingShiftEnd(lookahead, a.id, simTimeMin, SHIFT_END_LOOKAHEAD_MIN)
+      ) effectiveState = 'off_shift'
+
+      // Activity scatter only applies to idle agents (matches the runtime
+      // dispatcher gate). on_call / on_break / off_shift use the desk /
+      // break-table / gone phase respectively.
+      const act = (effectiveState === 'idle' && !fastMode)
+        ? (activities[a.id]?.activity ?? 'at_desk')
+        : 'at_desk'
+      const actPos = activities[a.id]?.position ?? null
+
+      // Update the prevState ledger so the transition effect doesn't fire a
+      // redundant transitionJourney() call on the next render.
+      prevStatesRef.current[a.id] = effectiveState
+      // Same for activity ledger — snap counts as "we already saw this".
+      prevActivitiesRef.current[a.id] = act
+      next[a.id] = snapJourneyFor(
+        a.id,
+        desk,
+        effectiveState,
+        act as SnapActivity,
+        actPos,
+        layout,
+        now,
+      )
+    }
+    return next
+  }
+
+  useEffect(() => {
+    const lastTime = lastSimTimeRef.current
+    const dt = simTimeMin - lastTime
+    const isReversed = dt < 0
+    const isJump = Math.abs(dt) > TIME_JUMP_THRESHOLD_SIM_MIN
+    // If paused, also check for in-flight journeys that we should snap to
+    // their resting positions (the user paused while agents were walking).
+    let pausedWithStale = false
+    if (!playing) {
+      for (const id of Object.keys(journeysRef.current)) {
+        if (isWalkingPhase(journeysRef.current[id].phase)) {
+          pausedWithStale = true
+          break
+        }
+      }
+    }
+
+    if (isReversed || isJump || pausedWithStale) {
+      const now = performance.now()
+      const next = snapAllJourneys(now)
+      journeysRef.current = next
+      setJourneySnapshot(next)
+      setPositions(resolvePositions(next, now))
+    }
+    lastSimTimeRef.current = simTimeMin
+    // We intentionally only depend on simTimeMin and playing here. The other
+    // values (agents, layout, activities, isActiveByIndex, lookahead) are
+    // captured by closure on snap; they're stable for the duration of a
+    // single simTimeMin render so this is correct.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [simTimeMin, playing])
+
   // React to sim-state changes for each agent. Also overlays the Erlang-
   // schedule "is this agent currently on shift?" decision: if not, force
   // their effectiveState to off_shift so journey.ts dispatches a
@@ -284,6 +384,11 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
       prevActivitiesRef.current = {}
       return
     }
+    if (!playing) {
+      // While paused, the snap effect owns positioning. Don't dispatch new
+      // walks — they'd just stay frozen mid-air until play resumes.
+      return
+    }
     const now = performance.now()
     const prev = prevActivitiesRef.current
     let changed = false
@@ -331,13 +436,25 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
       setJourneySnapshot(next)
       setPositions(resolvePositions(next, now))
     }
-  }, [agents, activities, fastMode])
+  }, [agents, activities, fastMode, playing])
 
   // Per-frame tick: advance in-flight phases AND refresh resolved positions
   // while anything is mid-walk.
+  //
+  // Pause-aware: when `playing === false` we DON'T advance journeys. The
+  // snap effect above already reset all in-flight phases to resting when
+  // pause was hit, so there's nothing to tick. (Keeping the rAF off during
+  // pause also means no CSS-bob animations stutter — agents are visually
+  // hard-frozen on the frame.)
+  const playingRef = useRef(playing)
+  useEffect(() => { playingRef.current = playing }, [playing])
   useEffect(() => {
     let raf = 0
     function tick(now: number) {
+      if (!playingRef.current) {
+        raf = requestAnimationFrame(tick)
+        return
+      }
       let phaseChanged = false
       const cur = journeysRef.current
       const nextJ: Record<string, VisualJourney> = {}

@@ -25,9 +25,15 @@ interface AgentSceneProps {
   /** When false, the embedded ThemePicker is not rendered (e.g., the mini
    *  Roster preview pins to one theme). */
   showThemePicker?: boolean
+  /** Whether the parent timeline is currently playing. The Iso renderers use
+   *  this to switch between video-playback "snap" (paused / scrubbing) and
+   *  normal journey animations (playing). Optional — defaults to `true` so
+   *  callers that don't pass it preserve the legacy always-animating
+   *  behavior. */
+  playing?: boolean
 }
 
-export function AgentScene({ events, peakAgents, simTimeMin, deskCapacity, absenteeismPct, shrinkPct, perInterval, simSpeed, injectedEvents, roster, showThemePicker = true }: AgentSceneProps) {
+export function AgentScene({ events, peakAgents, simTimeMin, deskCapacity, absenteeismPct, shrinkPct, perInterval, simSpeed, injectedEvents, roster, showThemePicker = true, playing }: AgentSceneProps) {
   const { theme } = useScenario()
 
   const timelines = useMemo(
@@ -61,6 +67,7 @@ export function AgentScene({ events, peakAgents, simTimeMin, deskCapacity, absen
         simSpeed={simSpeed}
         injectedEvents={injectedEvents}
         roster={roster}
+        playing={playing}
       />
       {showThemePicker && <ThemePicker />}
     </div>

@@ -31,6 +31,8 @@ import {
   transitionJourney,
   startWalkToRoom,
   startWalkBackToDesk,
+  snapJourneyFor,
+  type SnapActivity,
   type VisualJourney,
   type RoomKind,
 } from './isoOffice/journey'
@@ -64,6 +66,8 @@ import { isWalkingPhase } from './isoOffice/journey'
 
 const SHIFT_END_LOOKAHEAD_MIN = 3
 const EMPTY_ACTIVITIES: Record<string, ActivityAssignment> = {}
+// See IsoRenderer.tsx for the rationale behind this threshold.
+const TIME_JUMP_THRESHOLD_SIM_MIN = 2
 
 interface CameraState { scale: number; panX: number; panY: number }
 const INITIAL_CAMERA: CameraState = { scale: 1, panX: 0, panY: 0 }
@@ -79,6 +83,7 @@ export function IsoRendererHD({
   simSpeed,
   injectedEvents,
   roster,
+  playing = true,
 }: AgentRendererProps) {
   const fastMode = (simSpeed ?? 1) > 1
 
@@ -155,6 +160,65 @@ export function IsoRendererHD({
     }
   }, [agents, layout])
 
+  // ── Video-playback snap (mirrors IsoRenderer; see that file for the
+  // detailed rationale — TL;DR: rebuild every journey to a deterministic
+  // resting phase whenever sim time jumps, reverses, or pause was hit
+  // while journeys were in flight). ─────────────────────────────────────
+  const lastSimTimeRef = useRef<number>(simTimeMin)
+  function snapAllJourneys(now: number): Record<string, VisualJourney> {
+    const next: Record<string, VisualJourney> = {}
+    for (let i = 0; i < agents.length; i++) {
+      const a = agents[i]
+      const desk = layout.deskPositions[Number(a.id.replace(/^A/, '')) || 0]
+        ?? journeysRef.current[a.id]?.homeDeskPosition
+        ?? { x: 0, y: 0 }
+      let effectiveState: AgentVisualState = a.state
+      if (!isActiveByIndex[i]) effectiveState = 'off_shift'
+      else if (
+        a.state !== 'off_shift'
+        && hasUpcomingShiftEnd(lookahead, a.id, simTimeMin, SHIFT_END_LOOKAHEAD_MIN)
+      ) effectiveState = 'off_shift'
+      const act = (effectiveState === 'idle' && !fastMode)
+        ? (activities[a.id]?.activity ?? 'at_desk')
+        : 'at_desk'
+      const actPos = activities[a.id]?.position ?? null
+      prevStatesRef.current[a.id] = effectiveState
+      prevActivitiesRef.current[a.id] = act
+      next[a.id] = snapJourneyFor(
+        a.id,
+        desk,
+        effectiveState,
+        act as SnapActivity,
+        actPos,
+        layout,
+        now,
+      )
+    }
+    return next
+  }
+  useEffect(() => {
+    const lastTime = lastSimTimeRef.current
+    const dt = simTimeMin - lastTime
+    const isReversed = dt < 0
+    const isJump = Math.abs(dt) > TIME_JUMP_THRESHOLD_SIM_MIN
+    let pausedWithStale = false
+    if (!playing) {
+      for (const id of Object.keys(journeysRef.current)) {
+        if (isWalkingPhase(journeysRef.current[id].phase)) {
+          pausedWithStale = true
+          break
+        }
+      }
+    }
+    if (isReversed || isJump || pausedWithStale) {
+      const now = performance.now()
+      journeysRef.current = snapAllJourneys(now)
+    }
+    lastSimTimeRef.current = simTimeMin
+    // Same closure-capture rationale as IsoRenderer.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [simTimeMin, playing])
+
   // Sim-state transitions → journey dispatch.
   useEffect(() => {
     const now = performance.now()
@@ -198,6 +262,10 @@ export function IsoRendererHD({
       prevActivitiesRef.current = {}
       return
     }
+    if (!playing) {
+      // Snap effect owns positioning while paused.
+      return
+    }
     const now = performance.now()
     const prev = prevActivitiesRef.current
     const next: Record<string, VisualJourney> = { ...journeysRef.current }
@@ -231,7 +299,7 @@ export function IsoRendererHD({
       }
     }
     journeysRef.current = next
-  }, [agents, activities, fastMode])
+  }, [agents, activities, fastMode, playing])
 
   const effectiveActivities = fastMode ? EMPTY_ACTIVITIES : activities
 
@@ -425,6 +493,11 @@ export function IsoRendererHD({
   useEffect(() => { dramaticStateRef.current = dramaticState }, [dramaticState])
   const eventsRef = useRef(events)
   useEffect(() => { eventsRef.current = events }, [events])
+  // Pause-aware: when paused, the ticker still runs (so the renderer keeps
+  // re-painting under camera changes) but we skip per-frame journey advance
+  // — the snap effect already placed everyone at their resting position.
+  const playingRef = useRef(playing)
+  useEffect(() => { playingRef.current = playing }, [playing])
   useEffect(() => {
     const scene = sceneRef.current
     if (!scene) return
@@ -432,16 +505,20 @@ export function IsoRendererHD({
     function onTick() {
       const now = performance.now()
       // Tick journeys forward (handles phase auto-advance like break-table-end).
-      const cur = journeysRef.current
-      const nextJ: Record<string, VisualJourney> = {}
-      let anyChange = false
-      for (const id of Object.keys(cur)) {
-        const before = cur[id]
-        const after = tickJourney(before, layout, now)
-        nextJ[id] = after
-        if (after !== before) anyChange = true
+      // Skipped while paused so in-flight wall-clock animations don't keep
+      // running after the user hits pause.
+      if (playingRef.current) {
+        const cur = journeysRef.current
+        const nextJ: Record<string, VisualJourney> = {}
+        let anyChange = false
+        for (const id of Object.keys(cur)) {
+          const before = cur[id]
+          const after = tickJourney(before, layout, now)
+          nextJ[id] = after
+          if (after !== before) anyChange = true
+        }
+        if (anyChange) journeysRef.current = nextJ
       }
-      if (anyChange) journeysRef.current = nextJ
       const sceneNow = sceneRef.current
       if (!sceneNow) return
       updateAgentLayer(sceneNow, agents, journeysRef.current, effectiveActivities, now)

@@ -9,6 +9,8 @@ import {
   isRestingPhase,
   isWalkingPhase,
   isAtBreakTable,
+  snapJourneyFor,
+  snapPhaseFor,
   WALK_DURATION_MS,
   LUNCH_WALK_DURATION_MS,
   MIN_BREAK_HOLD_MS,
@@ -326,6 +328,140 @@ describe('Round 4: chat walks (no teleport)', () => {
     // lastKnownPosition should now reflect the arrival point.
     expect(j.lastKnownPosition.x).toBeCloseTo(gymPos.x, 0)
     expect(j.lastKnownPosition.y).toBeCloseTo(gymPos.y, 0)
+  })
+})
+
+describe('snapJourneyFor / snapPhaseFor (video-playback snap)', () => {
+  const gymPos = layout.rooms.gym.workoutSpots[0]
+  const trainingSeat = layout.rooms.trainingRoom.studentSeats[0]
+
+  it('off_shift snaps to the gone phase (no walk-to-door animation)', () => {
+    const phase = snapPhaseFor('A0', desk, 'off_shift', 'at_desk', null, layout)
+    expect(phase.kind).toBe('gone')
+  })
+
+  it('on_call snaps directly to on_call_at_desk', () => {
+    const phase = snapPhaseFor('A0', desk, 'on_call', 'at_desk', null, layout)
+    expect(phase.kind).toBe('on_call_at_desk')
+    if (phase.kind === 'on_call_at_desk') {
+      expect(phase.pos).toEqual(desk)
+    }
+  })
+
+  it('on_break snaps to a stable break-table seat (no walk_to_break)', () => {
+    const phase = snapPhaseFor('A0', desk, 'on_break', 'at_desk', null, layout)
+    expect(phase.kind).toBe('at_break_table')
+    if (phase.kind === 'at_break_table') {
+      // until is far in the future so the phase doesn't auto-advance.
+      expect(phase.until).toBeGreaterThan(1e10)
+      // Position is one of the layout's break-room seats.
+      expect(layout.rooms.breakRoom.seatPositions).toContainEqual(phase.pos)
+    }
+  })
+
+  it('idle + in_gym snaps to in_room with the gym position', () => {
+    const phase = snapPhaseFor('A0', desk, 'idle', 'in_gym', gymPos, layout)
+    expect(phase.kind).toBe('in_room')
+    if (phase.kind === 'in_room') {
+      expect(phase.targetRoom).toBe('gym')
+      expect(phase.pos).toEqual(gymPos)
+    }
+  })
+
+  it('idle + in_training with no activity position falls back to at_desk', () => {
+    const phase = snapPhaseFor('A0', desk, 'idle', 'in_training', null, layout)
+    expect(phase.kind).toBe('at_desk')
+  })
+
+  it('idle + in_training with a seat snaps to in_room training', () => {
+    const phase = snapPhaseFor('A0', desk, 'idle', 'in_training', trainingSeat, layout)
+    expect(phase.kind).toBe('in_room')
+    if (phase.kind === 'in_room') {
+      expect(phase.targetRoom).toBe('training')
+    }
+  })
+
+  it('idle + in_restroom snaps to inside_restroom (hidden)', () => {
+    const phase = snapPhaseFor('A0', desk, 'idle', 'in_restroom', null, layout)
+    expect(phase.kind).toBe('inside_restroom')
+    // And the resolved position has opacity 0 (hidden).
+    const j = snapJourneyFor('A0', desk, 'idle', 'in_restroom', null, layout, 0)
+    const r = journeyPosition(j, 100)
+    expect(r.opacity).toBe(0)
+    expect(r.visible).toBe(false)
+  })
+
+  it('idle + chatting snaps to at_chat_spot at the activity position', () => {
+    const spot = { x: 123, y: 45 }
+    const phase = snapPhaseFor('A0', desk, 'idle', 'chatting', spot, layout)
+    expect(phase.kind).toBe('at_chat_spot')
+    if (phase.kind === 'at_chat_spot') {
+      expect(phase.pos).toEqual(spot)
+    }
+  })
+
+  it('idle + at_break_table picks a stable break seat', () => {
+    const phase = snapPhaseFor('A0', desk, 'idle', 'at_break_table', null, layout)
+    expect(phase.kind).toBe('at_break_table')
+    if (phase.kind === 'at_break_table') {
+      expect(layout.rooms.breakRoom.seatPositions).toContainEqual(phase.pos)
+    }
+  })
+
+  it('snapJourneyFor produces a resting phase (no pending state, far-future hold)', () => {
+    const j = snapJourneyFor('A0', desk, 'on_break', 'at_desk', null, layout, 1000)
+    expect(j.pendingSimState).toBeNull()
+    // Phase has no pending advance under any realistic real-time horizon
+    // (the `until` is set far enough in the future that auto-advance is
+    // effectively impossible until the next snap).
+    if (j.phase.kind === 'at_break_table') {
+      expect(j.phase.until).toBeGreaterThan(1e12)
+    }
+    expect(isWalkingPhase(j.phase)).toBe(false)
+    // Same seat for the same agent id (deterministic).
+    const j2 = snapJourneyFor('A0', desk, 'on_break', 'at_desk', null, layout, 5000)
+    expect(j2.phase.kind).toBe('at_break_table')
+    if (j.phase.kind === 'at_break_table' && j2.phase.kind === 'at_break_table') {
+      expect(j.phase.pos).toEqual(j2.phase.pos)
+    }
+  })
+
+  it('snapJourneyFor seeds lastKnownPosition with the snapped on-screen pos', () => {
+    const spot = { x: 200, y: 80 }
+    const j = snapJourneyFor('A0', desk, 'idle', 'chatting', spot, layout, 0)
+    expect(j.lastKnownPosition).toEqual(spot)
+  })
+
+  it('snapJourneyFor for off_shift keeps lastKnownPosition at home desk', () => {
+    const j = snapJourneyFor('A0', desk, 'off_shift', 'at_desk', null, layout, 0)
+    expect(j.lastKnownPosition).toEqual(desk)
+    expect(j.phase.kind).toBe('gone')
+  })
+
+  it('use case: rewind to midnight — off_shift agent snaps to gone, no in-flight walk', () => {
+    // Start mid-walk to door for shift end.
+    let j = makeBaseline(0)
+    j = transitionJourney(j, 'off_shift', layout, 100)
+    expect(j.phase.kind).toBe('walking_to_door_for_shift_end')
+    expect(isWalkingPhase(j.phase)).toBe(true)
+
+    // User rewinds to midnight; we re-snap from the deterministic state.
+    const snapped = snapJourneyFor('A0', desk, 'off_shift', 'at_desk', null, layout, 5000)
+    expect(snapped.phase.kind).toBe('gone')
+    expect(isWalkingPhase(snapped.phase)).toBe(false)
+    expect(snapped.pendingSimState).toBeNull()
+  })
+
+  it('use case: time jump while paused — break-walking agent snaps to a seat', () => {
+    let j = makeBaseline(0)
+    j = transitionJourney(j, 'on_break', layout, 100, 5)
+    expect(j.phase.kind).toBe('walking_to_break')
+    // Snap mid-walk: ends up at break table directly.
+    const snapped = snapJourneyFor('A0', desk, 'on_break', 'at_desk', null, layout, 200)
+    expect(snapped.phase.kind).toBe('at_break_table')
+    if (snapped.phase.kind === 'at_break_table') {
+      expect(snapped.phase.until).toBeGreaterThan(1e10)
+    }
   })
 })
 
