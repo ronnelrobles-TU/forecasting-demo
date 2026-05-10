@@ -41,6 +41,7 @@ import {
   breakDurationFor,
   hasUpcomingShiftEnd,
 } from './isoOffice/lookahead'
+import { createVirtualClock } from './isoOffice/virtualClock'
 import { computeLighting, quantizeLightingTime } from './isoOffice/lighting'
 import { activeAgentIndicesAllocated, activeAgentIndicesFromRoster, peakInOfficeCount } from './isoOffice/shiftModel'
 import {
@@ -143,6 +144,13 @@ export function IsoRendererHD({
   const prevActivitiesRef = useRef<Record<string, string>>({})
   const prevAgentCountRef = useRef<number>(0)
 
+  // Virtual wall-clock — frozen while paused so journey positions and
+  // tick-driven phase advances stop. See virtualClock.ts. The Pixi ticker
+  // below reads this clock instead of `performance.now()`, so the agent
+  // sprite layer naturally freezes in place without any "snap" rebuild.
+  const clockRef = useRef(createVirtualClock(playing))
+  useEffect(() => { clockRef.current.setPlaying(playing) }, [playing])
+
   // Roster prune.
   useEffect(() => {
     if (prevAgentCountRef.current !== agents.length) {
@@ -162,8 +170,8 @@ export function IsoRendererHD({
 
   // ── Video-playback snap (mirrors IsoRenderer; see that file for the
   // detailed rationale — TL;DR: rebuild every journey to a deterministic
-  // resting phase whenever sim time jumps, reverses, or pause was hit
-  // while journeys were in flight). ─────────────────────────────────────
+  // resting phase whenever sim time jumps or reverses. Pause is NOT a
+  // snap trigger — the virtual clock above freezes positions in place). ─
   const lastSimTimeRef = useRef<number>(simTimeMin)
   function snapJourneyForIndex(i: number, now: number): VisualJourney {
     const a = agents[i]
@@ -201,51 +209,23 @@ export function IsoRendererHD({
     }
     return next
   }
-  // Conservative rebuild — only walking agents get re-snapped. Resting agents
-  // keep their existing journey so pause doesn't re-roll the activity
-  // scheduler and teleport idle agents from their desks into other rooms.
-  function snapWalkingJourneysOnly(now: number): Record<string, VisualJourney> {
-    const next: Record<string, VisualJourney> = { ...journeysRef.current }
-    for (let i = 0; i < agents.length; i++) {
-      const a = agents[i]
-      const current = next[a.id]
-      if (current && isWalkingPhase(current.phase)) {
-        next[a.id] = snapJourneyForIndex(i, now)
-      }
-    }
-    return next
-  }
   useEffect(() => {
     const lastTime = lastSimTimeRef.current
     const dt = simTimeMin - lastTime
     const isReversed = dt < 0
     const isJump = Math.abs(dt) > TIME_JUMP_THRESHOLD_SIM_MIN
-    let pausedWithStale = false
-    if (!playing) {
-      for (const id of Object.keys(journeysRef.current)) {
-        if (isWalkingPhase(journeysRef.current[id].phase)) {
-          pausedWithStale = true
-          break
-        }
-      }
-    }
     if (isReversed || isJump) {
-      const now = performance.now()
+      const now = clockRef.current.now()
       journeysRef.current = snapAllJourneys(now)
-    } else if (pausedWithStale) {
-      // Pause snap — only rebuild agents who were mid-walk. Idle agents at
-      // their desks stay put.
-      const now = performance.now()
-      journeysRef.current = snapWalkingJourneysOnly(now)
     }
     lastSimTimeRef.current = simTimeMin
     // Same closure-capture rationale as IsoRenderer.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [simTimeMin, playing])
+  }, [simTimeMin])
 
   // Sim-state transitions → journey dispatch.
   useEffect(() => {
-    const now = performance.now()
+    const now = clockRef.current.now()
     const prev = prevStatesRef.current
     const next: Record<string, VisualJourney> = { ...journeysRef.current }
     for (let i = 0; i < agents.length; i++) {
@@ -287,10 +267,11 @@ export function IsoRendererHD({
       return
     }
     if (!playing) {
-      // Snap effect owns positioning while paused.
+      // While paused the virtual clock is frozen, so dispatching a walk
+      // would leave it stuck at progress=0 until resume. Defer until play.
       return
     }
-    const now = performance.now()
+    const now = clockRef.current.now()
     const prev = prevActivitiesRef.current
     const next: Record<string, VisualJourney> = { ...journeysRef.current }
     for (const a of agents) {
@@ -517,32 +498,31 @@ export function IsoRendererHD({
   useEffect(() => { dramaticStateRef.current = dramaticState }, [dramaticState])
   const eventsRef = useRef(events)
   useEffect(() => { eventsRef.current = events }, [events])
-  // Pause-aware: when paused, the ticker still runs (so the renderer keeps
-  // re-painting under camera changes) but we skip per-frame journey advance
-  // — the snap effect already placed everyone at their resting position.
-  const playingRef = useRef(playing)
-  useEffect(() => { playingRef.current = playing }, [playing])
+  // Pause-aware via the virtual clock. While paused, `clockRef.current.now()`
+  // returns a frozen timestamp, so:
+  //   - tickJourney() is a no-op (elapsed never crosses a phase boundary)
+  //   - journeyPosition() inside updateAgentLayer returns the same lerp value
+  //     each frame, freezing walking sprites in place
+  //   - NPC / smoke / dramatic layers also freeze (true "video pause")
+  // The ticker keeps running so camera pan/zoom still re-renders cleanly.
   useEffect(() => {
     const scene = sceneRef.current
     if (!scene) return
     const ticker = scene.app.ticker
     function onTick() {
-      const now = performance.now()
+      const now = clockRef.current.now()
       // Tick journeys forward (handles phase auto-advance like break-table-end).
-      // Skipped while paused so in-flight wall-clock animations don't keep
-      // running after the user hits pause.
-      if (playingRef.current) {
-        const cur = journeysRef.current
-        const nextJ: Record<string, VisualJourney> = {}
-        let anyChange = false
-        for (const id of Object.keys(cur)) {
-          const before = cur[id]
-          const after = tickJourney(before, layout, now)
-          nextJ[id] = after
-          if (after !== before) anyChange = true
-        }
-        if (anyChange) journeysRef.current = nextJ
+      // Naturally a no-op while paused because `now` is frozen.
+      const cur = journeysRef.current
+      const nextJ: Record<string, VisualJourney> = {}
+      let anyChange = false
+      for (const id of Object.keys(cur)) {
+        const before = cur[id]
+        const after = tickJourney(before, layout, now)
+        nextJ[id] = after
+        if (after !== before) anyChange = true
       }
+      if (anyChange) journeysRef.current = nextJ
       const sceneNow = sceneRef.current
       if (!sceneNow) return
       updateAgentLayer(sceneNow, agents, journeysRef.current, effectiveActivities, now)
