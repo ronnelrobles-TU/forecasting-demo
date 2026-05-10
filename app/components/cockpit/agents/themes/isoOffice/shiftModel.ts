@@ -17,7 +17,8 @@
 // Pure module. No React, no animations. Used by IsoRenderer to derive
 // `isActive` per agent each frame.
 
-import type { IntervalStat } from '@/lib/types'
+import type { IntervalStat, RosterShift } from '@/lib/types'
+import { assignAgentsToShifts, isAgentInShift } from '@/lib/animation/rosterAssignment'
 
 const INTERVAL_MIN = 15
 
@@ -212,6 +213,54 @@ export function activeAgentIndicesAllocated(
       shrinkage.add(i)
     }
     // else: off-shift / absent, in neither set.
+  }
+  return { productive, shrinkage }
+}
+
+// Round 11: roster-driven three-tier allocation.
+//
+// When the user has authored a roster, the per-agent shift assignment is
+// derived directly from the roster (see `assignAgentsToShifts`). At each
+// sim minute, agents whose assigned shift contains `simTimeMin` are "in
+// the office"; the rest are off-shift. Among the in-office population,
+// the first `(1 - shrink/100)` fraction are productive (at desks); the
+// remainder are routed to non-desk shrinkage activities.
+//
+// This bypasses the smooth-Erlang-curve interpolation used by
+// `activeAgentIndicesAllocated` and instead snaps each agent to the
+// `startMin`/`endMin` the user dragged on the Gantt — so a 7am shift
+// causes those agents to walk in through the door at exactly 7am.
+//
+// Returns an empty allocation when no agents are assigned to the active
+// minute (e.g., before the day's first shift starts). Falls back to the
+// legacy interval-curve behaviour when `roster` is empty so the existing
+// no-roster path keeps working.
+export function activeAgentIndicesFromRoster(
+  roster: RosterShift[],
+  totalAgents: number,
+  simTimeMin: number,
+  shrinkPct?: number,
+): { productive: Set<number>; shrinkage: Set<number> } {
+  const productive = new Set<number>()
+  const shrinkage = new Set<number>()
+  if (roster.length === 0 || totalAgents <= 0) return { productive, shrinkage }
+
+  const assignments = assignAgentsToShifts(roster, totalAgents)
+  const inShift: number[] = []
+  for (let i = 0; i < totalAgents; i++) {
+    const a = assignments.get(i)
+    if (a && isAgentInShift(a, simTimeMin)) inShift.push(i)
+  }
+  if (inShift.length === 0) return { productive, shrinkage }
+
+  // Productive vs shrinkage split among the in-office population. Same
+  // shrinkage clamp as `inOfficeFromErlang` so we can't divide by zero
+  // or produce weird negatives.
+  const s = Math.max(0, Math.min(95, shrinkPct ?? 0))
+  const productiveCount = Math.round(inShift.length * (1 - s / 100))
+  for (let k = 0; k < inShift.length; k++) {
+    if (k < productiveCount) productive.add(inShift[k])
+    else shrinkage.add(inShift[k])
   }
   return { productive, shrinkage }
 }

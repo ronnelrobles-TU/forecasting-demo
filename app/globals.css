@@ -1623,6 +1623,84 @@ details[open] .learn-tip summary::before { content: '▼ '; }
   position: relative;
 }
 
+/* Round 11: Gantt + Coverage on the left, mini Office preview on the right.
+   Falls back to a single column on narrow viewports so the preview always
+   has room to breathe. */
+.cockpit-roster-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 480px);
+  gap: 0.75rem;
+  flex: 1;
+  min-height: 0;
+}
+.cockpit-roster-grid-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 0;
+}
+@media (max-width: 1100px) {
+  .cockpit-roster-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.cockpit-roster-preview-frame {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-height: 0;
+}
+.cockpit-roster-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.cockpit-roster-preview-title {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+}
+.cockpit-roster-preview-time {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  font-variant-numeric: tabular-nums;
+}
+.cockpit-roster-preview-canvas {
+  flex: 1;
+  min-height: 240px;
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+  background: #020617;
+}
+.cockpit-roster-preview-canvas .cockpit-agent-scene {
+  width: 100%;
+  height: 100%;
+}
+.cockpit-roster-preview-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 0.85rem;
+  min-height: 240px;
+}
+.cockpit-roster-preview-help {
+  font-size: 0.7rem;
+  color: #64748b;
+  text-align: center;
+}
+
 /* ───────── Cockpit Onboarding ───────── */
 
 /* Intro strip */

@@ -36,7 +36,7 @@ import {
 } from './isoOffice/journey'
 import { computeJourneyLookahead, breakDurationFor, hasUpcomingShiftEnd } from './isoOffice/lookahead'
 import { computeLighting, quantizeLightingTime } from './isoOffice/lighting'
-import { activeAgentIndicesAllocated, peakInOfficeCount } from './isoOffice/shiftModel'
+import { activeAgentIndicesAllocated, activeAgentIndicesFromRoster, peakInOfficeCount } from './isoOffice/shiftModel'
 import { SceneClock } from './isoOffice/SceneClock'
 import { StatusLegend } from './isoOffice/StatusLegend'
 import { ActivityCounter, type ActivityCounts } from './isoOffice/ActivityCounter'
@@ -51,7 +51,7 @@ const EMPTY_ACTIVITIES: Record<string, ActivityAssignment> = {}
 
 export interface RenderedPosition { pos: ScreenPoint; opacity: number; visible: boolean }
 
-export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absenteeismPct, shrinkPct, perInterval, simSpeed, injectedEvents }: AgentRendererProps) {
+export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absenteeismPct, shrinkPct, perInterval, simSpeed, injectedEvents, roster }: AgentRendererProps) {
   // Fast mode: at sim speeds > 1× the user is fast-forwarding, and journey
   // animations (1.5s walks, 2.5s break sits, 4s lunch outside) take longer
   // in real time than the actual sim event they're meant to depict — the
@@ -83,9 +83,15 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
   // (the first N matching the Erlang count) stay at desks; shrinkage
   // agents (the next M up to the in-office target) are forced into non-
   // desk activities; the rest are off-shift / absent.
+  // Round 11: when a roster is set, derive allocation from the roster
+  // directly (each agent snapped to a specific shift's start/end). Falls
+  // back to the interval-curve smoothing when no roster is authored.
+  const useRoster = roster != null && roster.length > 0
   const allocation = useMemo(
-    () => activeAgentIndicesAllocated(agents.length, perInterval, simTimeMin, shrinkPct),
-    [agents.length, perInterval, simTimeMin, shrinkPct],
+    () => useRoster
+      ? activeAgentIndicesFromRoster(roster!, agents.length, simTimeMin, shrinkPct)
+      : activeAgentIndicesAllocated(agents.length, perInterval, simTimeMin, shrinkPct),
+    [useRoster, roster, agents.length, perInterval, simTimeMin, shrinkPct],
   )
   const isActiveByIndex = useMemo(
     () => {

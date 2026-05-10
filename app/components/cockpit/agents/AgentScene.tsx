@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import type { InjectedEvent, IntervalStat, SimEvent } from '@/lib/types'
+import type { InjectedEvent, IntervalStat, RosterShift, SimEvent } from '@/lib/types'
 import type { Speed } from '@/lib/animation/timeScale'
 import { agentStateAt, buildAgentTimelines } from '@/lib/animation/agentTimeline'
 import { useScenario } from '../ScenarioContext'
@@ -18,9 +18,16 @@ interface AgentSceneProps {
   perInterval?: IntervalStat[]
   simSpeed?: Speed
   injectedEvents?: InjectedEvent[]
+  /** Round 11: roster from the active scenario; renderer uses this to snap
+   *  shift windows to the exact start/end the user dragged on the Gantt.
+   *  Null → renderer falls back to interval-curve activation. */
+  roster?: RosterShift[] | null
+  /** When false, the embedded ThemePicker is not rendered (e.g., the mini
+   *  Roster preview pins to one theme). */
+  showThemePicker?: boolean
 }
 
-export function AgentScene({ events, peakAgents, simTimeMin, deskCapacity, absenteeismPct, shrinkPct, perInterval, simSpeed, injectedEvents }: AgentSceneProps) {
+export function AgentScene({ events, peakAgents, simTimeMin, deskCapacity, absenteeismPct, shrinkPct, perInterval, simSpeed, injectedEvents, roster, showThemePicker = true }: AgentSceneProps) {
   const { theme } = useScenario()
 
   const timelines = useMemo(
@@ -53,8 +60,9 @@ export function AgentScene({ events, peakAgents, simTimeMin, deskCapacity, absen
         perInterval={perInterval}
         simSpeed={simSpeed}
         injectedEvents={injectedEvents}
+        roster={roster}
       />
-      <ThemePicker />
+      {showThemePicker && <ThemePicker />}
     </div>
   )
 }

@@ -40,7 +40,7 @@ import {
   hasUpcomingShiftEnd,
 } from './isoOffice/lookahead'
 import { computeLighting, quantizeLightingTime } from './isoOffice/lighting'
-import { activeAgentIndicesAllocated, peakInOfficeCount } from './isoOffice/shiftModel'
+import { activeAgentIndicesAllocated, activeAgentIndicesFromRoster, peakInOfficeCount } from './isoOffice/shiftModel'
 import {
   activeInjectedEvents,
   eventVisualFlags,
@@ -78,6 +78,7 @@ export function IsoRendererHD({
   perInterval,
   simSpeed,
   injectedEvents,
+  roster,
 }: AgentRendererProps) {
   const fastMode = (simSpeed ?? 1) > 1
 
@@ -89,9 +90,13 @@ export function IsoRendererHD({
   const absentSlots = Math.max(0, agents.length - peakInOffice)
 
   // Round 7.1: three-tier allocation. Mirrors IsoRenderer.
+  // Round 11: roster-driven activation when scenario.roster is set.
+  const useRoster = roster != null && roster.length > 0
   const allocation = useMemo(
-    () => activeAgentIndicesAllocated(agents.length, perInterval, simTimeMin, shrinkPct),
-    [agents.length, perInterval, simTimeMin, shrinkPct],
+    () => useRoster
+      ? activeAgentIndicesFromRoster(roster!, agents.length, simTimeMin, shrinkPct)
+      : activeAgentIndicesAllocated(agents.length, perInterval, simTimeMin, shrinkPct),
+    [useRoster, roster, agents.length, perInterval, simTimeMin, shrinkPct],
   )
   const isActiveByIndex = useMemo(() => {
     const arr = new Array<boolean>(agents.length)

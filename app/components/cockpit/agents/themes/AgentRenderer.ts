@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react'
 import type { AgentVisualState } from '@/lib/animation/agentTimeline'
-import type { InjectedEvent, IntervalStat, SimEvent } from '@/lib/types'
+import type { InjectedEvent, IntervalStat, RosterShift, SimEvent } from '@/lib/types'
 import type { ThemeKey } from '@/app/components/cockpit/ScenarioContext'
 import type { Speed } from '@/lib/animation/timeScale'
 import { DotsRenderer } from './DotsRenderer'
@@ -42,6 +42,12 @@ export interface AgentRendererProps {
   // no activity scatter — so the visualization tracks the sim accurately
   // when a day is blasting by in seconds. DotsRenderer ignores.
   simSpeed?: Speed
+  // Round 11: when the user has authored a roster, it's piped through here
+  // so the renderer can snap each agent's shift window to the exact
+  // start/end the user dragged on the Gantt — instead of inferring shift
+  // boundaries from the smoothed Erlang curve. Null/empty → fall back to
+  // the legacy interval-curve activation (`activeAgentIndicesAllocated`).
+  roster?: RosterShift[] | null
 }
 
 export type AgentRendererComponent = ComponentType<AgentRendererProps>

@@ -5,6 +5,7 @@ import { useScenario } from '../ScenarioContext'
 import { RosterGantt } from '../roster/RosterGantt'
 import { CoverageLine } from '../roster/CoverageLine'
 import { OptimizerControls } from '../roster/OptimizerControls'
+import { RosterPreview } from '../roster/RosterPreview'
 import { runOptimize } from '@/app/workers/optimizerClient'
 import { buildDefaultRoster, totalAgentHours } from '@/lib/kernel/roster'
 import { applyHoop, callsPerInterval } from '@/lib/curve'
@@ -108,15 +109,20 @@ export function RosterTab() {
           onClearRoster={handleClear}
           running={running}
         />
-        <div className="cockpit-roster-gantt-frame">
-          <RosterGantt
-            roster={roster}
-            onUpdateShift={updateShift}
-            onRemoveShift={removeShift}
-          />
-        </div>
-        <div className="cockpit-roster-coverage-frame">
-          <CoverageLine scenario={scenario} roster={roster} />
+        <div className="cockpit-roster-grid">
+          <div className="cockpit-roster-grid-left">
+            <div className="cockpit-roster-gantt-frame">
+              <RosterGantt
+                roster={roster}
+                onUpdateShift={updateShift}
+                onRemoveShift={removeShift}
+              />
+            </div>
+            <div className="cockpit-roster-coverage-frame">
+              <CoverageLine scenario={scenario} roster={roster} />
+            </div>
+          </div>
+          <RosterPreview />
         </div>
       </div>
     </div>
