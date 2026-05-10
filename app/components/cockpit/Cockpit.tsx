@@ -15,6 +15,7 @@ interface LiveData {
   stats: IntervalStat
   abandons: number
   simTimeMin: number
+  scheduledHC: number
 }
 
 function CockpitInner() {

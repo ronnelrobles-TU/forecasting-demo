@@ -20,6 +20,10 @@ interface AgentFloorProps {
    *  icon left behind). Visualization-only; sim kernel ignores absenteeism
    *  per-agent. */
   absenteeismPct?: number
+  /** Round 5.7: indices [absentTailStart, agents.length) belong to agents
+   *  who are "absent for the day" — they never come on shift, and their
+   *  desks render with the AbsentMarker. */
+  absentTailStart?: number
 }
 
 const SHIRT_COLOR: Record<AgentVisualState, string> = {
@@ -81,7 +85,7 @@ function PartitionWall(p1: ScreenPoint, p2: ScreenPoint) {
   ]
 }
 
-export function AgentFloor({ agents, journeys = {}, positions = {}, layout, activities, absenteeismPct }: AgentFloorProps) {
+export function AgentFloor({ agents, journeys = {}, positions = {}, layout, activities, absenteeismPct, absentTailStart }: AgentFloorProps) {
   const deskPositions = layout.deskPositions
   const pods = layout.rooms.agentFloor.pods
 
@@ -99,6 +103,13 @@ export function AgentFloor({ agents, journeys = {}, positions = {}, layout, acti
       const idx = emptyStart + Math.floor(k * stride + stride / 2)
       if (idx < deskPositions.length) absentDeskIdx.add(idx)
     }
+  }
+
+  // Round 5.7: agents in [absentTailStart, agents.length) are today's
+  // absentees — never on shift. Mark their desks too.
+  const tailStart = Math.max(0, Math.min(agents.length, absentTailStart ?? agents.length))
+  for (let i = tailStart; i < agents.length; i++) {
+    if (i < deskPositions.length) absentDeskIdx.add(i)
   }
 
   return (
@@ -195,6 +206,11 @@ export function AgentFloor({ agents, journeys = {}, positions = {}, layout, acti
             <Desk x={deskPos.x} y={deskPos.y}/>
             {showStatus && (
               <StatusBubble x={agentX} y={agentY} state={agent.state} activity={activity}/>
+            )}
+            {/* Round 5.7: tail-agent absent marker (agent is in the array but
+                never on shift today — desk should look empty + flagged). */}
+            {!renderAgentHere && i >= tailStart && (
+              <AbsentMarker x={deskPos.x - 1} y={deskPos.y + 1}/>
             )}
           </g>
         )

@@ -1,6 +1,7 @@
 'use client'
 
 import type { Speed } from '@/lib/animation/timeScale'
+import { SpeedHint } from '../agents/themes/isoOffice/SpeedHint'
 
 interface PlayControlsProps {
   playing: boolean
@@ -40,6 +41,7 @@ export function PlayControls({ playing, speed, simTimeMin, onPlayToggle, onSpeed
           </button>
         ))}
       </div>
+      <SpeedHint />
     </div>
   )
 }

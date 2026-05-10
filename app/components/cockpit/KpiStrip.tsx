@@ -9,7 +9,7 @@ import type { IntervalStat } from '@/lib/types'
 
 interface KpiStripProps {
   /** When provided, the strip renders TWO rows: top = peak Erlang C plan, bottom = live snapshot at simTimeMin. */
-  live?: { stats: IntervalStat; abandons: number; simTimeMin: number } | null
+  live?: { stats: IntervalStat; abandons: number; simTimeMin: number; scheduledHC: number } | null
 }
 
 interface PlanKpis {
@@ -59,7 +59,7 @@ export function KpiStrip({ live = null }: KpiStripProps = {}) {
       <div className="cockpit-kpi-strip cockpit-kpi-strip--with-prefix cockpit-kpi-strip--live">
         <div className="cockpit-kpi-prefix">LIVE · {fmtTime(live.simTimeMin)}</div>
         <Kpi label="Active agents"                                                      value={String(live.stats.agents)} />
-        <Kpi label="Scheduled HC"                                                        value="—" muted />
+        <Kpi label="Scheduled HC"                                                        value={String(live.scheduledHC)} />
         <Kpi label={<JargonTerm term="sl">Service Level</JargonTerm>}                   value={`${(live.stats.sl * 100).toFixed(1)}%`} accent="green" />
         <Kpi label={<JargonTerm term="occupancy">Occupancy</JargonTerm>}                value={`${(live.stats.occ * 100).toFixed(1)}%`} accent="amber" />
         <Kpi label={<JargonTerm term="abandons">Abandons</JargonTerm>}                  value={String(live.abandons)} />

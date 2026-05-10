@@ -6,6 +6,8 @@ import {
   activeAgentIndices,
   staggerOffset,
   STAGGER_WINDOW_MIN,
+  inOfficeFromErlang,
+  peakInOfficeCount,
 } from '@/app/components/cockpit/agents/themes/isoOffice/shiftModel'
 import type { IntervalStat } from '@/lib/types'
 
@@ -148,5 +150,76 @@ describe('activeAgentIndices', () => {
     const r = activeAgentIndices(50, ramp, 0)
     const trueCount = r.filter(Boolean).length
     expect(trueCount).toBeLessThan(20)
+  })
+})
+
+describe('inOfficeFromErlang (Round 5.7)', () => {
+  it('returns input unchanged when shrinkPct is 0 or undefined', () => {
+    expect(inOfficeFromErlang(159, 0)).toBe(159)
+    expect(inOfficeFromErlang(159, undefined)).toBe(159)
+  })
+
+  it('scales up by 1/(1 - shrink/100)', () => {
+    // 159 / (1 - 0.32) ≈ 233.8
+    expect(inOfficeFromErlang(159, 32)).toBeCloseTo(159 / 0.68, 2)
+  })
+
+  it('clamps shrinkPct to 95 to prevent divide-by-zero', () => {
+    const v = inOfficeFromErlang(10, 200)
+    expect(Number.isFinite(v)).toBe(true)
+    expect(v).toBeCloseTo(10 / 0.05, 2)
+  })
+
+  it('treats negative shrinkPct as 0', () => {
+    expect(inOfficeFromErlang(50, -10)).toBe(50)
+  })
+})
+
+describe('smoothScheduledAt with shrinkPct', () => {
+  const ramp = makeRamp()
+
+  it('matches no-shrink behavior when shrinkPct is 0', () => {
+    expect(smoothScheduledAt(ramp, 720, 0)).toBeCloseTo(smoothScheduledAt(ramp, 720), 5)
+  })
+
+  it('scales up at peak with shrinkage', () => {
+    const noShrink = smoothScheduledAt(ramp, 720)
+    const withShrink = smoothScheduledAt(ramp, 720, 32)
+    expect(withShrink).toBeGreaterThan(noShrink)
+    expect(withShrink).toBeCloseTo(noShrink / 0.68, 2)
+  })
+})
+
+describe('isAgentActive with shrinkPct', () => {
+  const ramp = makeRamp()
+
+  it('marks more agents active at peak when shrinkage is non-zero', () => {
+    let activeNoShrink = 0
+    let activeWithShrink = 0
+    for (let i = 0; i < 200; i++) {
+      if (isAgentActive(i, ramp, 720)) activeNoShrink++
+      if (isAgentActive(i, ramp, 720, 32)) activeWithShrink++
+    }
+    expect(activeWithShrink).toBeGreaterThan(activeNoShrink)
+    // Should be roughly noShrink / 0.68 ≈ 1.47×, allowing 10pt jitter
+    expect(activeWithShrink).toBeGreaterThan(Math.round(activeNoShrink / 0.68) - 10)
+  })
+})
+
+describe('peakInOfficeCount', () => {
+  const ramp = makeRamp()
+
+  it('returns 0 when perInterval is missing', () => {
+    expect(peakInOfficeCount(undefined, 32)).toBe(0)
+    expect(peakInOfficeCount([], 32)).toBe(0)
+  })
+
+  it('returns the un-scaled peak when shrinkPct is 0', () => {
+    expect(peakInOfficeCount(ramp, 0)).toBe(100)
+  })
+
+  it('scales the peak by 1/(1 - shrink/100)', () => {
+    // peak = 100, shrink = 32% → 147 (rounded)
+    expect(peakInOfficeCount(ramp, 32)).toBe(Math.round(100 / 0.68))
   })
 })

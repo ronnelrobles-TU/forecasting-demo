@@ -16,6 +16,11 @@ interface LiveData {
   stats: IntervalStat
   abandons: number
   simTimeMin: number
+  /** Round 5.7: scheduled headcount at this sim time, derived from
+   *  stats.agents (Erlang productive count) by dividing out shrinkage
+   *  and absenteeism. Used by the LIVE row of the KPI strip so the
+   *  "Scheduled HC" cell is no longer blank. */
+  scheduledHC: number
 }
 
 export interface LiveSimTabProps {
@@ -47,18 +52,34 @@ export function LiveSimTab({ onLiveChange }: LiveSimTabProps = {}) {
     for (const e of result.events) {
       if (e.type === 'call_abandon' && e.timeMin <= simTimeMin) abandons++
     }
-    onLiveChange({ stats, abandons, simTimeMin })
+    // Live Scheduled HC: same formula as the PLAN row but applied to the
+    // current interval's productive count. Clamp shrink/abs to <95% so we
+    // don't blow the denominator if the user dials extreme values.
+    const shrinkFactor = 1 - Math.min(95, Math.max(0, scenario.shrink)) / 100
+    const absFactor = 1 - Math.min(95, Math.max(0, scenario.abs)) / 100
+    const scheduledHC = Math.ceil(stats.agents / shrinkFactor / absFactor)
+    onLiveChange({ stats, abandons, simTimeMin, scheduledHC })
     // NOTE: do NOT clear `live` in the cleanup. The effect re-runs on every
     // simTimeMin tick, so a cleanup that nulls live would race with the new
     // value and leave the KPI strip blank (root cause of the missing strip).
     // We only want to clear when this tab unmounts, which is handled below.
-  }, [result, simTimeMin, onLiveChange])
+  }, [result, simTimeMin, onLiveChange, scenario.shrink, scenario.abs])
 
   useEffect(() => {
     return () => { onLiveChange?.(null) }
   }, [onLiveChange])
 
-  const peakAgents = result ? Math.max(1, ...result.perInterval.map(s => s.agents)) : 1
+  // Round 5.7: peakAgents is the *scheduled HC* (not the productive Erlang
+  // count). Without this scaling, the agents-array passed into the office
+  // viz was capped at the Erlang requirement, so at peak the floor looked
+  // ~38% empty. We size the array to the full scheduled headcount so:
+  //   • shrinkage activities (training/gym/break) can be filled
+  //   • the absentee fraction (~9% by default) remains visible as empty
+  //     desks marked with the AbsentMarker
+  const peakErlang = result ? Math.max(1, ...result.perInterval.map(s => s.agents)) : 1
+  const peakAgents = result
+    ? Math.ceil(peakErlang / (1 - scenario.shrink / 100) / (1 - scenario.abs / 100))
+    : 1
 
   return (
     <div className="cockpit-viewport cockpit-live-viewport">
@@ -81,6 +102,7 @@ export function LiveSimTab({ onLiveChange }: LiveSimTabProps = {}) {
                 simTimeMin={simTimeMin}
                 deskCapacity={scenario.deskCapacity}
                 absenteeismPct={scenario.abs}
+                shrinkPct={scenario.shrink}
                 perInterval={result.perInterval}
                 simSpeed={speed}
               />

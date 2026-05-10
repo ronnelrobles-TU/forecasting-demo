@@ -20,6 +20,12 @@ export interface AgentRendererProps {
   // Absenteeism % (0..100). Used by IsoRenderer to mark a fraction of empty
   // desks as "absent" with a subtle bag icon. DotsRenderer ignores.
   absenteeismPct?: number
+  // Shrinkage % (0..100). Round 5.7: IsoRenderer uses this to scale up the
+  // per-interval Erlang headcount to the in-office headcount, so shrinkage
+  // activities (training, gym, breaks) can be filled with bodies that are
+  // not actively taking calls. Without this scaling the office looked
+  // 30%+ empty at peak. DotsRenderer ignores.
+  shrinkPct?: number
   // Per-15-min Erlang-scheduled agent count (length 96, sim's perInterval).
   // IsoRenderer uses this to decide how many agents are "on shift" at the
   // current minute — at midnight only the night skeleton is visible, the

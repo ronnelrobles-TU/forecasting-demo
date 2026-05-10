@@ -4,6 +4,16 @@
 // micro-offset so the morning ramp doesn't bunch up at the 15-minute
 // boundary.
 //
+// Round 5.7: the Erlang count from `perInterval[t].agents` is the
+// PRODUCTIVE headcount required (people actively taking calls). Real
+// in-office headcount is higher because of shrinkage (training, meetings,
+// breaks, etc.). To make the floor look correctly populated at peak, we
+// scale the schedule up by `1 / (1 - shrink/100)`, which is the in-office
+// target. The activity scatter (gym/training/break/etc.) absorbs the
+// extra agents into shrinkage rooms; the rest stay at desks taking calls.
+// Above the in-office target there's still room for absentee agents who
+// never come in (their desks render with the AbsentMarker).
+//
 // Pure module. No React, no animations. Used by IsoRenderer to derive
 // `isActive` per agent each frame.
 
@@ -24,6 +34,14 @@ export function staggerOffset(agentIdx: number): number {
   return (h - 0.5) * STAGGER_WINDOW_MIN
 }
 
+// Convert an Erlang (productive) headcount into the in-office headcount
+// by dividing out shrinkage. `shrinkPct` is in 0..100; clamped so we
+// don't divide by zero or produce negatives.
+export function inOfficeFromErlang(erlangCount: number, shrinkPct: number | undefined): number {
+  const s = Math.max(0, Math.min(95, shrinkPct ?? 0)) // cap at 95% so denom stays sane
+  return erlangCount / (1 - s / 100)
+}
+
 // Returns the Erlang-scheduled count for the interval containing simTimeMin.
 // Falls back to 0 when perInterval is missing (stays empty rather than
 // pretending all agents are working).
@@ -37,14 +55,22 @@ export function scheduledCountAt(perInterval: ReadonlyArray<IntervalStat> | unde
 // interval's scheduled count and the current one based on how far into the
 // interval we are. This is the "background" target — the per-agent stagger
 // is added on top to decide individual activations.
-export function smoothScheduledAt(perInterval: ReadonlyArray<IntervalStat> | undefined, simTimeMin: number): number {
+//
+// `shrinkPct` (Round 5.7): when provided, scales the curve up to the
+// in-office target instead of the productive Erlang target.
+export function smoothScheduledAt(
+  perInterval: ReadonlyArray<IntervalStat> | undefined,
+  simTimeMin: number,
+  shrinkPct?: number,
+): number {
   if (!perInterval || perInterval.length === 0) return 0
   const idx = Math.max(0, Math.min(perInterval.length - 1, Math.floor(simTimeMin / INTERVAL_MIN)))
   const prev = idx > 0 ? perInterval[idx - 1].agents : perInterval[idx].agents
   const curr = perInterval[idx].agents
   const intoInterval = simTimeMin - idx * INTERVAL_MIN
   const t = Math.max(0, Math.min(1, intoInterval / INTERVAL_MIN))
-  return prev + (curr - prev) * t
+  const erlang = prev + (curr - prev) * t
+  return inOfficeFromErlang(erlang, shrinkPct)
 }
 
 // Decide whether agent index `i` is currently active (on shift) given
@@ -56,6 +82,7 @@ export function isAgentActive(
   agentIdx: number,
   perInterval: ReadonlyArray<IntervalStat> | undefined,
   simTimeMin: number,
+  shrinkPct?: number,
 ): boolean {
   if (!perInterval || perInterval.length === 0) {
     // No schedule data — assume everyone idle (preserve old behaviour).
@@ -65,7 +92,7 @@ export function isAgentActive(
   // Negative stagger -> agent arrives slightly EARLIER (counts as active
   // sooner); positive stagger -> arrives later. Same logic on departure.
   const adjustedTime = simTimeMin - staggerOffset(agentIdx)
-  const target = smoothScheduledAt(perInterval, adjustedTime)
+  const target = smoothScheduledAt(perInterval, adjustedTime, shrinkPct)
   // Agents are sorted by index; the first `target` are active.
   return agentIdx < Math.round(target)
 }
@@ -76,8 +103,25 @@ export function activeAgentIndices(
   agentCount: number,
   perInterval: ReadonlyArray<IntervalStat> | undefined,
   simTimeMin: number,
+  shrinkPct?: number,
 ): boolean[] {
   const out = new Array<boolean>(agentCount)
-  for (let i = 0; i < agentCount; i++) out[i] = isAgentActive(i, perInterval, simTimeMin)
+  for (let i = 0; i < agentCount; i++) out[i] = isAgentActive(i, perInterval, simTimeMin, shrinkPct)
   return out
+}
+
+// Peak in-office count across the whole day, used to decide how many of
+// the top-indexed agents are "today's absentees" (never on shift). Returns
+// 0 when perInterval is missing.
+export function peakInOfficeCount(
+  perInterval: ReadonlyArray<IntervalStat> | undefined,
+  shrinkPct?: number,
+): number {
+  if (!perInterval || perInterval.length === 0) return 0
+  let peak = 0
+  for (const s of perInterval) {
+    const v = inOfficeFromErlang(s?.agents ?? 0, shrinkPct)
+    if (v > peak) peak = v
+  }
+  return Math.round(peak)
 }

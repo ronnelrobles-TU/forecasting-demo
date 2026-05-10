@@ -30,7 +30,10 @@ import {
 } from './isoOffice/journey'
 import { computeJourneyLookahead, breakDurationFor, hasUpcomingShiftEnd } from './isoOffice/lookahead'
 import { computeLighting, quantizeLightingTime } from './isoOffice/lighting'
-import { activeAgentIndices } from './isoOffice/shiftModel'
+import { activeAgentIndices, peakInOfficeCount } from './isoOffice/shiftModel'
+import { SceneClock } from './isoOffice/SceneClock'
+import { StatusLegend } from './isoOffice/StatusLegend'
+import { ActivityCounter, type ActivityCounts } from './isoOffice/ActivityCounter'
 import type { AgentVisualState } from '@/lib/animation/agentTimeline'
 
 const SHIFT_END_LOOKAHEAD_MIN = 3
@@ -42,7 +45,7 @@ const EMPTY_ACTIVITIES: Record<string, ActivityAssignment> = {}
 
 export interface RenderedPosition { pos: ScreenPoint; opacity: number; visible: boolean }
 
-export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absenteeismPct, perInterval, simSpeed }: AgentRendererProps) {
+export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absenteeismPct, shrinkPct, perInterval, simSpeed }: AgentRendererProps) {
   // Fast mode: at sim speeds > 1× the user is fast-forwarding, and journey
   // animations (1.5s walks, 2.5s break sits, 4s lunch outside) take longer
   // in real time than the actual sim event they're meant to depict — the
@@ -58,9 +61,29 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
   // and the floor ramps in/out through the day matching call volume.
   // Per-agent micro-offsets stagger arrivals so the 15-min boundary
   // doesn't bunch.
+  // Round 5.7: peak in-office count = ceil(maxErlang / (1 - shrink/100)).
+  // Indices [peakInOffice .. agents.length) are "today's absentees" — they
+  // never come in. Their desks render with the AbsentMarker so the user sees
+  // the absenteeism rate at a glance. This is the slice between the in-office
+  // population (~234) and the total scheduled HC (~257) for a typical 159-
+  // Erlang scenario.
+  const peakInOffice = useMemo(
+    () => peakInOfficeCount(perInterval, shrinkPct),
+    [perInterval, shrinkPct],
+  )
+  const absentSlots = Math.max(0, agents.length - peakInOffice)
   const isActiveByIndex = useMemo(
-    () => activeAgentIndices(agents.length, perInterval, simTimeMin),
-    [agents.length, perInterval, simTimeMin],
+    () => {
+      // Force the "absentee" tail (last `absentSlots` indices) to inactive
+      // for the entire day. The first `peakInOffice` agents follow the
+      // schedule curve.
+      const arr = activeAgentIndices(agents.length, perInterval, simTimeMin, shrinkPct)
+      for (let i = agents.length - absentSlots; i < agents.length; i++) {
+        if (i >= 0) arr[i] = false
+      }
+      return arr
+    },
+    [agents.length, perInterval, simTimeMin, shrinkPct, absentSlots],
   )
   // Effective desk count: caller-supplied capacity, or one per agent. Layout
   // grows to fit `deskCount` so users can SEE empty desks fill in as the
@@ -324,7 +347,53 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
   // The room components and the activity-effect see an empty map.
   const effectiveActivities = fastMode ? EMPTY_ACTIVITIES : activities
 
+  // Round 5.7: live activity counts for the on-canvas overlay. Counted from
+  // current journey phases (the source of truth for where each agent is) +
+  // pre-walk activity assignments. Cheap O(N) per render.
+  const activityCounts: ActivityCounts = useMemo(() => {
+    const counts: ActivityCounts = {
+      atDesks: 0, inTraining: 0, inGym: 0, onBreak: 0,
+      smoking: 0, chatting: 0, waterCooler: 0, restroom: 0, walking: 0,
+    }
+    for (let i = 0; i < agents.length; i++) {
+      const a = agents[i]
+      const j = journeySnapshot[a.id]
+      const k = j?.phase.kind
+      if (k === 'gone' || a.state === 'off_shift') continue // not in office
+      // Walking phases (visible transit) — bucketed first.
+      if (k && (
+        k === 'walking_to_break' || k === 'walking_back_to_desk'
+        || k === 'walking_to_door_for_lunch' || k === 'walking_back_from_lunch'
+        || k === 'walking_to_door_for_shift_end' || k === 'arriving_at_door'
+        || k === 'walking_to_room' || k === 'walking_back_from_room'
+        || k === 'walking_to_restroom_door' || k === 'walking_back_from_restroom'
+        || k === 'walking_to_chat_spot' || k === 'walking_back_from_chat'
+      )) { counts.walking++; continue }
+      // Resting phases.
+      if (k === 'at_break_table' || a.state === 'on_break') { counts.onBreak++; continue }
+      if (k === 'outside_for_lunch') { counts.onBreak++; continue }
+      if (k === 'inside_restroom' || k === 'entering_restroom' || k === 'exiting_restroom') {
+        counts.restroom++; continue
+      }
+      if (k === 'in_room') {
+        const room = j?.phase.kind === 'in_room' ? j.phase.targetRoom : null
+        if (room === 'training') counts.inTraining++
+        else if (room === 'gym') counts.inGym++
+        else if (room === 'water_cooler') counts.waterCooler++
+        else if (room === 'patio') counts.smoking++
+        else if (room === 'chat') counts.chatting++
+        else counts.atDesks++
+        continue
+      }
+      if (k === 'at_chat_spot') { counts.chatting++; continue }
+      // Default: at desk (covers at_desk, on_call_at_desk, undefined).
+      counts.atDesks++
+    }
+    return counts
+  }, [agents, journeySnapshot])
+
   return (
+    <>
     <svg
       viewBox={`0 0 ${layout.viewBox.w} ${layout.viewBox.h}`}
       style={{ width: '100%', height: '100%', display: 'block', background: lighting.skyColor }}
@@ -371,6 +440,7 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
         layout={layout}
         activities={effectiveActivities}
         absenteeismPct={absenteeismPct}
+        absentTailStart={agents.length - absentSlots}
       />
 
       <SmokingPatio layout={layout} agents={agents} activities={effectiveActivities} journeys={journeySnapshot}/>
@@ -381,5 +451,17 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
 
       <Reception layout={layout}/>
     </svg>
+
+    {/* Round 5.7 clarity overlays. HTML siblings of the SVG, absolutely
+        positioned inside the .cockpit-agent-scene container. Subtle,
+        non-interfering, dismissible — purely informational for new users. */}
+    <div className="cockpit-scene-overlay cockpit-scene-overlay--top-left">
+      <SceneClock simTimeMin={simTimeMin}/>
+      <ActivityCounter counts={activityCounts}/>
+    </div>
+    <div className="cockpit-scene-overlay cockpit-scene-overlay--top-right-lower">
+      <StatusLegend/>
+    </div>
+    </>
   )
 }

@@ -1629,6 +1629,169 @@ details[open] .learn-tip summary::before { content: '▼ '; }
   color: #fff;
 }
 
+/* ───────── Cockpit iso-office: clarity overlays (Round 5.7) ─────────
+   Subtle, absolutely-positioned panels overlaid on the office canvas to
+   help new users understand what they're seeing — clock, status legend,
+   live activity counter, and a dismissible speed-control hint.
+   All panels use a translucent slate background and small typography so
+   they don't compete with the main viz.
+*/
+.cockpit-scene-overlay {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  z-index: 3;
+  pointer-events: none; /* let clicks pass through the wrapper */
+}
+.cockpit-scene-overlay > * { pointer-events: auto; }
+.cockpit-scene-overlay--top-left {
+  top: 0.5rem;
+  left: 0.5rem;
+}
+.cockpit-scene-overlay--top-right-lower {
+  /* Sit just below the theme picker (which is top:0.5rem; right:0.5rem). */
+  top: 2.4rem;
+  right: 0.5rem;
+}
+
+.cockpit-scene-clock {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  background: rgba(15, 23, 42, 0.78);
+  color: #f1f5f9;
+  border: 1px solid rgba(100, 116, 139, 0.45);
+  border-radius: 8px;
+  padding: 0.35rem 0.6rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  backdrop-filter: blur(2px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+.cockpit-scene-clock svg { color: #fde68a; align-self: center; }
+.cockpit-scene-clock-time { font-size: 1.15rem; line-height: 1; }
+.cockpit-scene-clock-suffix { font-size: 0.7rem; opacity: 0.75; }
+
+.cockpit-status-legend {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 0.7rem;
+}
+.cockpit-status-legend-toggle {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid rgba(100, 116, 139, 0.55);
+  background: rgba(15, 23, 42, 0.8);
+  color: #f1f5f9;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.85rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.cockpit-status-legend-toggle:hover { background: #1e293b; }
+.cockpit-status-legend-panel {
+  margin-top: 0.3rem;
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(100, 116, 139, 0.45);
+  border-radius: 8px;
+  color: #e2e8f0;
+  padding: 0.5rem 0.7rem;
+  min-width: 150px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+.cockpit-status-legend-title {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.65;
+  margin-bottom: 0.3rem;
+}
+.cockpit-status-legend-panel ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.cockpit-status-legend-panel li {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.cockpit-status-legend-emoji { font-size: 0.95rem; line-height: 1; }
+
+.cockpit-activity-counter {
+  background: rgba(15, 23, 42, 0.78);
+  border: 1px solid rgba(100, 116, 139, 0.4);
+  border-radius: 8px;
+  padding: 0.45rem 0.65rem;
+  color: #e2e8f0;
+  min-width: 140px;
+  font-size: 0.7rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+.cockpit-activity-counter-title {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.65;
+  margin-bottom: 0.3rem;
+}
+.cockpit-activity-counter ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.cockpit-activity-counter li {
+  display: grid;
+  grid-template-columns: 1.1rem 1fr auto;
+  align-items: center;
+  gap: 0.4rem;
+}
+.cockpit-activity-counter-emoji { line-height: 1; }
+.cockpit-activity-counter-label { opacity: 0.85; }
+.cockpit-activity-counter-num {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: #f1f5f9;
+}
+
+.cockpit-speed-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: 0.5rem;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.55);
+  color: #cbd5e1;
+  padding: 0.3rem 0.55rem;
+  border-radius: 6px;
+  font-size: 0.7rem;
+}
+.cockpit-speed-hint-icon { font-size: 0.85rem; }
+.cockpit-speed-hint-text strong { color: #f1f5f9; font-weight: 600; }
+.cockpit-speed-hint-dismiss {
+  background: transparent;
+  border: 0;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 0.95rem;
+  line-height: 1;
+  padding: 0 0.15rem;
+}
+.cockpit-speed-hint-dismiss:hover { color: #f1f5f9; }
+
 /* ───────── Cockpit iso-office: GPU-driven idle bob for on_call agents ───────── */
 @keyframes cockpit-iso-agent-bob {
   0%, 100% { transform: translateY(0); }

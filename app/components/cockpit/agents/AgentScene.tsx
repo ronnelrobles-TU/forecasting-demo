@@ -14,11 +14,12 @@ interface AgentSceneProps {
   simTimeMin: number
   deskCapacity?: number
   absenteeismPct?: number
+  shrinkPct?: number
   perInterval?: IntervalStat[]
   simSpeed?: Speed
 }
 
-export function AgentScene({ events, peakAgents, simTimeMin, deskCapacity, absenteeismPct, perInterval, simSpeed }: AgentSceneProps) {
+export function AgentScene({ events, peakAgents, simTimeMin, deskCapacity, absenteeismPct, shrinkPct, perInterval, simSpeed }: AgentSceneProps) {
   const { theme } = useScenario()
 
   const timelines = useMemo(
@@ -47,6 +48,7 @@ export function AgentScene({ events, peakAgents, simTimeMin, deskCapacity, absen
         events={events}
         deskCapacity={deskCapacity}
         absenteeismPct={absenteeismPct}
+        shrinkPct={shrinkPct}
         perInterval={perInterval}
         simSpeed={simSpeed}
       />
