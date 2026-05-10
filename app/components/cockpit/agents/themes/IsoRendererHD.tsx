@@ -401,7 +401,9 @@ export function IsoRendererHD({
       )
     }
     ticker.add(onTick)
-    return () => { ticker.remove(onTick) }
+    return () => {
+      try { ticker.remove(onTick) } catch { /* ticker destroyed */ }
+    }
   }, [sceneNonce, agents, layout, effectiveActivities])
 
   // Lighting + injected-event overlay paint pass (cheap; runs whenever the
