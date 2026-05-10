@@ -30,13 +30,38 @@ import {
 } from './isoOffice/journey'
 import { computeJourneyLookahead, breakDurationFor, hasUpcomingShiftEnd } from './isoOffice/lookahead'
 import { computeLighting, quantizeLightingTime } from './isoOffice/lighting'
+import { activeAgentIndices } from './isoOffice/shiftModel'
 import type { AgentVisualState } from '@/lib/animation/agentTimeline'
 
 const SHIFT_END_LOOKAHEAD_MIN = 3
 
+// Stable empty assignments map used in fast mode. Must be a single
+// top-level reference so memoised consumers don't see it as "changed"
+// every render.
+const EMPTY_ACTIVITIES: Record<string, ActivityAssignment> = {}
+
 export interface RenderedPosition { pos: ScreenPoint; opacity: number; visible: boolean }
 
-export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absenteeismPct }: AgentRendererProps) {
+export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absenteeismPct, perInterval, simSpeed }: AgentRendererProps) {
+  // Fast mode: at sim speeds > 1× the user is fast-forwarding, and journey
+  // animations (1.5s walks, 2.5s break sits, 4s lunch outside) take longer
+  // in real time than the actual sim event they're meant to depict — the
+  // viz lies about timing. Flip to a static "agents-at-desks-with-shirt-
+  // colors" mode that's accurate to the kernel's tick.
+  const fastMode = (simSpeed ?? 1) > 1
+
+  // Compute which agent indices are currently "on shift" using the Erlang
+  // scheduled-agent count from the per-interval stats. Without this, the
+  // agentTimeline kernel defaults every agent to idle at minute 0 — so at
+  // midnight the office is full of idle agents, which is nonsense. With
+  // this overlay, only the night-shift skeleton is visible at midnight,
+  // and the floor ramps in/out through the day matching call volume.
+  // Per-agent micro-offsets stagger arrivals so the 15-min boundary
+  // doesn't bunch.
+  const isActiveByIndex = useMemo(
+    () => activeAgentIndices(agents.length, perInterval, simTimeMin),
+    [agents.length, perInterval, simTimeMin],
+  )
   // Effective desk count: caller-supplied capacity, or one per agent. Layout
   // grows to fit `deskCount` so users can SEE empty desks fill in as the
   // morning shift ramps up.
@@ -102,24 +127,39 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
     }
   }, [agents, layout])
 
-  // React to sim-state changes for each agent.
+  // React to sim-state changes for each agent. Also overlays the Erlang-
+  // schedule "is this agent currently on shift?" decision: if not, force
+  // their effectiveState to off_shift so journey.ts dispatches a
+  // walk-to-door + gone (visible exodus). When the schedule ramps back up
+  // and an agent becomes active again, their state flips back to idle/
+  // on_call/etc. and the journey machinery walks them in from the door.
   useEffect(() => {
     const now = performance.now()
     const prev = prevStatesRef.current
     let changed = false
     const next: Record<string, VisualJourney> = { ...journeysRef.current }
-    for (const a of agents) {
+    for (let i = 0; i < agents.length; i++) {
+      const a = agents[i]
       const desk = next[a.id]?.homeDeskPosition
         ?? layout.deskPositions[Number(a.id.replace(/^A/, '')) || 0]
         ?? { x: 0, y: 0 }
       if (!next[a.id]) {
-        next[a.id] = makeJourney(a.id, desk, a.state, now)
+        // First-ever sight of this agent. If they're inactive at sim start
+        // (e.g. midnight skeleton + 200 agents), spawn them as `gone` so
+        // they don't pop into existence at their desks before walking out.
+        const initial: AgentVisualState = isActiveByIndex[i] ? a.state : 'off_shift'
+        next[a.id] = makeJourney(a.id, desk, initial, now)
         changed = true
       }
       const prevState = prev[a.id]
 
       let effectiveState: AgentVisualState = a.state
-      if (
+      if (!isActiveByIndex[i]) {
+        // Inactive (off the schedule's roster for this minute) — force
+        // off_shift, which dispatches walk-to-door → gone. The journey
+        // machinery already handles the visible exit.
+        effectiveState = 'off_shift'
+      } else if (
         a.state !== 'off_shift'
         && hasUpcomingShiftEnd(lookahead, a.id, simTimeMin, SHIFT_END_LOOKAHEAD_MIN)
       ) {
@@ -140,14 +180,26 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
       setJourneySnapshot(next)
       setPositions(resolvePositions(next, now))
     }
-  }, [agents, simTimeMin, layout, lookahead])
+  }, [agents, simTimeMin, layout, lookahead, isActiveByIndex])
 
   // React to *display activity* changes (gym/training/restroom/chat/water_cooler).
   // These don't show up in sim state — they're a visual fluff layer — so we
   // dispatch journey walks here so every transition is a visible walk
   // (no teleports). When activity flips back to at_desk, we walk back from
   // wherever the agent currently is.
+  //
+  // Fast-mode skip: at sim speeds > 1× we suppress activity scatter entirely
+  // (Issue 4 fix). Walks would lie about timing because their real duration
+  // exceeds the sim duration of an entire on_call/break phase. Agents stay
+  // at desks with shirt colors that track sim state.
   useEffect(() => {
+    if (fastMode) {
+      // Wipe activity history so when speed drops back to ≤ 1× the next
+      // tick re-evaluates everyone (no stale prev-activity preventing a
+      // dispatch).
+      prevActivitiesRef.current = {}
+      return
+    }
     const now = performance.now()
     const prev = prevActivitiesRef.current
     let changed = false
@@ -195,7 +247,7 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
       setJourneySnapshot(next)
       setPositions(resolvePositions(next, now))
     }
-  }, [agents, activities])
+  }, [agents, activities, fastMode])
 
   // Per-frame tick: advance in-flight phases AND refresh resolved positions
   // while anything is mid-walk.
@@ -236,6 +288,42 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
     return out
   }, [journeySnapshot])
 
+  // Restroom occupancy — count agents currently in any restroom-related
+  // phase OR with `in_restroom` activity assigned. Drives the stall-door
+  // "occupied" red dots and (when stalls are full) the small queue of
+  // waiting agents painted outside the doors. Without this signal the
+  // bathroom looked dead even when agents were nominally inside (Round 5.6
+  // user complaint: "no one is also going to the bathroom").
+  const restroomOccupancy = useMemo(() => {
+    let n = 0
+    for (const id of Object.keys(journeySnapshot)) {
+      const k = journeySnapshot[id].phase.kind
+      if (
+        k === 'walking_to_restroom_door'
+        || k === 'entering_restroom'
+        || k === 'inside_restroom'
+        || k === 'exiting_restroom'
+      ) n++
+    }
+    // Also count anyone whose activity says in_restroom but who hasn't
+    // started journeying yet. (Most of the time the journey is already
+    // dispatched, so this is a small additive correction.)
+    for (const id of Object.keys(activities)) {
+      if (activities[id]?.activity !== 'in_restroom') continue
+      const k = journeySnapshot[id]?.phase.kind
+      if (k === 'at_desk' || k === 'on_call_at_desk' || k == null) {
+        // Pre-walk; already counted journeys above.
+        n++
+      }
+    }
+    return n
+  }, [journeySnapshot, activities])
+
+  // Effective activities: in fast mode, suppress all activity scatter so
+  // agents stay at their desks and the simulation timing isn't lied about.
+  // The room components and the activity-effect see an empty map.
+  const effectiveActivities = fastMode ? EMPTY_ACTIVITIES : activities
+
   return (
     <svg
       viewBox={`0 0 ${layout.viewBox.w} ${layout.viewBox.h}`}
@@ -269,10 +357,10 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
 
       <Building layout={layout} lighting={lighting}/>
 
-      <TrainingRoom layout={layout} agents={agents} activities={activities} journeys={journeySnapshot} walkingIds={walkingIds}/>
-      <BreakRoom agents={agents} journeys={journeySnapshot} positions={positions} layout={layout} activities={activities} walkingIds={walkingIds}/>
-      <Restrooms layout={layout}/>
-      <Gym layout={layout} agents={agents} activities={activities} journeys={journeySnapshot} walkingIds={walkingIds}/>
+      <TrainingRoom layout={layout} agents={agents} activities={effectiveActivities} journeys={journeySnapshot} walkingIds={walkingIds}/>
+      <BreakRoom agents={agents} journeys={journeySnapshot} positions={positions} layout={layout} activities={effectiveActivities} walkingIds={walkingIds}/>
+      <Restrooms layout={layout} occupiedCount={restroomOccupancy}/>
+      <Gym layout={layout} agents={agents} activities={effectiveActivities} journeys={journeySnapshot} walkingIds={walkingIds}/>
 
       <ManagerOffices layout={layout}/>
 
@@ -281,11 +369,11 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
         journeys={journeySnapshot}
         positions={positions}
         layout={layout}
-        activities={activities}
+        activities={effectiveActivities}
         absenteeismPct={absenteeismPct}
       />
 
-      <SmokingPatio layout={layout} agents={agents} activities={activities} journeys={journeySnapshot}/>
+      <SmokingPatio layout={layout} agents={agents} activities={effectiveActivities} journeys={journeySnapshot}/>
 
       <Janitor layout={layout} simTimeMin={simTimeMin}/>
       <ExecutiveWalker layout={layout}/>

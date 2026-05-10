@@ -1,7 +1,8 @@
 import type { ComponentType } from 'react'
 import type { AgentVisualState } from '@/lib/animation/agentTimeline'
-import type { SimEvent } from '@/lib/types'
+import type { IntervalStat, SimEvent } from '@/lib/types'
 import type { ThemeKey } from '@/app/components/cockpit/ScenarioContext'
+import type { Speed } from '@/lib/animation/timeScale'
 import { DotsRenderer } from './DotsRenderer'
 import { IsoRenderer } from './IsoRenderer'
 
@@ -19,6 +20,17 @@ export interface AgentRendererProps {
   // Absenteeism % (0..100). Used by IsoRenderer to mark a fraction of empty
   // desks as "absent" with a subtle bag icon. DotsRenderer ignores.
   absenteeismPct?: number
+  // Per-15-min Erlang-scheduled agent count (length 96, sim's perInterval).
+  // IsoRenderer uses this to decide how many agents are "on shift" at the
+  // current minute — at midnight only the night skeleton is visible, the
+  // floor ramps up through morning, and the rest leave in the evening.
+  // DotsRenderer ignores.
+  perInterval?: IntervalStat[]
+  // Current playback speed. IsoRenderer drops to a "fast mode" at speeds
+  // > 1× — agents appear at desks with sim-state shirt colors, no journeys,
+  // no activity scatter — so the visualization tracks the sim accurately
+  // when a day is blasting by in seconds. DotsRenderer ignores.
+  simSpeed?: Speed
 }
 
 export type AgentRendererComponent = ComponentType<AgentRendererProps>

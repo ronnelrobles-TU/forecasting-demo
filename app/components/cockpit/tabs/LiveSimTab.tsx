@@ -81,6 +81,8 @@ export function LiveSimTab({ onLiveChange }: LiveSimTabProps = {}) {
                 simTimeMin={simTimeMin}
                 deskCapacity={scenario.deskCapacity}
                 absenteeismPct={scenario.abs}
+                perInterval={result.perInterval}
+                simSpeed={speed}
               />
             : <div className="cockpit-placeholder"><p>Loading sim…</p></div>}
         </div>

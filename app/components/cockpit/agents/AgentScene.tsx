@@ -1,7 +1,8 @@
 'use client'
 
 import { useMemo } from 'react'
-import type { SimEvent } from '@/lib/types'
+import type { IntervalStat, SimEvent } from '@/lib/types'
+import type { Speed } from '@/lib/animation/timeScale'
 import { agentStateAt, buildAgentTimelines } from '@/lib/animation/agentTimeline'
 import { useScenario } from '../ScenarioContext'
 import { THEME_REGISTRY } from './themes/AgentRenderer'
@@ -13,9 +14,11 @@ interface AgentSceneProps {
   simTimeMin: number
   deskCapacity?: number
   absenteeismPct?: number
+  perInterval?: IntervalStat[]
+  simSpeed?: Speed
 }
 
-export function AgentScene({ events, peakAgents, simTimeMin, deskCapacity, absenteeismPct }: AgentSceneProps) {
+export function AgentScene({ events, peakAgents, simTimeMin, deskCapacity, absenteeismPct, perInterval, simSpeed }: AgentSceneProps) {
   const { theme } = useScenario()
 
   const timelines = useMemo(
@@ -44,6 +47,8 @@ export function AgentScene({ events, peakAgents, simTimeMin, deskCapacity, absen
         events={events}
         deskCapacity={deskCapacity}
         absenteeismPct={absenteeismPct}
+        perInterval={perInterval}
+        simSpeed={simSpeed}
       />
       <ThemePicker />
     </div>

@@ -48,13 +48,15 @@ export function hash(s: string): number {
 interface AgentLite { id: string; state: AgentVisualState }
 
 // Activity mix for IDLE agents. Probabilities must sum to <=1; remainder is
-// at_desk. Tweak these to change office vibes.
+// at_desk. Tweak these to change office vibes. Restroom bumped to 0.08
+// (Round 5.6) so the bathroom visibly has activity — combined with the
+// stall-occupancy indicators, the user can now SEE who's in there.
 const PROBS = {
   in_training:     0.08,
   in_gym:          0.06,
   chatting:        0.06,
   at_water_cooler: 0.05,
-  in_restroom:     0.05,
+  in_restroom:     0.08,
 } as const
 
 // Per-agent window phase offset, so not every agent flips at the same

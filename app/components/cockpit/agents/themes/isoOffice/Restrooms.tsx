@@ -2,7 +2,14 @@
 
 import { isoToScreen, type BuildingLayout, type ScreenPoint } from './geometry'
 
-interface RestroomsProps { layout: BuildingLayout }
+interface RestroomsProps {
+  layout: BuildingLayout
+  // Number of agents currently inside the restrooms (in_restroom activity
+  // OR mid restroom-journey). Used to render an "occupied" red dot on a
+  // matching number of stall doors, plus a small queue of 1–2 waiting
+  // agents outside the door if there are more occupants than stalls.
+  occupiedCount?: number
+}
 
 const ptsStr = (pts: ReadonlyArray<ScreenPoint>) => pts.map(p => `${p.x},${p.y}`).join(' ')
 
@@ -65,9 +72,11 @@ function Mirror({ x, y, width = 12 }: { x: number; y: number; width?: number }) 
   )
 }
 
-// Stall partition — a small enclosure with a half-open door and a top-down
-// toilet inside. The walls are short partitions (commercial bathroom style).
-function Stall({ x, y }: { x: number; y: number }) {
+// Stall partition — a small enclosure with a door and a top-down toilet
+// inside. When `occupied` is true, the door swings shut (axis-aligned) and
+// a small red "occupied" dot appears on the door so the user can see at a
+// glance which stalls are in use.
+function Stall({ x, y, occupied = false }: { x: number; y: number; occupied?: boolean }) {
   return (
     <g transform={`translate(${x}, ${y})`}>
       {/* Stall floor (slightly different tile) */}
@@ -80,10 +89,36 @@ function Stall({ x, y }: { x: number; y: number }) {
       {/* Front wall with door cut-out */}
       <rect x={-4.5} y={3.3} width={2.0} height={0.5} fill="#94a3b8" stroke="#475569" strokeWidth={0.25}/>
       <rect x={2.5}  y={3.3} width={2.0} height={0.5} fill="#94a3b8" stroke="#475569" strokeWidth={0.25}/>
-      {/* Open door (hanging at an angle) */}
-      <rect x={-2.5} y={3.0} width={2.2} height={0.4} fill="#cbd5e1" stroke="#475569" strokeWidth={0.2} transform="rotate(-15)"/>
+      {occupied ? (
+        <g>
+          {/* Closed door (axis-aligned, sealing the stall) */}
+          <rect x={-2.5} y={3.0} width={5.0} height={0.55} fill="#94a3b8" stroke="#475569" strokeWidth={0.25}/>
+          {/* Red OCCUPIED dot painted on the door */}
+          <circle cx={0} cy={3.27} r={0.55} fill="#dc2626" stroke="#7f1d1d" strokeWidth={0.15}/>
+        </g>
+      ) : (
+        /* Open door (hanging at an angle) */
+        <rect x={-2.5} y={3.0} width={2.2} height={0.4} fill="#cbd5e1" stroke="#475569" strokeWidth={0.2} transform="rotate(-15)"/>
+      )}
       {/* Toilet inside */}
       <Toilet x={0} y={0}/>
+    </g>
+  )
+}
+
+// Tiny waiting figure — a stick-style top-down sprite. Drawn outside the
+// restroom doors when stalls are full. Keeps the bathroom visibly busy.
+function WaitingPerson({ x, y }: { x: number; y: number }) {
+  return (
+    <g transform={`translate(${x}, ${y})`}>
+      <ellipse cx={0} cy={2.4} rx={1.6} ry={0.6} fill="#1e293b" opacity={0.3}/>
+      <circle cx={0} cy={-2.2} r={1.4} fill="#fde4b8" stroke="#92400e" strokeWidth={0.25}/>
+      <path d="M-1.7,-1 Q0,-0.4 1.7,-1 L1.4,2 L-1.4,2 Z" fill="#3b82f6" stroke="#0f172a" strokeWidth={0.25}/>
+      {/* Tiny "..." waiting bubble */}
+      <ellipse cx={2.3} cy={-3.4} rx={1.5} ry={0.9} fill="#f8fafc" stroke="#94a3b8" strokeWidth={0.18}/>
+      <circle cx={1.7} cy={-3.4} r={0.18} fill="#475569"/>
+      <circle cx={2.3} cy={-3.4} r={0.18} fill="#475569"/>
+      <circle cx={2.9} cy={-3.4} r={0.18} fill="#475569"/>
     </g>
   )
 }
@@ -165,13 +200,20 @@ function TileFloor({ id, points }: { id: string; points: ScreenPoint[] }) {
   )
 }
 
-export function Restrooms({ layout }: RestroomsProps) {
+export function Restrooms({ layout, occupiedCount = 0 }: RestroomsProps) {
   const r = layout.rooms.restrooms
   const labels: Array<'M' | 'F'> = ['M', 'F']
   const b = r.isoBounds
   const ox = layout.origin.x
   const oy = layout.origin.y
   const midJ = (b.jMin + b.jMax) / 2
+
+  // Total stalls across the M+F sides (must match the <Stall>s rendered
+  // below). Cap occupied at this count; overflow shows up as 1–2 waiting
+  // people outside the doors.
+  const TOTAL_STALLS = 5 // 2 M + 3 F
+  const occupiedStalls = Math.min(TOTAL_STALLS, Math.max(0, occupiedCount))
+  const waitingCount = Math.min(2, Math.max(0, occupiedCount - TOTAL_STALLS))
 
   // Layout the fixtures inside each half. Positions chosen so they read
   // clearly at the iso scale and stay inside the room polygon.
@@ -206,9 +248,12 @@ export function Restrooms({ layout }: RestroomsProps) {
         opacity={0.7}
       />
 
-      {/* M-side fixtures */}
-      <Stall x={mStall1.x} y={mStall1.y}/>
-      <Stall x={mStall2.x} y={mStall2.y}/>
+      {/* M-side fixtures. First N stalls (in fixed order) flip to occupied
+          based on occupiedStalls — gives the user a visible "someone's in
+          there" cue without needing to track individual agents to specific
+          stalls (which would also wreck the deterministic rendering). */}
+      <Stall x={mStall1.x} y={mStall1.y} occupied={occupiedStalls > 0}/>
+      <Stall x={mStall2.x} y={mStall2.y} occupied={occupiedStalls > 1}/>
       <Urinal x={mUrinal1.x} y={mUrinal1.y}/>
       <Urinal x={mUrinal2.x} y={mUrinal2.y}/>
       <Mirror x={mMirror.x} y={mMirror.y - 1} width={11}/>
@@ -216,9 +261,9 @@ export function Restrooms({ layout }: RestroomsProps) {
       <Sink x={mSink2.x} y={mSink2.y}/>
 
       {/* F-side fixtures */}
-      <Stall x={fStall1.x} y={fStall1.y}/>
-      <Stall x={fStall2.x} y={fStall2.y}/>
-      <Stall x={fStall3.x} y={fStall3.y}/>
+      <Stall x={fStall1.x} y={fStall1.y} occupied={occupiedStalls > 2}/>
+      <Stall x={fStall2.x} y={fStall2.y} occupied={occupiedStalls > 3}/>
+      <Stall x={fStall3.x} y={fStall3.y} occupied={occupiedStalls > 4}/>
       <Mirror x={fMirror.x} y={fMirror.y - 1} width={11}/>
       <Sink x={fSink1.x} y={fSink1.y}/>
       <Sink x={fSink2.x} y={fSink2.y}/>
@@ -227,6 +272,16 @@ export function Restrooms({ layout }: RestroomsProps) {
       {r.doorPositions.map((p, i) => (
         <RestroomDoor key={`rd${i}`} x={p.x} y={p.y} label={labels[i] ?? 'M'}/>
       ))}
+
+      {/* Waiting agents (when stalls are full). Stand a few units in front of
+          door 0 so the user sees a small queue forming. Capped at 2 so it
+          doesn't crowd the scene. */}
+      {waitingCount > 0 && r.doorPositions[0] && (
+        <WaitingPerson x={r.doorPositions[0].x + 5} y={r.doorPositions[0].y + 4}/>
+      )}
+      {waitingCount > 1 && r.doorPositions[0] && (
+        <WaitingPerson x={r.doorPositions[0].x + 8} y={r.doorPositions[0].y + 5.5}/>
+      )}
     </g>
   )
 }

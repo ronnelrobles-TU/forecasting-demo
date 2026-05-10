@@ -833,12 +833,15 @@ details[open] .learn-tip summary::before { content: '▼ '; }
 .cockpit {
   display: flex;
   flex-direction: column;
-  flex: 1;
+  flex: 1 1 auto;
   /* Pin the cockpit to the viewport height so the KPI strip is always
-     visible at the bottom. Without this, the cockpit-body can grow past
-     the fold when the office canvas is tall, hiding the KPI strip below
-     the visible area (Round 5.5 fix). */
+     visible at the bottom. The third-attempt fix: html and body are locked
+     to height:100% with overflow:hidden in app/layout.tsx, so the cockpit
+     can rely on filling 100% of the viewport regardless of any content
+     pushing back. The min-height:0 lets the inner flex child (cockpit-body)
+     shrink past its content size so the KPI strip wins the bottom slot. */
   height: 100dvh;
+  max-height: 100dvh;
   min-height: 0;
   overflow: hidden;
   background: #0f172a;

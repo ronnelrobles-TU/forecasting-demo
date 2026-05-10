@@ -14,7 +14,7 @@
 // actual walk progress is wall-clock based and re-resolves naturally when
 // the component remounts on scrub.
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useReducer, useRef } from 'react'
 import type { BuildingLayout, JanitorHotspot, ScreenPoint } from './geometry'
 
 // ---------- Public API ----------
@@ -253,47 +253,68 @@ function JanitorSprite({ pos, mode }: JanitorSpriteProps) {
 const JANITOR_COUNT = 3
 
 export function Janitor({ layout, simTimeMin }: JanitorProps) {
+  // Read hotspots fresh each render but key all effects by layout identity
+  // (which is stable thanks to IsoRenderer's useMemo on agent count). Reading
+  // `hotspots` as a derived value means it can change reference every render
+  // — using `layout` as the dep keeps the effect from re-firing.
   const hotspots = layout.rooms.agentFloor.janitorHotspots
+  const hotspotsRef = useRef(hotspots)
+  hotspotsRef.current = hotspots
   const statesRef = useRef<JanitorState[] | null>(null)
-  const [, setTickN] = useState(0)
+  // forceRender is fired ONLY when we need React to re-paint (e.g. a phase
+  // changed, or an active janitor is mid-walk and its position has moved).
+  // Every-frame setState in the rAF was triggering React 19's "max update
+  // depth" guard whenever the parent (IsoRenderer) was also re-rendering on
+  // its own rAF — the two updates compounded into a runaway cycle.
+  const [, forceRender] = useReducer((n: number) => (n + 1) & 0xffff, 0)
   const simTimeMinRef = useRef(simTimeMin)
   useEffect(() => { simTimeMinRef.current = simTimeMin }, [simTimeMin])
 
-  // Initialise once when hotspots first available (or layout changes).
+  // Initialise once when the layout (and therefore hotspots) becomes
+  // available, and re-init when the layout reference changes. Using `layout`
+  // as the dep is intentional: `layout.rooms.agentFloor.janitorHotspots` is
+  // a fresh array reference each render, but `layout` itself is memoized
+  // upstream so the effect fires only when the office actually changes.
   useEffect(() => {
-    if (hotspots.length === 0) return
+    const hs = hotspotsRef.current
+    if (hs.length === 0) return
     const now = performance.now()
     const next: JanitorState[] = []
     for (let i = 0; i < JANITOR_COUNT; i++) {
-      next.push(initialState(i, simTimeMinRef.current, hotspots, now + i * 137))
+      next.push(initialState(i, simTimeMinRef.current, hs, now + i * 137))
     }
     statesRef.current = next
-    setTickN(n => n + 1)
-  }, [hotspots])
+    forceRender()
+  }, [layout])
 
-  // RAF loop: advance state machines on each frame.
+  // RAF loop: advance state machines on each frame. Critical: only call the
+  // forceRender setter when (a) a state machine actually transitioned to a
+  // new phase, or (b) at least one janitor is mid-walk (so their position
+  // needs to redraw). This caps the setState rate to "actual visual change"
+  // and prevents the runaway-update cycle that React 19 was flagging.
   useEffect(() => {
-    if (hotspots.length === 0) return
+    if (hotspotsRef.current.length === 0) return
     let raf = 0
     function tick(now: number) {
       const cur = statesRef.current
       if (cur) {
-        let changed = false
+        const hs = hotspotsRef.current
+        let phaseChanged = false
+        let anyWalking = false
         const next = cur.map((s, i) => {
-          const after = advance(s, i, simTimeMinRef.current, hotspots, now)
-          if (after !== s) changed = true
+          const after = advance(s, i, simTimeMinRef.current, hs, now)
+          if (after !== s) phaseChanged = true
+          if (after.kind === 'walking_to') anyWalking = true
           return after
         })
-        if (changed) statesRef.current = next
-        // Always re-render while janitors are walking (positions change every
-        // frame). Cheap because there are only 3 of them.
-        setTickN(n => (n + 1) & 0xffff)
+        if (phaseChanged) statesRef.current = next
+        if (phaseChanged || anyWalking) forceRender()
       }
       raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [hotspots])
+  }, [layout])
 
   if (!statesRef.current) return null
   const now = performance.now()
