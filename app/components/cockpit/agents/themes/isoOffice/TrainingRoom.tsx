@@ -3,6 +3,7 @@
 import type { AgentVisualState } from '@/lib/animation/agentTimeline'
 import type { BuildingLayout } from './geometry'
 import { AgentSprite } from './AgentSprite'
+import { StatusBubble } from './StatusBubble'
 import type { ActivityAssignment } from './activity'
 import type { VisualJourney } from './journey'
 
@@ -60,6 +61,7 @@ export function TrainingRoom({ layout, agents = [], activities, journeys, walkin
         return (
           <g key={`student-${a.id}`}>
             <AgentSprite x={pos.x} y={pos.y - 1} shirtColor="#22c55e"/>
+            <StatusBubble x={pos.x} y={pos.y - 1} state={a.state} activity="in_training"/>
           </g>
         )
       })}

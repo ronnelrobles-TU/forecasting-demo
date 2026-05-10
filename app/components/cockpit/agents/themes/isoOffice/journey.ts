@@ -198,9 +198,16 @@ function startPhase(journey: VisualJourney, phase: JourneyPhase, nowMs: number):
   return { ...journey, phase, phaseStartedAt: nowMs, lastKnownPosition: lastKnown }
 }
 
-// Pick a stable seat for an agent (deterministic by agent id).
+// Pick a stable seat for an agent. We extract the numeric portion of the
+// agent id (e.g. "A123" → 123) and use it modulo seat count. This gives a
+// bijective seat assignment when agentCount <= seats.length, sharply reducing
+// the seat-collision rate vs. a hash-based pick (Round 5 fix).
 function pickBreakSeat(agentId: string, seats: ReadonlyArray<ScreenPoint>): ScreenPoint {
   if (seats.length === 0) return { x: 0, y: 0 }
+  const numeric = parseInt(agentId.replace(/^[A-Za-z]+/, ''), 10)
+  if (Number.isFinite(numeric) && numeric >= 0) {
+    return seats[numeric % seats.length]
+  }
   return seats[simpleHashIdx(agentId, seats.length)]
 }
 

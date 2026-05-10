@@ -144,7 +144,7 @@ export function AgentFloor({ agents, journeys = {}, positions = {}, layout, acti
             )}
             <Desk x={deskPos.x} y={deskPos.y}/>
             {showStatus && (
-              <StatusBubble x={agentX} y={agentY} state={agent.state}/>
+              <StatusBubble x={agentX} y={agentY} state={agent.state} activity={activity}/>
             )}
           </g>
         )

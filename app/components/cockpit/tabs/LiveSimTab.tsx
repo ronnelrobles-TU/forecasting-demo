@@ -48,8 +48,15 @@ export function LiveSimTab({ onLiveChange }: LiveSimTabProps = {}) {
       if (e.type === 'call_abandon' && e.timeMin <= simTimeMin) abandons++
     }
     onLiveChange({ stats, abandons, simTimeMin })
-    return () => onLiveChange(null)
+    // NOTE: do NOT clear `live` in the cleanup. The effect re-runs on every
+    // simTimeMin tick, so a cleanup that nulls live would race with the new
+    // value and leave the KPI strip blank (root cause of the missing strip).
+    // We only want to clear when this tab unmounts, which is handled below.
   }, [result, simTimeMin, onLiveChange])
+
+  useEffect(() => {
+    return () => { onLiveChange?.(null) }
+  }, [onLiveChange])
 
   const peakAgents = result ? Math.max(1, ...result.perInterval.map(s => s.agents)) : 1
 
@@ -79,7 +86,7 @@ export function LiveSimTab({ onLiveChange }: LiveSimTabProps = {}) {
             simTimeMin={simTimeMin}
             onPlayToggle={() => setPlaying(!playing)}
             onSpeedChange={setSpeed}
-            onReset={() => setSimTimeMin(540)}
+            onReset={() => setSimTimeMin(0)}
           />
           <TimelineScrubber
             simTimeMin={simTimeMin}

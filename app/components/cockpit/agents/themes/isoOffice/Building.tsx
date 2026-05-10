@@ -1,8 +1,17 @@
 'use client'
 
 import { WALL_HEIGHT, isoToScreen, type BuildingLayout, type ScreenPoint } from './geometry'
+import type { LightingState } from './lighting'
 
-interface BuildingProps { layout: BuildingLayout }
+interface BuildingProps { layout: BuildingLayout; lighting?: LightingState }
+
+// FNV-1a-style integer hash for deterministic per-window "lit" choice at night.
+function windowHash(seed: number): number {
+  let h = (seed * 2654435761) >>> 0
+  h ^= h >>> 13
+  h = Math.imul(h, 0xc2b2ae35) >>> 0
+  return (h ^ (h >>> 16)) >>> 0
+}
 
 const ptsStr = (pts: ReadonlyArray<ScreenPoint>) => pts.map(p => `${p.x},${p.y}`).join(' ')
 
@@ -47,7 +56,7 @@ function makeInteriorWall([p1, p2]: [ScreenPoint, ScreenPoint]): ScreenPoint[] {
   ]
 }
 
-export function Building({ layout }: BuildingProps) {
+export function Building({ layout, lighting }: BuildingProps) {
   const { N, E, S, W } = layout.buildingCorners
   const wallTopN: ScreenPoint = { x: N.x, y: N.y - WALL_HEIGHT }
   const wallTopE: ScreenPoint = { x: E.x, y: E.y - WALL_HEIGHT }
@@ -151,12 +160,35 @@ export function Building({ layout }: BuildingProps) {
       <polygon points={ptsStr([N, wallTopN, wallTopE, E])} fill="url(#vO-wallNE)" stroke="#64748b" strokeWidth="0.8"/>
       <line x1={N.x} y1={wallTopN.y} x2={N.x} y2={N.y} stroke="#475569" strokeWidth="1.2"/>
 
-      {/* Back-wall windows. */}
-      {nwWindows.map((w, i) => <polygon key={`nww${i}`} points={ptsStr(w)} fill="url(#vO-win)" stroke="#0c4a6e" strokeWidth="0.6"/>)}
-      {neWindows.map((w, i) => <polygon key={`new${i}`} points={ptsStr(w)} fill="url(#vO-win)" stroke="#0c4a6e" strokeWidth="0.6"/>)}
+      {/* Back-wall windows. At night, ~30% of windows shine yellow ("someone
+          working late"); the rest take the time-of-day fill. During the day
+          we use the existing sky-blue gradient. */}
+      {nwWindows.map((w, i) => {
+        const litAtNight = lighting?.isNight && (windowHash(i * 7919 + 13) % 100) < 30
+        const fill = litAtNight ? '#fbbf24' : (lighting?.windowFill ?? 'url(#vO-win)')
+        const stroke = litAtNight ? '#b45309' : (lighting?.windowStroke ?? '#0c4a6e')
+        return <polygon key={`nww${i}`} points={ptsStr(w)} fill={fill} stroke={stroke} strokeWidth="0.6"/>
+      })}
+      {neWindows.map((w, i) => {
+        const litAtNight = lighting?.isNight && (windowHash(i * 7919 + 17) % 100) < 30
+        const fill = litAtNight ? '#fbbf24' : (lighting?.windowFill ?? 'url(#vO-win)')
+        const stroke = litAtNight ? '#b45309' : (lighting?.windowStroke ?? '#0c4a6e')
+        return <polygon key={`new${i}`} points={ptsStr(w)} fill={fill} stroke={stroke} strokeWidth="0.6"/>
+      })}
 
       {/* Floor (entire building). */}
       <polygon points={ptsStr([N, E, S, W])} fill="url(#vO-floor)" stroke="#475569" strokeWidth="1"/>
+
+      {/* Night-time warm overlay. Subtle yellow wash that simulates overhead
+          office lighting after sundown. wallWarmth ramps 0 → 0.35. */}
+      {lighting && lighting.wallWarmth > 0 && (
+        <polygon
+          points={ptsStr([N, E, S, W])}
+          fill="#fde68a"
+          opacity={lighting.wallWarmth}
+          pointerEvents="none"
+        />
+      )}
 
       {/* Per-room floor tints (light wash on each room). */}
       <polygon points={ptsStr(rooms.agentFloor.zonePoints)} fill="#cbd5e1" opacity="0.25"/>

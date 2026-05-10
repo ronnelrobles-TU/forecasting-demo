@@ -115,36 +115,44 @@ export function computeActivityAssignments(
     else out[a.id] = { activity: 'at_desk', position: desks[a.id] }
   }
 
-  // Training: assign each agent to a student seat (cycle through if more
-  // agents than seats).
+  // Training: assign UNIQUE student seats. If trainees exceed seat count,
+  // overflow agents stay at desk (rather than stacking).
   const trainingSeats = layout.rooms.trainingRoom.studentSeats
   trainingIds.sort()
   trainingIds.forEach((id, idx) => {
-    const seat = trainingSeats.length > 0
-      ? trainingSeats[idx % trainingSeats.length]
-      : desks[id]
-    out[id] = { activity: 'in_training', position: seat }
+    if (trainingSeats.length === 0) {
+      out[id] = { activity: 'at_desk', position: desks[id] }
+      return
+    }
+    if (idx < trainingSeats.length) {
+      out[id] = { activity: 'in_training', position: trainingSeats[idx] }
+    } else {
+      out[id] = { activity: 'at_desk', position: desks[id] }
+    }
   })
 
-  // Gym: alternate between treadmill and weights, with small offsets so
-  // multiple agents at the same equipment don't perfectly overlap.
+  // Gym: distribute across the 12 workout spots. Overflow stays at desk.
   const gym = layout.rooms.gym
+  const gymSpots = gym.workoutSpots ?? [gym.treadmillPosition, gym.weightsPosition]
   gymIds.sort()
   gymIds.forEach((id, idx) => {
-    const base = idx % 2 === 0 ? gym.treadmillPosition : gym.weightsPosition
-    const stack = Math.floor(idx / 2)
-    const offset = stack === 0 ? { x: 0, y: 0 } : { x: (stack % 2 === 0 ? -1 : 1) * 8 + stack * 0.5, y: stack * 4 }
-    out[id] = { activity: 'in_gym', position: { x: base.x + offset.x, y: base.y + offset.y } }
+    if (idx < gymSpots.length) {
+      out[id] = { activity: 'in_gym', position: gymSpots[idx] }
+    } else {
+      out[id] = { activity: 'at_desk', position: desks[id] }
+    }
   })
 
-  // Water cooler: cluster agents at the standing positions near the cooler.
+  // Water cooler: assign UNIQUE positions from the cluster. Overflow stays
+  // at desk (water cooler can only hold so many people).
   const cluster = layout.rooms.breakRoom.waterCoolerCluster
   waterCoolerIds.sort()
   waterCoolerIds.forEach((id, idx) => {
-    const pos = cluster.length > 0
-      ? cluster[idx % cluster.length]
-      : layout.rooms.breakRoom.waterCoolerPosition
-    out[id] = { activity: 'at_water_cooler', position: pos }
+    if (cluster.length > 0 && idx < cluster.length) {
+      out[id] = { activity: 'at_water_cooler', position: cluster[idx] }
+    } else {
+      out[id] = { activity: 'at_desk', position: desks[id] }
+    }
   })
 
   // Restroom: hidden — activity records but position is desk (will not be
@@ -153,38 +161,25 @@ export function computeActivityAssignments(
     out[id] = { activity: 'in_restroom', position: desks[id] }
   })
 
-  // Chatting: route agents to the smoking patio (a dedicated visible side
-  // area) instead of an aisle hotspot. Cycle through the patio's standing
-  // positions so multiple chatters spread across the deck. Falls back to
-  // aisle hotspots if the patio isn't defined (defensive — should always
-  // be present after Round 3).
+  // Chatting: route to the patio's standing positions (one agent per slot).
+  // Overflow first cascades to aisle hotspots, then back to desks.
   const patioPositions = layout.rooms.smokingPatio?.standingPositions ?? []
   const aisleHotspots = layout.rooms.agentFloor.chattingHotspots
-  chattingIds.sort()
-  if (patioPositions.length > 0) {
-    chattingIds.forEach((id, idx) => {
-      out[id] = { activity: 'chatting', position: patioPositions[idx % patioPositions.length] }
-    })
-  } else if (aisleHotspots.length === 0) {
-    chattingIds.forEach(id => {
-      out[id] = { activity: 'at_desk', position: desks[id] }
-    })
-  } else {
-    let i = 0
-    while (i < chattingIds.length) {
-      const hotspotIdx = Math.floor(i / 2) % aisleHotspots.length
-      const [pA, pB] = aisleHotspots[hotspotIdx]
-      const idA = chattingIds[i]
-      const idB = chattingIds[i + 1]
-      out[idA] = { activity: 'chatting', position: pA }
-      if (idB !== undefined) {
-        out[idB] = { activity: 'chatting', position: pB }
-        i += 2
-      } else {
-        i += 1
-      }
-    }
+  // Flatten aisle hotspot pairs into individual standing positions.
+  const aislePositions: ScreenPoint[] = []
+  for (const [pA, pB] of aisleHotspots) {
+    aislePositions.push(pA)
+    aislePositions.push(pB)
   }
+  const chatPositions = [...patioPositions, ...aislePositions]
+  chattingIds.sort()
+  chattingIds.forEach((id, idx) => {
+    if (idx < chatPositions.length) {
+      out[id] = { activity: 'chatting', position: chatPositions[idx] }
+    } else {
+      out[id] = { activity: 'at_desk', position: desks[id] }
+    }
+  })
 
   return out
 }

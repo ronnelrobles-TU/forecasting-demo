@@ -3,6 +3,7 @@
 import type { AgentVisualState } from '@/lib/animation/agentTimeline'
 import type { BuildingLayout, ScreenPoint } from './geometry'
 import { AgentSprite } from './AgentSprite'
+import { StatusBubble } from './StatusBubble'
 import type { ActivityAssignment } from './activity'
 import type { VisualJourney } from './journey'
 
@@ -113,6 +114,7 @@ export function SmokingPatio({ layout, agents = [], activities, journeys }: Smok
               <AgentSprite x={mirror ? pos.x : pos.x} y={pos.y} shirtColor="#22c55e"/>
             </g>
             <SmokeCurl x={pos.x + (mirror ? -5 : 5)} y={pos.y - 6}/>
+            <StatusBubble x={pos.x} y={pos.y} state={a.state} activity="chatting"/>
           </g>
         )
       })}

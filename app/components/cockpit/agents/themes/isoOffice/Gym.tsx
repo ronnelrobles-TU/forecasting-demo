@@ -3,6 +3,7 @@
 import type { AgentVisualState } from '@/lib/animation/agentTimeline'
 import type { BuildingLayout } from './geometry'
 import { AgentSprite } from './AgentSprite'
+import { StatusBubble } from './StatusBubble'
 import type { ActivityAssignment } from './activity'
 import type { VisualJourney } from './journey'
 
@@ -71,6 +72,7 @@ export function Gym({ layout, agents = [], activities, journeys, walkingIds }: G
         return (
           <g key={`gym-${a.id}`}>
             <AgentSprite x={pos.x} y={pos.y - 4} shirtColor="#22c55e" bob={bob}/>
+            <StatusBubble x={pos.x} y={pos.y - 4} state={a.state} activity="in_gym"/>
           </g>
         )
       })}

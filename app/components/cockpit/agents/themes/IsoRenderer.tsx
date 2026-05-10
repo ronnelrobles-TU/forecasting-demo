@@ -29,6 +29,7 @@ import {
   type RoomKind,
 } from './isoOffice/journey'
 import { computeJourneyLookahead, breakDurationFor, hasUpcomingShiftEnd } from './isoOffice/lookahead'
+import { computeLighting, quantizeLightingTime } from './isoOffice/lighting'
 import type { AgentVisualState } from '@/lib/animation/agentTimeline'
 
 const SHIFT_END_LOOKAHEAD_MIN = 3
@@ -38,6 +39,14 @@ export interface RenderedPosition { pos: ScreenPoint; opacity: number; visible: 
 export function IsoRenderer({ agents, simTimeMin, events }: AgentRendererProps) {
   // Compute building layout once per agent count.
   const layout: BuildingLayout = useMemo(() => computeBuildingLayout(agents.length), [agents.length])
+
+  // Time-of-day lighting. Quantize sim time to 5-min steps so the sky doesn't
+  // recompute every frame (the colour is barely changing minute-to-minute).
+  const lightingTime = quantizeLightingTime(simTimeMin, 5)
+  const lighting = useMemo(
+    () => computeLighting(lightingTime, layout.viewBox),
+    [lightingTime, layout.viewBox],
+  )
 
   // Activity assignments — pure, stable within a 30-min sim window.
   const activities: Record<string, ActivityAssignment> = useMemo(
@@ -223,13 +232,35 @@ export function IsoRenderer({ agents, simTimeMin, events }: AgentRendererProps) 
   return (
     <svg
       viewBox={`0 0 ${layout.viewBox.w} ${layout.viewBox.h}`}
-      style={{ width: '100%', height: '100%', display: 'block' }}
+      style={{ width: '100%', height: '100%', display: 'block', background: lighting.skyColor }}
     >
       <BuildingDefs/>
       <ReceptionDefs/>
       <defs><TileGlowDefs/></defs>
 
-      <Building layout={layout}/>
+      {/* Sky-color background rect (covers the full viewBox so PNG export and
+          containers without `background` still see the sky). */}
+      <rect
+        x={0} y={0}
+        width={layout.viewBox.w}
+        height={layout.viewBox.h}
+        fill={lighting.skyColor}
+      />
+
+      {/* Sun or moon arcing across the sky. Hidden during transitional twilight. */}
+      {lighting.sunPosition.visible && (
+        lighting.celestialBody === 'sun'
+          ? <g transform={`translate(${lighting.sunPosition.x}, ${lighting.sunPosition.y})`}>
+              <circle r={11} fill="#fde68a" opacity={0.4}/>
+              <circle r={7} fill="#fbbf24"/>
+            </g>
+          : <g transform={`translate(${lighting.sunPosition.x}, ${lighting.sunPosition.y})`}>
+              <circle r={6} fill="#f1f5f9"/>
+              <circle r={5.5} cx={1.6} fill={lighting.skyColor}/>
+            </g>
+      )}
+
+      <Building layout={layout} lighting={lighting}/>
 
       <TrainingRoom layout={layout} agents={agents} activities={activities} journeys={journeySnapshot} walkingIds={walkingIds}/>
       <BreakRoom agents={agents} journeys={journeySnapshot} positions={positions} layout={layout} activities={activities} walkingIds={walkingIds}/>

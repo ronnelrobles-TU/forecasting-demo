@@ -75,6 +75,9 @@ export interface RestroomsLayout extends RoomBounds {
 export interface GymLayout extends RoomBounds {
   treadmillPosition: ScreenPoint
   weightsPosition: ScreenPoint
+  // 12 unique workout spots — gym agents distribute across these so multiple
+  // agents at the same equipment don't stack on top of each other.
+  workoutSpots: ScreenPoint[]
 }
 
 // Smoking / chat patio attached to the SW side of the building (outside the
@@ -545,17 +548,23 @@ function makeSmokingPatio(
     y: outerA.y + (outerB.y - outerA.y) * 0.18 - 3,
   }
 
-  // 6 standing positions across the patio in 3 paired clusters. Pairs are
-  // offset along the wall direction so they read as "facing each other".
+  // Up to 16 standing positions across the patio: TWO depth-rows of 8 paired
+  // clusters. Round 5: previous 6 collapsed into 3 stacks. Now we lay agents
+  // out across the patio depth too so a busy chat crowd reads as people in
+  // small groups, not stacked sprites.
   const standingPositions: ScreenPoint[] = []
-  for (let k = 0; k < 3; k++) {
-    const t = (k + 0.5) / 3
-    // Anchor along the patio's long axis (wallA → wallB).
-    const baseX = wallA.x + (wallB.x - wallA.x) * t + outward.x * (PATIO_DEPTH * 0.55)
-    const baseY = wallA.y + (wallB.y - wallA.y) * t + outward.y * (PATIO_DEPTH * 0.55)
-    // Pair offset along the wall axis (so partners face each other).
-    standingPositions.push({ x: baseX - ux * 4, y: baseY - uy * 4 })
-    standingPositions.push({ x: baseX + ux * 4, y: baseY + uy * 4 })
+  const PAIRS = 4
+  const ROWS = 2
+  for (let row = 0; row < ROWS; row++) {
+    const depthFrac = 0.4 + row * 0.3   // row 0 → 0.4, row 1 → 0.7
+    for (let k = 0; k < PAIRS; k++) {
+      const t = (k + 0.5) / PAIRS
+      const baseX = wallA.x + (wallB.x - wallA.x) * t + outward.x * (PATIO_DEPTH * depthFrac)
+      const baseY = wallA.y + (wallB.y - wallA.y) * t + outward.y * (PATIO_DEPTH * depthFrac)
+      // Pair offset along the wall axis (partners face each other).
+      standingPositions.push({ x: baseX - ux * 3.5, y: baseY - uy * 3.5 })
+      standingPositions.push({ x: baseX + ux * 3.5, y: baseY + uy * 3.5 })
+    }
   }
   // Reference agentFloor so it isn't reported unused (useful for future
   // patio-routing tweaks tied to floor layout).
@@ -654,8 +663,10 @@ function makeBreakRoom(agentCount: number, originX: number, originY: number): Br
   const waterCooler = isoToScreen(b.iMin + 1.2, b.jMin + 2.3, originX, originY)
   const vending = isoToScreen(b.iMax - 1.2, b.jMin + 2.3, originX, originY)
 
-  // Break seats: a ring of 8 around the table + grid fill if more capacity needed.
-  const maxBreakAgents = Math.max(8, Math.ceil(agentCount * 0.25))
+  // Break seats: ring of 8 around the table + grid fill. Round 5: bumped from
+  // 25% → 40% of agent count so peak lunch-time break occupancy doesn't force
+  // multiple agents onto the same seat.
+  const maxBreakAgents = Math.max(8, Math.ceil(agentCount * 0.4))
   const seats = computeBreakSeats(maxBreakAgents, tableCenter, b, originX, originY)
 
   // Cluster of 4 standing positions near the water cooler for the
@@ -736,6 +747,23 @@ function makeGym(originX: number, originY: number): GymLayout {
     wallSegments: rectWalls(b, originX, originY),
     treadmillPosition: isoToScreen(ci - 0.6, cj - 0.5, originX, originY),
     weightsPosition: isoToScreen(ci + 0.8, cj + 0.5, originX, originY),
+    workoutSpots: [
+      // Treadmill area (4 spots — pseudo-treadmill row)
+      isoToScreen(ci - 1.2, cj - 0.7, originX, originY),
+      isoToScreen(ci - 0.6, cj - 0.5, originX, originY),
+      isoToScreen(ci + 0.0, cj - 0.4, originX, originY),
+      isoToScreen(ci + 0.6, cj - 0.2, originX, originY),
+      // Weights area (4 spots)
+      isoToScreen(ci - 0.8, cj + 0.5, originX, originY),
+      isoToScreen(ci + 0.0, cj + 0.6, originX, originY),
+      isoToScreen(ci + 0.8, cj + 0.5, originX, originY),
+      isoToScreen(ci + 1.4, cj + 0.7, originX, originY),
+      // Floor mat / yoga corner
+      isoToScreen(ci - 1.4, cj + 1.2, originX, originY),
+      isoToScreen(ci - 0.7, cj + 1.4, originX, originY),
+      isoToScreen(ci + 0.7, cj + 1.4, originX, originY),
+      isoToScreen(ci + 1.4, cj + 1.2, originX, originY),
+    ],
   }
 }
 

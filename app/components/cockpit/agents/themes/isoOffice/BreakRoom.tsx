@@ -107,6 +107,7 @@ export function BreakRoom({ agents, journeys = {}, positions, layout, activities
         return (
           <g key={`wc-${a.id}`}>
             <AgentSprite x={pos.x} y={pos.y} shirtColor="#22c55e"/>
+            <StatusBubble x={pos.x} y={pos.y} state={a.state} activity="at_water_cooler"/>
           </g>
         )
       })}
