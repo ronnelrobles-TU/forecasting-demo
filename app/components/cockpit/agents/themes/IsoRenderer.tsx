@@ -220,45 +220,67 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
   //   3. The timeline is paused AND any journey is currently in flight
   //      (walking / mid-fade) — those would otherwise stay frozen mid-air.
   const lastSimTimeRef = useRef<number>(simTimeMin)
-  // Helper to compute the agent's resting position from the same inputs the
+  // Helper to compute one agent's snapped journey from the same inputs the
   // transition effect uses (effective state + activity assignment).
+  function snapJourneyForIndex(i: number, now: number): VisualJourney {
+    const a = agents[i]
+    const desk = layout.deskPositions[Number(a.id.replace(/^A/, '')) || 0]
+      ?? journeysRef.current[a.id]?.homeDeskPosition
+      ?? { x: 0, y: 0 }
+
+    let effectiveState: AgentVisualState = a.state
+    if (!isActiveByIndex[i]) effectiveState = 'off_shift'
+    else if (
+      a.state !== 'off_shift'
+      && hasUpcomingShiftEnd(lookahead, a.id, simTimeMin, SHIFT_END_LOOKAHEAD_MIN)
+    ) effectiveState = 'off_shift'
+
+    // Activity scatter only applies to idle agents (matches the runtime
+    // dispatcher gate). on_call / on_break / off_shift use the desk /
+    // break-table / gone phase respectively.
+    const act = (effectiveState === 'idle' && !fastMode)
+      ? (activities[a.id]?.activity ?? 'at_desk')
+      : 'at_desk'
+    const actPos = activities[a.id]?.position ?? null
+
+    // Update the prevState ledger so the transition effect doesn't fire a
+    // redundant transitionJourney() call on the next render.
+    prevStatesRef.current[a.id] = effectiveState
+    // Same for activity ledger — snap counts as "we already saw this".
+    prevActivitiesRef.current[a.id] = act
+    return snapJourneyFor(
+      a.id,
+      desk,
+      effectiveState,
+      act as SnapActivity,
+      actPos,
+      layout,
+      now,
+    )
+  }
+
+  // Full rebuild — every agent gets a fresh snapped journey. Used for time
+  // jumps / reversals where the entire scene needs to match the new sim time.
   function snapAllJourneys(now: number): Record<string, VisualJourney> {
     const next: Record<string, VisualJourney> = {}
     for (let i = 0; i < agents.length; i++) {
+      next[agents[i].id] = snapJourneyForIndex(i, now)
+    }
+    return next
+  }
+
+  // Conservative rebuild — only agents whose CURRENT phase is walking get a
+  // fresh snapped journey. Resting agents keep their existing phase so we
+  // don't re-roll the activity scheduler and teleport idle agents from their
+  // desks into break/gym/training rooms on pause.
+  function snapWalkingJourneysOnly(now: number): Record<string, VisualJourney> {
+    const next: Record<string, VisualJourney> = { ...journeysRef.current }
+    for (let i = 0; i < agents.length; i++) {
       const a = agents[i]
-      const desk = layout.deskPositions[Number(a.id.replace(/^A/, '')) || 0]
-        ?? journeysRef.current[a.id]?.homeDeskPosition
-        ?? { x: 0, y: 0 }
-
-      let effectiveState: AgentVisualState = a.state
-      if (!isActiveByIndex[i]) effectiveState = 'off_shift'
-      else if (
-        a.state !== 'off_shift'
-        && hasUpcomingShiftEnd(lookahead, a.id, simTimeMin, SHIFT_END_LOOKAHEAD_MIN)
-      ) effectiveState = 'off_shift'
-
-      // Activity scatter only applies to idle agents (matches the runtime
-      // dispatcher gate). on_call / on_break / off_shift use the desk /
-      // break-table / gone phase respectively.
-      const act = (effectiveState === 'idle' && !fastMode)
-        ? (activities[a.id]?.activity ?? 'at_desk')
-        : 'at_desk'
-      const actPos = activities[a.id]?.position ?? null
-
-      // Update the prevState ledger so the transition effect doesn't fire a
-      // redundant transitionJourney() call on the next render.
-      prevStatesRef.current[a.id] = effectiveState
-      // Same for activity ledger — snap counts as "we already saw this".
-      prevActivitiesRef.current[a.id] = act
-      next[a.id] = snapJourneyFor(
-        a.id,
-        desk,
-        effectiveState,
-        act as SnapActivity,
-        actPos,
-        layout,
-        now,
-      )
+      const current = next[a.id]
+      if (current && isWalkingPhase(current.phase)) {
+        next[a.id] = snapJourneyForIndex(i, now)
+      }
     }
     return next
   }
@@ -280,9 +302,19 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
       }
     }
 
-    if (isReversed || isJump || pausedWithStale) {
+    if (isReversed || isJump) {
+      // Time jump or rewind — every journey must match the new sim time.
       const now = performance.now()
       const next = snapAllJourneys(now)
+      journeysRef.current = next
+      setJourneySnapshot(next)
+      setPositions(resolvePositions(next, now))
+    } else if (pausedWithStale) {
+      // Pause snap — only rebuild agents who were mid-walk. Resting agents
+      // (at_desk / on_call_at_desk / at_break_table / in_room / gone / etc.)
+      // are left alone so we don't teleport idle agents to other rooms.
+      const now = performance.now()
+      const next = snapWalkingJourneysOnly(now)
       journeysRef.current = next
       setJourneySnapshot(next)
       setPositions(resolvePositions(next, now))
