@@ -70,6 +70,7 @@ export function pickBubble(
     case 'walking_back_from_restroom':
     case 'walking_to_chat_spot':
     case 'walking_back_from_chat':
+    case 'urgent_relocate_to_desk':
       return null
   }
 }

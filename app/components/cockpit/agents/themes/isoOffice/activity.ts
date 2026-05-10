@@ -133,6 +133,59 @@ export function computeActivityAssignments(
   const breakRoomIds: string[] = []
   const desks: Record<string, ScreenPoint> = {}
 
+  // Pre-pass for the allocation path: the kernel doesn't know about the
+  // renderer's productive/shrinkage band split — `agents.find()` routes calls
+  // to the lowest free index across ALL active agents, so the kernel often
+  // assigns `on_call` state to indices that the renderer's allocation marks
+  // as SHRINKAGE. If we naively force on_call → at_desk and shrinkage → room,
+  // those collisions leave the shrinkage rooms severely under-populated (the
+  // bug: with 60 expected shrinkage agents we saw only ~15 in non-desk rooms,
+  // because ~45 of them had been routed an on_call by the kernel).
+  //
+  // The fix: count how many in-office agents are actually on_call right now,
+  // and fill the productive (at-desks) target with those + just enough idle
+  // agents to reach the productive headcount. Everyone else in-office goes
+  // to a non-desk activity. This decouples the index-band labels from the
+  // kernel's per-agent state and makes the rendered "at desks" count match
+  // the Erlang productive target regardless of which indices the kernel
+  // happened to put on calls.
+  const inOfficeIdx = new Set<number>()
+  if (allocation) {
+    for (const i of allocation.productive) inOfficeIdx.add(i)
+    for (const i of allocation.shrinkage) inOfficeIdx.add(i)
+  }
+  const productiveTarget = allocation?.productive.size ?? 0
+  // Walk in-office indices in numeric order; classify into on_call / on_break
+  // / idle. Idle agents are assigned at_desk vs scatter based on remaining
+  // capacity (productiveTarget − on_call already routed to at_desk).
+  let onCallCount = 0
+  const idleInOfficeIds: string[] = []
+  if (allocation) {
+    const sortedInOffice: number[] = []
+    inOfficeIdx.forEach(i => sortedInOffice.push(i))
+    sortedInOffice.sort((a, b) => a - b)
+    for (const i of sortedInOffice) {
+      const a = agents[i]
+      if (!a) continue
+      if (a.state === 'on_call') onCallCount++
+      else if (a.state === 'idle') idleInOfficeIds.push(a.id)
+      // on_break agents are routed to break_table by the per-agent loop
+      // below; they're already accounted for outside the productive count.
+      // off_shift agents in the in-office band are a transient state during
+      // schedule downturns — let them fall through to the desk default below.
+    }
+  }
+  // How many idle agents need to remain at desks so the visible at-desk count
+  // hits productiveTarget? on_call agents are already counted toward the
+  // at-desk total; the remainder must come from idle. (Order-preserving
+  // numeric iteration above means low-index idles fill the at-desk slots
+  // first — same deterministic ordering as the old index-band partition.)
+  const idleAtDeskTarget = Math.max(0, productiveTarget - onCallCount)
+  const idleAtDesk = new Set<string>()
+  for (let k = 0; k < Math.min(idleAtDeskTarget, idleInOfficeIds.length); k++) {
+    idleAtDesk.add(idleInOfficeIds[k])
+  }
+
   for (let i = 0; i < agents.length; i++) {
     const a = agents[i]
     desks[a.id] = deskPositions[i] ?? deskPositions[deskPositions.length - 1] ?? { x: 0, y: 0 }
@@ -148,27 +201,32 @@ export function computeActivityAssignments(
       continue
     }
 
-    // Round 7.1 allocation path: productive agents stay at desks, shrinkage
-    // agents are FORCED into a non-desk activity. The scheduler is no longer
-    // free to scatter productive agents into shrinkage rooms.
+    // Round 7.1 + Round 12 allocation path. Productive (at-desks) count is
+    // filled in this order:
+    //   1. on_call agents (handled above)
+    //   2. As many idle in-office agents as needed to reach productiveTarget
+    // All remaining idle in-office agents are scattered into non-desk rooms.
+    // This makes the rendered at-desk total match the Erlang target even
+    // when the kernel routes calls into shrinkage-band indices.
     if (allocation) {
-      if (allocation.productive.has(i)) {
+      if (!inOfficeIdx.has(i)) {
+        // Off-shift / absent — render at desk slot (the renderer's
+        // isActiveByIndex / absent-tail logic hides them anyway).
         out[a.id] = { activity: 'at_desk', position: desks[a.id] }
         continue
       }
-      if (allocation.shrinkage.has(i)) {
-        const activity = pickShrinkageActivity(a.id, simTimeMin)
-        if (activity === 'in_training') trainingIds.push(a.id)
-        else if (activity === 'in_gym') gymIds.push(a.id)
-        else if (activity === 'in_restroom') restroomIds.push(a.id)
-        else if (activity === 'chatting') chattingIds.push(a.id)
-        else if (activity === 'at_water_cooler') waterCoolerIds.push(a.id)
-        else if (activity === 'at_break_table') breakRoomIds.push(a.id)
+      if (idleAtDesk.has(a.id)) {
+        out[a.id] = { activity: 'at_desk', position: desks[a.id] }
         continue
       }
-      // Off-shift / absent — render at desk slot (the renderer's
-      // isActiveByIndex / absent-tail logic hides them anyway).
-      out[a.id] = { activity: 'at_desk', position: desks[a.id] }
+      // Remaining in-office idle agents: scatter across non-desk activities.
+      const activity = pickShrinkageActivity(a.id, simTimeMin)
+      if (activity === 'in_training') trainingIds.push(a.id)
+      else if (activity === 'in_gym') gymIds.push(a.id)
+      else if (activity === 'in_restroom') restroomIds.push(a.id)
+      else if (activity === 'chatting') chattingIds.push(a.id)
+      else if (activity === 'at_water_cooler') waterCoolerIds.push(a.id)
+      else if (activity === 'at_break_table') breakRoomIds.push(a.id)
       continue
     }
 

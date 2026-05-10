@@ -194,6 +194,24 @@ export function runDay(scenario: Scenario, opts: RunDayOptions = {}): SimResult 
       }
     }
 
+    // Emit `call_end` for agents whose call has wrapped up since the previous
+    // tick. Without this the agentTimeline `on_call` state is sticky — every
+    // agent who EVER answered a call appears permanently on_call until their
+    // next event, so by 8pm 60–70% of the agent pool reads as on_call to the
+    // viz even when only ~30% are actually busy. The result is the office viz
+    // showing far too many "at desks" agents (the activity scheduler forces
+    // on_call to at_desk) and severely under-populating shrinkage rooms.
+    // Emit BEFORE assigning new calls so an agent that finishes and is
+    // immediately reassigned in the same minute logs end-then-answer in
+    // chronological order (timeline binary search picks the latest correctly).
+    for (const a of agents) {
+      if (!a.active) continue
+      if (a.busyUntilMin > 0 && a.busyUntilMin <= min) {
+        pushEvent({ timeMin: min, type: 'call_end', agentId: a.id })
+        a.busyUntilMin = 0
+      }
+    }
+
     // Assign queued calls to free, active, non-break agents
     queue = queue.filter(qc => {
       const free = agents.find(a => a.active && a.busyUntilMin <= min && a.onBreakUntilMin === 0)

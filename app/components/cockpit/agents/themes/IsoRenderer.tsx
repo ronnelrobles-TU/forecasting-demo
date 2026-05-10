@@ -556,6 +556,7 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
         || k === 'walking_to_room' || k === 'walking_back_from_room'
         || k === 'walking_to_restroom_door' || k === 'walking_back_from_restroom'
         || k === 'walking_to_chat_spot' || k === 'walking_back_from_chat'
+        || k === 'urgent_relocate_to_desk'
       )) { counts.walking++; continue }
       // Resting phases.
       if (k === 'at_break_table' || a.state === 'on_break') { counts.onBreak++; continue }

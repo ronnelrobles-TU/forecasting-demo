@@ -50,6 +50,15 @@ export type JourneyPhase =
   | { kind: 'walking_to_chat_spot'; from: ScreenPoint; to: ScreenPoint; duration: number; spot: ScreenPoint }
   | { kind: 'at_chat_spot'; pos: ScreenPoint; until: number }
   | { kind: 'walking_back_from_chat'; from: ScreenPoint; to: ScreenPoint; duration: number }
+  // Urgent fade-relocate (Round 12 fix for the "flying through walls" bug):
+  // when sim flips an agent to on_call while they're in a non-desk room, we
+  // can't cleanly route them around hallways, but a straight-line lerp from
+  // gym → desk visibly clips through walls. So instead they fade out where
+  // they are, then fade in at their desk over the same total duration —
+  // visually reads as "they hustle to the desk to take the call" without
+  // any wall-clipping. Two halves: 1st half opacity 1→0 at `from`, 2nd half
+  // opacity 0→1 at `to`. Total duration ~600ms.
+  | { kind: 'urgent_relocate_to_desk'; from: ScreenPoint; to: ScreenPoint; duration: number }
 
 export interface VisualJourney {
   agentId: string
@@ -72,6 +81,9 @@ export const MIN_RESTROOM_HOLD_MS = 3500
 export const RESTROOM_FADE_MS = 500
 export const WALK_DURATION_MS = 1500
 export const LUNCH_WALK_DURATION_MS = 2000
+// Urgent room→desk relocation total duration when an in-room agent receives a
+// call. Fades out (~half) then fades in at the desk (~half).
+export const URGENT_RELOCATE_MS = 600
 
 // FNV-1a hash, returns float in [0, 1).
 function simpleHash01(s: string): number {
@@ -159,6 +171,19 @@ export function journeyPosition(
       // Fade out across the last 30% of the walk so the exit reads as "leaving".
       const opacity = t < 0.7 ? 1 : Math.max(0, 1 - (t - 0.7) / 0.3)
       return { pos: lerp(phase.from, phase.to, t), opacity, visible: true }
+    }
+    case 'urgent_relocate_to_desk': {
+      // First half: fade out at `from`. Second half: fade in at `to`. No
+      // straight-line lerp through walls — the agent vanishes and re-appears
+      // at the desk, conveying "rushed to take a call" without clipping
+      // through the gym/training/etc. walls they were inside.
+      const t = phase.duration > 0 ? Math.min(1, elapsed / phase.duration) : 1
+      if (t < 0.5) {
+        // 0..0.5 → opacity 1..0 at `from`
+        return { pos: phase.from, opacity: 1 - t * 2, visible: true }
+      }
+      // 0.5..1 → opacity 0..1 at `to`
+      return { pos: phase.to, opacity: (t - 0.5) * 2, visible: true }
     }
     case 'entering_restroom': {
       // Standing at the door, opacity 1 -> 0.
@@ -257,14 +282,46 @@ function startPhaseForState(
       }, nowMs)
     }
     case 'on_call': {
-      // Calls happen at the desk — if not at the desk, walk back first.
+      // Calls happen at the desk — if not at the desk, get there first.
       if (journey.phase.kind === 'at_desk' || journey.phase.kind === 'on_call_at_desk') {
         return startPhase({ ...journey, pendingSimState: null }, {
           kind: 'on_call_at_desk',
           pos: journey.homeDeskPosition,
         }, nowMs)
       }
-      // Need to walk back to take the call. Defer the on_call by stashing it.
+      // Round 12 fix: when transitioning from a non-desk room (gym, training,
+      // chat spot, restroom, break) directly to on_call, a straight-line
+      // walking_back_to_desk lerp visibly clips through walls — the gym is
+      // floor-up against the agent floor with no door in the lerp's path.
+      // Use the urgent fade-relocate phase instead: the agent fades out where
+      // they are, and fades in at the desk over ~600ms. Reads as "rushed to
+      // the desk to take the call" without the wall-clipping glitch.
+      const k = journey.phase.kind
+      const isInNonDeskLocation = (
+        k === 'in_room'
+        || k === 'at_chat_spot'
+        || k === 'at_break_table'
+        || k === 'inside_restroom'
+        || k === 'entering_restroom'
+        || k === 'exiting_restroom'
+        || k === 'walking_to_room'
+        || k === 'walking_back_from_room'
+        || k === 'walking_to_chat_spot'
+        || k === 'walking_back_from_chat'
+        || k === 'walking_to_restroom_door'
+        || k === 'walking_back_from_restroom'
+        || k === 'walking_to_break'
+      )
+      if (isInNonDeskLocation) {
+        return startPhase({ ...journey, pendingSimState: 'on_call' }, {
+          kind: 'urgent_relocate_to_desk',
+          from: getCurrentPos(journey, nowMs),
+          to: journey.homeDeskPosition,
+          duration: URGENT_RELOCATE_MS,
+        }, nowMs)
+      }
+      // Coming from elsewhere (e.g., outside_for_lunch, gone) — keep the
+      // existing walk-back-to-desk path which routes through the door.
       return startPhase({ ...journey, pendingSimState: 'on_call' }, {
         kind: 'walking_back_to_desk',
         from: getCurrentPos(journey, nowMs),
@@ -613,6 +670,19 @@ export function tickJourney(
       }
       break
     }
+    case 'urgent_relocate_to_desk': {
+      // Fade-out / fade-in is purely a visual phase — once it completes the
+      // agent settles at the desk in whichever stable state was queued
+      // (almost always on_call, since that's what triggers the relocate).
+      if (elapsed >= phase.duration) {
+        const stableState = journey.pendingSimState ?? 'on_call'
+        const nextPhase: JourneyPhase = stableState === 'on_call'
+          ? { kind: 'on_call_at_desk', pos: journey.homeDeskPosition }
+          : { kind: 'at_desk', pos: journey.homeDeskPosition }
+        return startPhase({ ...journey, pendingSimState: null }, nextPhase, nowMs)
+      }
+      break
+    }
     case 'at_desk':
     case 'on_call_at_desk':
     case 'gone':
@@ -654,6 +724,11 @@ export function isWalkingPhase(phase: JourneyPhase): boolean {
     case 'walking_back_from_chat':
     case 'entering_restroom':
     case 'exiting_restroom':
+    // Urgent fade-relocate is treated as a walking-equivalent phase so the
+    // floor renderer can paint the (briefly fading) sprite and the activity
+    // counter buckets it as transit (not "at desks"). Only ~600ms total so
+    // it rarely shows up in steady-state counts.
+    case 'urgent_relocate_to_desk':
       return true
     default:
       return false

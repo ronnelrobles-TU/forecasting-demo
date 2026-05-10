@@ -17,6 +17,7 @@ import {
   MIN_LUNCH_OUT_MS,
   MIN_RESTROOM_HOLD_MS,
   RESTROOM_FADE_MS,
+  URGENT_RELOCATE_MS,
   type VisualJourney,
 } from '@/app/components/cockpit/agents/themes/isoOffice/journey'
 import { computeBuildingLayout } from '@/app/components/cockpit/agents/themes/isoOffice/geometry'
@@ -491,5 +492,89 @@ describe('integration: full break narrative under fast sim', () => {
     const t = (LUNCH_WALK_DURATION_MS + MIN_LUNCH_OUT_MS + 200) + LUNCH_WALK_DURATION_MS + 100
     j = tickJourney(j, layout, t)
     expect(j.phase.kind).toBe('at_desk')
+  })
+})
+
+describe('urgent_relocate_to_desk (Round 12 — Bug 2)', () => {
+  // Setup: agent in the gym (in_room) when sim flips them to on_call. The
+  // pre-fix path used walking_back_to_desk with a straight-line lerp from
+  // the gym position to the desk — visually clipping through walls. The
+  // fix routes them through `urgent_relocate_to_desk`, which fades out at
+  // current pos and fades in at the desk over ~600ms.
+  function makeInGymJourney(t: number): VisualJourney {
+    const j0 = makeJourney('A0', desk, 'idle', t)
+    const gymPos = layout.rooms.gym.workoutSpots[0]
+    return startWalkToRoom(j0, 'gym', gymPos, t)
+  }
+
+  it('idle→on_call from in_room uses urgent_relocate (no straight lerp through walls)', () => {
+    let j = makeInGymJourney(0)
+    // Tick into the in_room phase.
+    j = tickJourney(j, layout, WALK_DURATION_MS + 100)
+    expect(j.phase.kind).toBe('in_room')
+    // The in_room phase has a min hold; bypass it for the test by faking
+    // the resting check via journey.pendingSimState — actually we just call
+    // transitionJourney AFTER the resting check completes. Use a time past
+    // MIN_ROOM_HOLD_MS so isRestingPhase returns true.
+    const tCall = WALK_DURATION_MS + 100 + 4000
+    j = transitionJourney(j, 'on_call', layout, tCall)
+    expect(j.phase.kind).toBe('urgent_relocate_to_desk')
+    if (j.phase.kind === 'urgent_relocate_to_desk') {
+      // From should be the gym pos; to should be the home desk.
+      expect(j.phase.to.x).toBeCloseTo(desk.x, 1)
+      expect(j.phase.to.y).toBeCloseTo(desk.y, 1)
+      expect(j.phase.from.x).not.toBeCloseTo(desk.x, 1)
+    }
+    expect(j.pendingSimState).toBe('on_call')
+  })
+
+  it('urgent_relocate fades out at from then in at to (no mid-path lerp)', () => {
+    const j0 = makeInGymJourney(0)
+    let j = tickJourney(j0, layout, WALK_DURATION_MS + 100)
+    const tCall = WALK_DURATION_MS + 100 + 4000
+    j = transitionJourney(j, 'on_call', layout, tCall)
+    if (j.phase.kind !== 'urgent_relocate_to_desk') throw new Error('expected urgent_relocate')
+    const fromPos = j.phase.from
+    const toPos = j.phase.to
+
+    // Quarter-way through: opacity ~0.5 at FROM (no interpolation through walls).
+    const quarterT = tCall + URGENT_RELOCATE_MS * 0.25
+    const r1 = journeyPosition(j, quarterT)
+    expect(r1.pos.x).toBeCloseTo(fromPos.x, 1)
+    expect(r1.pos.y).toBeCloseTo(fromPos.y, 1)
+    expect(r1.opacity).toBeGreaterThan(0.4)
+    expect(r1.opacity).toBeLessThan(0.6)
+
+    // Three-quarter way: opacity ~0.5 at TO (already teleported visually).
+    const threeQ = tCall + URGENT_RELOCATE_MS * 0.75
+    const r2 = journeyPosition(j, threeQ)
+    expect(r2.pos.x).toBeCloseTo(toPos.x, 1)
+    expect(r2.pos.y).toBeCloseTo(toPos.y, 1)
+    expect(r2.opacity).toBeGreaterThan(0.4)
+    expect(r2.opacity).toBeLessThan(0.6)
+  })
+
+  it('urgent_relocate completes into on_call_at_desk', () => {
+    let j = makeInGymJourney(0)
+    j = tickJourney(j, layout, WALK_DURATION_MS + 100)
+    const tCall = WALK_DURATION_MS + 100 + 4000
+    j = transitionJourney(j, 'on_call', layout, tCall)
+    expect(j.phase.kind).toBe('urgent_relocate_to_desk')
+    j = tickJourney(j, layout, tCall + URGENT_RELOCATE_MS + 50)
+    expect(j.phase.kind).toBe('on_call_at_desk')
+  })
+
+  it('idle→on_call from at_desk stays at desk (no urgent relocate)', () => {
+    const j0 = makeJourney('A0', desk, 'idle', 0)
+    const j1 = transitionJourney(j0, 'on_call', layout, 100)
+    expect(j1.phase.kind).toBe('on_call_at_desk')
+  })
+
+  it('urgent_relocate is classified as a walking phase', () => {
+    let j = makeInGymJourney(0)
+    j = tickJourney(j, layout, WALK_DURATION_MS + 100)
+    const tCall = WALK_DURATION_MS + 100 + 4000
+    j = transitionJourney(j, 'on_call', layout, tCall)
+    expect(isWalkingPhase(j.phase)).toBe(true)
   })
 })
