@@ -205,7 +205,7 @@ export function AgentFloor({ agents, journeys = {}, positions = {}, layout, acti
             )}
             <Desk x={deskPos.x} y={deskPos.y}/>
             {showStatus && (
-              <StatusBubble x={agentX} y={agentY} state={agent.state} activity={activity}/>
+              <StatusBubble x={agentX} y={agentY} state={agent.state} phase={journey?.phase}/>
             )}
             {/* Round 5.7: tail-agent absent marker (agent is in the array but
                 never on shift today — desk should look empty + flagged). */}

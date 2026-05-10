@@ -29,30 +29,62 @@ describe('isoOfficeHD/colors', () => {
 })
 
 describe('isoOfficeHD/bubbles.pickBubble', () => {
+  const desk = { x: 0, y: 0 }
+
   it('off_shift agents have no bubble', () => {
     expect(pickBubble('off_shift', undefined)).toBeNull()
   })
 
   it('idle agent at desk gets the sleep bubble', () => {
-    const b = pickBubble('idle', undefined)
+    const b = pickBubble('idle', { kind: 'at_desk', pos: desk })
     expect(b?.emoji).toBe('💤')
   })
 
   it('on_call agent at desk gets the phone bubble', () => {
-    const b = pickBubble('on_call', undefined)
+    const b = pickBubble('on_call', { kind: 'on_call_at_desk', pos: desk })
     expect(b?.emoji).toBe('📞')
   })
 
-  it('room activity wins over sim state — gym beats on_break', () => {
-    const b = pickBubble('on_break', 'in_gym')
+  it('phase wins over sim state — agent in gym shows 💪 even when sim is on_break', () => {
+    const b = pickBubble('on_break', {
+      kind: 'in_room', targetRoom: 'gym', pos: desk, until: 0,
+    })
     expect(b?.emoji).toBe('💪')
   })
 
-  it('in_restroom suppresses the bubble entirely', () => {
-    expect(pickBubble('idle', 'in_restroom')).toBeNull()
+  it('inside_restroom suppresses the bubble entirely', () => {
+    const b = pickBubble('idle', { kind: 'inside_restroom', pos: desk, until: 0 })
+    expect(b).toBeNull()
   })
 
-  it('chatting bubble has the blue stroke', () => {
-    expect(pickBubble('idle', 'chatting')).toEqual({ emoji: '💬', strokeColor: 0x3b82f6 })
+  it('at_chat_spot bubble has the blue stroke', () => {
+    const b = pickBubble('idle', { kind: 'at_chat_spot', pos: desk, until: 0 })
+    expect(b).toEqual({ emoji: '💬', strokeColor: 0x3b82f6 })
+  })
+
+  it('water_cooler in_room shows 💧', () => {
+    const b = pickBubble('idle', {
+      kind: 'in_room', targetRoom: 'water_cooler', pos: desk, until: 0,
+    })
+    expect(b?.emoji).toBe('💧')
+  })
+
+  it('at_break_table shows ☕ regardless of sim state', () => {
+    const b = pickBubble('idle', { kind: 'at_break_table', pos: desk, until: 0 })
+    expect(b?.emoji).toBe('☕')
+  })
+
+  it('walking phases drop the bubble', () => {
+    const b = pickBubble('idle', {
+      kind: 'walking_to_chat_spot',
+      from: desk, to: desk, duration: 1000, spot: desk,
+    })
+    expect(b).toBeNull()
+  })
+
+  it('falls back to sim-state bubble when no phase is provided', () => {
+    expect(pickBubble('idle', undefined)?.emoji).toBe('💤')
+    expect(pickBubble('on_call', undefined)?.emoji).toBe('📞')
+    expect(pickBubble('on_break', undefined)?.emoji).toBe('☕')
   })
 })

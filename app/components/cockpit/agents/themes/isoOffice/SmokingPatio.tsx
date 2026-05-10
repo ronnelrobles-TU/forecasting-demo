@@ -114,7 +114,7 @@ export function SmokingPatio({ layout, agents = [], activities, journeys }: Smok
               <AgentSprite x={mirror ? pos.x : pos.x} y={pos.y} shirtColor="#22c55e"/>
             </g>
             <SmokeCurl x={pos.x + (mirror ? -5 : 5)} y={pos.y - 6}/>
-            <StatusBubble x={pos.x} y={pos.y} state={a.state} activity="chatting"/>
+            <StatusBubble x={pos.x} y={pos.y} state={a.state} phase={j?.phase}/>
           </g>
         )
       })}

@@ -32,7 +32,11 @@ export function updateAgentLayer(
   scene: HDSceneState,
   agents: ReadonlyArray<AgentSnapshot>,
   journeys: Record<string, VisualJourney>,
-  activities: Record<string, ActivityAssignment>,
+  // Kept in the signature for callsite compat; the bubble logic now derives
+  // entirely from the journey phase, so the activity map is no longer read
+  // here. (Removing the param would force the renderer to pass `undefined`
+  // and would break the next consumer who needs activity data here.)
+  _activities: Record<string, ActivityAssignment>,
   nowMs: number,
 ): void {
   const seen = new Set<string>()
@@ -85,14 +89,17 @@ export function updateAgentLayer(
       && (phase.kind === 'on_call_at_desk' || phase.kind === 'at_desk')
     setOnCallGlow(sprite, onCallVisible)
 
-    // Bubble — only when at-desk and visible. Walking agents drop the bubble
-    // (matches the SVG version which only shows StatusBubble when at desk).
+    // Bubble — derived from the journey phase (the source of truth for what
+    // the agent is currently doing). Only visible when the agent is at a
+    // resting / room phase and visible enough — walking agents drop the bubble
+    // (matches the SVG renderer's behaviour). Activity-assignment is no
+    // longer consulted here; that data churns at productive/shrinkage
+    // boundaries and was the origin of the breakroom bubble flicker.
     const showBubble = alpha > 0.2
       && (phase.kind === 'at_desk' || phase.kind === 'on_call_at_desk' || phase.kind === 'in_room' || phase.kind === 'at_break_table' || phase.kind === 'at_chat_spot')
       && a.state !== 'off_shift'
     if (showBubble) {
-      const activity = activities[a.id]?.activity
-      const spec = pickBubble(a.state, activity)
+      const spec = pickBubble(a.state, phase)
       if (spec) {
         setStatusBubble(sprite, spec.emoji, spec.strokeColor)
       } else {

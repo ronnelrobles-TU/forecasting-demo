@@ -1,31 +1,28 @@
 'use client'
 
 import type { AgentVisualState } from '@/lib/animation/agentTimeline'
-import type { DisplayActivity } from './activity'
+import type { JourneyPhase } from './journey'
 
 interface StatusBubbleProps {
   x: number
   y: number
   state: AgentVisualState
-  activity?: DisplayActivity
+  /**
+   * Journey phase — the SOURCE OF TRUTH for "what is this agent currently
+   * doing and where are they". The bubble is a pure function of the phase
+   * (and sim state, used only as a fallback when at-desk).
+   *
+   * Previously the bubble was driven by the activity-assignment lookup
+   * which can churn frame-to-frame at productive/shrinkage allocation
+   * boundaries — that produced the breakroom flicker (☕ ↔ 💧 ↔ 💬 every
+   * frame during play). Reading from the phase keeps the bubble locked
+   * to whatever the journey state machine says the agent is actually
+   * doing right now.
+   */
+  phase?: JourneyPhase
 }
 
 interface BubbleStyle { emoji: string; stroke: string }
-
-// Activity bubbles. When an activity is present and it's a "room" activity
-// (gym/training/chat/water cooler), the activity bubble ALWAYS wins over the
-// sim-state bubble — the agent is visibly in that room, so showing "on break"
-// here would be confusing. Round 5.5 fix: previously this rule only applied
-// for idle agents, which broke when sim state flipped to on_break while the
-// journey was still in_room (the agent in the gym would suddenly show ☕).
-const ACTIVITY_BUBBLE: Partial<Record<DisplayActivity, BubbleStyle>> = {
-  in_training:     { emoji: '📚', stroke: '#22c55e' },
-  in_gym:          { emoji: '💪', stroke: '#dc2626' },
-  chatting:        { emoji: '💬', stroke: '#3b82f6' },
-  at_water_cooler: { emoji: '💧', stroke: '#06b6d4' },
-  at_break_table:  { emoji: '☕', stroke: '#d97706' },
-  // in_restroom: agent is hidden; no bubble.
-}
 
 const STATE_BUBBLE: Record<Exclude<AgentVisualState, 'off_shift'>, BubbleStyle> = {
   idle:    { emoji: '💤', stroke: '#22c55e' },
@@ -33,34 +30,66 @@ const STATE_BUBBLE: Record<Exclude<AgentVisualState, 'off_shift'>, BubbleStyle> 
   on_break:{ emoji: '☕', stroke: '#d97706' },
 }
 
-// Activities that place the agent in a recognizable room/spot. When we render
-// from one of those rooms, the bubble must reflect the room — never the raw
-// sim state, which may have shifted to `on_break` underneath us.
-const ROOM_ACTIVITIES: ReadonlySet<DisplayActivity> = new Set([
-  'in_training',
-  'in_gym',
-  'chatting',
-  'at_water_cooler',
-  'at_break_table',
-  'in_restroom',
-])
-
-export function StatusBubble({ x, y, state, activity }: StatusBubbleProps) {
+// Resolve the bubble for a phase. Returns null when no bubble should render
+// (walking, hidden inside the restroom, gone, etc.). At-desk phases delegate
+// to the sim-state bubble.
+export function bubbleStyleForPhase(
+  state: AgentVisualState,
+  phase: JourneyPhase | undefined,
+): BubbleStyle | null {
   if (state === 'off_shift') return null
-  // in_restroom: agent is hidden; suppress bubble entirely.
-  if (activity === 'in_restroom') return null
+  if (!phase) {
+    // Defensive fallback before journeys hydrate. Use sim-state bubble.
+    return STATE_BUBBLE[state] ?? null
+  }
+  switch (phase.kind) {
+    case 'at_desk':
+      return STATE_BUBBLE[state] ?? null
+    case 'on_call_at_desk':
+      // Always show the call bubble, even if sim state hasn't caught up.
+      return STATE_BUBBLE.on_call
+    case 'at_break_table':
+      return { emoji: '☕', stroke: '#d97706' }
+    case 'at_chat_spot':
+      return { emoji: '💬', stroke: '#3b82f6' }
+    case 'in_room': {
+      switch (phase.targetRoom) {
+        case 'gym':          return { emoji: '💪', stroke: '#dc2626' }
+        case 'training':     return { emoji: '📚', stroke: '#22c55e' }
+        case 'water_cooler': return { emoji: '💧', stroke: '#06b6d4' }
+        case 'patio':        return { emoji: '💬', stroke: '#3b82f6' }
+        case 'chat':         return { emoji: '💬', stroke: '#3b82f6' }
+        case 'restroom':     return null
+        default:             return null
+      }
+    }
+    // Hidden / transient phases — no bubble.
+    case 'inside_restroom':
+    case 'entering_restroom':
+    case 'exiting_restroom':
+    case 'gone':
+    case 'outside_for_lunch':
+      return null
+    // Walking phases — no bubble (matches the SVG renderer's existing
+    // "drop bubble while walking" behaviour).
+    case 'arriving_at_door':
+    case 'walking_to_break':
+    case 'walking_back_to_desk':
+    case 'walking_to_door_for_lunch':
+    case 'walking_back_from_lunch':
+    case 'walking_to_door_for_shift_end':
+    case 'walking_to_room':
+    case 'walking_back_from_room':
+    case 'walking_to_restroom_door':
+    case 'walking_back_from_restroom':
+    case 'walking_to_chat_spot':
+    case 'walking_back_from_chat':
+      return null
+  }
+}
 
-  let style: BubbleStyle | undefined
-  // ROOM activity wins over sim state. The room component owns the visual —
-  // the agent is sitting at the gym, so the bubble must say 💪 even if the
-  // kernel has flipped them to on_break in the meantime.
-  if (activity && ROOM_ACTIVITIES.has(activity)) {
-    style = ACTIVITY_BUBBLE[activity]
-  }
-  // Fallback: sim-state bubble (at-desk renderings, idle agents on the floor).
-  if (!style) {
-    style = STATE_BUBBLE[state]
-  }
+export function StatusBubble({ x, y, state, phase }: StatusBubbleProps) {
+  const style = bubbleStyleForPhase(state, phase)
   if (!style) return null
   return (
     <g transform={`translate(${x}, ${y})`}>

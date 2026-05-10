@@ -65,14 +65,15 @@ export function Gym({ layout, agents = [], activities, journeys, walkingIds }: G
       <Treadmill x={g.treadmillPosition.x} y={g.treadmillPosition.y}/>
       <Weights x={g.weightsPosition.x} y={g.weightsPosition.y}/>
       {gymAgents.map(a => {
-        const pos = (journeys?.[a.id]?.phase.kind === 'in_room'
-          ? (journeys![a.id].phase as { pos: { x: number; y: number } }).pos
+        const j = journeys?.[a.id]
+        const pos = (j?.phase.kind === 'in_room'
+          ? (j.phase as { pos: { x: number; y: number } }).pos
           : activities![a.id].position)
         const bob = activities?.[a.id]?.position === g.treadmillPosition
         return (
           <g key={`gym-${a.id}`}>
             <AgentSprite x={pos.x} y={pos.y - 4} shirtColor="#22c55e" bob={bob}/>
-            <StatusBubble x={pos.x} y={pos.y - 4} state={a.state} activity="in_gym"/>
+            <StatusBubble x={pos.x} y={pos.y - 4} state={a.state} phase={j?.phase}/>
           </g>
         )
       })}

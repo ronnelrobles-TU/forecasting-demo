@@ -95,7 +95,7 @@ export function BreakRoom({ agents, journeys = {}, positions, layout, activities
         return (
           <g key={`break-${a.id}`}>
             <AgentSprite x={seat.x} y={seat.y} shirtColor="#d97706"/>
-            <StatusBubble x={seat.x} y={seat.y} state="on_break"/>
+            <StatusBubble x={seat.x} y={seat.y} state={a.state} phase={j.phase}/>
           </g>
         )
       })}
@@ -107,7 +107,7 @@ export function BreakRoom({ agents, journeys = {}, positions, layout, activities
         return (
           <g key={`wc-${a.id}`}>
             <AgentSprite x={pos.x} y={pos.y} shirtColor="#22c55e"/>
-            <StatusBubble x={pos.x} y={pos.y} state={a.state} activity="at_water_cooler"/>
+            <StatusBubble x={pos.x} y={pos.y} state={a.state} phase={j?.phase}/>
           </g>
         )
       })}

@@ -55,13 +55,14 @@ export function TrainingRoom({ layout, agents = [], activities, journeys, walkin
         <StudentChair key={`tc${i}`} x={s.x} y={s.y}/>
       ))}
       {trainingAgents.map(a => {
-        const pos = (journeys?.[a.id]?.phase.kind === 'in_room'
-          ? (journeys![a.id].phase as { pos: { x: number; y: number } }).pos
+        const j = journeys?.[a.id]
+        const pos = (j?.phase.kind === 'in_room'
+          ? (j.phase as { pos: { x: number; y: number } }).pos
           : activities![a.id].position)
         return (
           <g key={`student-${a.id}`}>
             <AgentSprite x={pos.x} y={pos.y - 1} shirtColor="#22c55e"/>
-            <StatusBubble x={pos.x} y={pos.y - 1} state={a.state} activity="in_training"/>
+            <StatusBubble x={pos.x} y={pos.y - 1} state={a.state} phase={j?.phase}/>
           </g>
         )
       })}
