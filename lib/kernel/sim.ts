@@ -92,7 +92,7 @@ export function runDay(scenario: Scenario, opts: RunDayOptions = {}): SimResult 
     ? e => { events.push(e) }
     : () => {}
   const perInterval: IntervalStat[] = Array.from({ length: 48 }, () => ({
-    sl: 0, agents: 0, queueLen: 0, abandons: 0, occ: 0,
+    sl: 0, agents: 0, queueLen: 0, abandons: 0, occ: 0, asa: 0,
   }))
 
   const callsAnswered = new Array(48).fill(0)
@@ -232,6 +232,7 @@ export function runDay(scenario: Scenario, opts: RunDayOptions = {}): SimResult 
     perInterval[i].abandons = aban
     perInterval[i].agents = Math.round(totalAvailMin[i] / 30)
     perInterval[i].occ = totalAvailMin[i] > 0 ? totalBusyMin[i] / totalAvailMin[i] : 0
+    perInterval[i].asa = ans > 0 ? totalWaitMs[i] / ans / 1000 : 0
     totalSlNum += ith
     totalSlDen += ans
     totalWait += totalWaitMs[i]

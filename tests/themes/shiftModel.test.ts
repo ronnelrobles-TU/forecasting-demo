@@ -21,7 +21,7 @@ function makeRamp(): IntervalStat[] {
     // Triangular over 24h — peak at i=48 (12:00).
     const t = Math.abs(i - 48) / 48 // 0 at noon, 1 at midnight
     const agents = Math.round(5 + (1 - t) * 95)
-    out.push({ sl: 1, agents, queueLen: 0, abandons: 0, occ: 0.7 })
+    out.push({ sl: 1, agents, queueLen: 0, abandons: 0, occ: 0.7, asa: 0 })
   }
   return out
 }
@@ -254,7 +254,7 @@ describe('smoothOfficeAllocation (Round 7.1)', () => {
   })
 
   it('matches the conceptual example from the fix spec (Erlang 159, shrink 32%)', () => {
-    const peak159: IntervalStat[] = [{ sl: 1, agents: 159, queueLen: 0, abandons: 0, occ: 0.7 }]
+    const peak159: IntervalStat[] = [{ sl: 1, agents: 159, queueLen: 0, abandons: 0, occ: 0.7, asa: 0 }]
     const a = smoothOfficeAllocation(peak159, 0, 32)
     expect(a.productive).toBe(159)
     expect(a.inOffice).toBe(Math.round(159 / 0.68))      // 234

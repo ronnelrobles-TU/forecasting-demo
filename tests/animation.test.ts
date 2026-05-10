@@ -64,7 +64,7 @@ import type { IntervalStat } from '@/lib/types'
 
 describe('intervalStatsAt', () => {
   const stats: IntervalStat[] = Array.from({ length: 48 }, (_, i) => ({
-    sl: i / 47, agents: i, queueLen: 0, abandons: 0, occ: 0.5,
+    sl: i / 47, agents: i, queueLen: 0, abandons: 0, occ: 0.5, asa: 0,
   }))
 
   it('picks interval 0 for minute 0', () => {

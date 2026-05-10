@@ -83,6 +83,8 @@ export interface IntervalStat {
   queueLen: number
   abandons: number
   occ: number
+  /** Average speed of answer for this interval, in seconds. 0 if no calls answered. */
+  asa: number
 }
 
 export interface SimResult {

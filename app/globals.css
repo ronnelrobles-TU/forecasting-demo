@@ -1165,13 +1165,69 @@ details[open] .learn-tip summary::before { content: '▼ '; }
 /* ───────── Cockpit Phase 3 (Monte Carlo) ───────── */
 
 .cockpit-monte-viewport .cockpit-monte-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  flex: 1;
+  min-height: 0;
+}
+
+.cockpit-monte-grid {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: minmax(0, 1fr) 300px;
   gap: 0.75rem;
   flex: 1;
   min-height: 0;
 }
 
+/* Risk verdict badge */
+.cockpit-monte-verdict {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.85rem;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-left-width: 4px;
+  border-radius: 8px;
+  padding: 0.6rem 0.85rem;
+}
+.cockpit-monte-verdict-badge {
+  color: #0b1220;
+  font-weight: 800;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+}
+.cockpit-monte-verdict-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.cockpit-monte-verdict-desc {
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.cockpit-monte-verdict-action {
+  color: #94a3b8;
+  font-size: 0.75rem;
+}
+.cockpit-monte-verdict-stat {
+  color: #cbd5e1;
+  font-size: 0.75rem;
+  text-align: right;
+  white-space: nowrap;
+}
+.cockpit-monte-verdict-stat strong {
+  color: #fff;
+  font-size: 1.05rem;
+  margin-right: 0.25rem;
+}
+
+/* Chart frame */
 .cockpit-monte-chart-frame {
   background: #0f172a;
   border: 1px solid #334155;
@@ -1180,59 +1236,197 @@ details[open] .learn-tip summary::before { content: '▼ '; }
   min-height: 280px;
   display: flex;
   flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
 }
 .cockpit-monte-fan-container {
   flex: 1;
   position: relative;
   min-height: 240px;
 }
+.cockpit-monte-fan-canvas {
+  position: relative;
+  z-index: 1;
+}
+.cockpit-monte-spaghetti-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
 
-.cockpit-monte-stats {
+/* Metric tabs */
+.cockpit-monte-metric-tabs {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+.cockpit-monte-metric-tab {
+  background: #1e293b;
+  color: #cbd5e1;
+  border: 1px solid #334155;
+  border-radius: 999px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms, color 120ms, border-color 120ms;
+}
+.cockpit-monte-metric-tab:hover {
+  background: #334155;
+  color: #fff;
+}
+.cockpit-monte-metric-tab--active {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #fff;
+}
+.cockpit-monte-metric-tab--active:hover {
+  background: #2563eb;
+}
+
+/* Sidebar */
+.cockpit-monte-side {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.cockpit-monte-side-placeholder {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  flex: 1;
+}
+
+/* Histogram */
+.cockpit-monte-histogram {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 0.6rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.cockpit-monte-histogram-title {
+  color: #cbd5e1;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.85;
+}
+.cockpit-monte-histogram-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.cockpit-monte-histogram-legend {
+  display: flex;
+  gap: 0.65rem;
+  font-size: 0.65rem;
+  color: #94a3b8;
+  flex-wrap: wrap;
+}
+.cockpit-monte-histogram-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.cockpit-monte-hl-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 2px;
+  border-radius: 1px;
+}
+
+/* Stats row + replay buttons */
+.cockpit-monte-stats-row {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-}
-.cockpit-monte-stat {
   background: #0f172a;
   border: 1px solid #334155;
   border-radius: 8px;
   padding: 0.6rem 0.75rem;
 }
-.cockpit-monte-stat-label {
-  opacity: 0.6;
-  font-size: 0.65rem;
+.cockpit-monte-replay-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.cockpit-monte-replay-btn {
+  background: #1e293b;
+  color: #fff;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 0.5rem 0.85rem;
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms;
+}
+.cockpit-monte-replay-btn:hover:not(:disabled) {
+  background: #334155;
+}
+.cockpit-monte-replay-btn--best {
+  border-color: #22c55e;
+  color: #4ade80;
+}
+.cockpit-monte-replay-btn--best:hover:not(:disabled) {
+  background: rgba(34, 197, 94, 0.18);
+}
+.cockpit-monte-replay-btn--median {
+  border-color: #cbd5e1;
+}
+.cockpit-monte-replay-btn--worst {
+  background: #ef4444;
+  border-color: #ef4444;
+  color: #fff;
+}
+.cockpit-monte-replay-btn--worst:hover:not(:disabled) {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+.cockpit-monte-replay-btn:disabled {
+  background: #1e293b;
+  border-color: #334155;
+  color: #64748b;
+  cursor: not-allowed;
+}
+
+.cockpit-monte-stats-inline {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.cockpit-monte-stats-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+}
+.cockpit-monte-stats-chip-label {
+  color: #94a3b8;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  font-size: 0.65rem;
 }
-.cockpit-monte-stat-value {
+.cockpit-monte-stats-chip-value {
   font-weight: 700;
-  font-size: 1.4rem;
-  margin-top: 0.2rem;
+  font-size: 1.05rem;
+}
+.cockpit-monte-stats-chip-sub {
+  color: #64748b;
+  font-size: 0.7rem;
 }
 .cockpit-monte-stat-value--red { color: #ef4444; }
 .cockpit-monte-stat-value--green { color: #10b981; }
 .cockpit-monte-stat-value--amber { color: #fbbf24; }
-.cockpit-monte-stat-sub {
-  opacity: 0.6;
-  font-size: 0.65rem;
-  margin-top: 0.1rem;
-}
-.cockpit-monte-replay-btn {
-  background: #ef4444;
-  color: #fff;
-  border: 0;
-  border-radius: 8px;
-  padding: 0.6rem;
-  font-weight: 600;
-  font-size: 0.85rem;
-  cursor: pointer;
-  margin-top: 0.5rem;
-}
-.cockpit-monte-replay-btn:disabled {
-  background: #334155;
-  color: #64748b;
-  cursor: not-allowed;
-}
 
 /* ───────── Cockpit Phase 4 (Roster Designer) ───────── */
 
