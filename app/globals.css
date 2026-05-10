@@ -1929,6 +1929,14 @@ details[open] .learn-tip summary::before { content: '▼ '; }
   right: 0.5rem;
   align-items: flex-end;
 }
+/* Round 12: when the active theme renders camera controls (Office / Office HD)
+   they live in their own row directly below the ThemePicker, so the lower
+   overlay (clock/counter/legend) needs to drop another row. The Dots theme
+   has no camera controls, so it keeps the original 2.4rem position. */
+.cockpit-agent-scene[data-theme='office'] .cockpit-scene-overlay--top-right-lower,
+.cockpit-agent-scene[data-theme='office-hd'] .cockpit-scene-overlay--top-right-lower {
+  top: 4.4rem;
+}
 .cockpit-scene-overlay--bottom-left {
   /* Round 6.1: dedicated bottom-left overlay for the camera "press 0 to
      reset" hint. Previously it lived inside the top-right camera-controls
@@ -2173,12 +2181,15 @@ details[open] .learn-tip summary::before { content: '▼ '; }
 }
 .cockpit-iso-svg--dragging { cursor: grabbing; }
 
-/* Camera controls (top-right, just left of the ThemePicker). */
+/* Camera controls (top-right, stacked directly below the ThemePicker).
+   Round 12: previously sat to the LEFT of ThemePicker on the same row, but
+   the ThemePicker grew wider once "Office HD" was added and the camera
+   strip began clipping the "Dots" button. Stacking below avoids the width
+   coupling entirely — both clusters can grow independently and never
+   overlap. The lower overlay (--top-right-lower) shifts down accordingly. */
 .cockpit-scene-overlay--top-right-camera {
-  top: 0.5rem;
-  /* Sit beside ThemePicker which is right:0.5rem and ~120px wide. We give it
-     enough room so the two never overlap on narrow viewports. */
-  right: 8.5rem;
+  top: 2.4rem;
+  right: 0.5rem;
   flex-direction: row;
   gap: 0.4rem;
   align-items: center;

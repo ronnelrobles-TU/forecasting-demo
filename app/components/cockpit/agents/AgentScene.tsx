@@ -54,7 +54,7 @@ export function AgentScene({ events, peakAgents, simTimeMin, deskCapacity, absen
   const Renderer = THEME_REGISTRY[theme]
 
   return (
-    <div className="cockpit-agent-scene">
+    <div className="cockpit-agent-scene" data-theme={theme}>
       <Renderer
         agents={agents}
         peakAgents={peakAgents}
