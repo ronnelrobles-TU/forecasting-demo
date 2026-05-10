@@ -22,10 +22,10 @@ function scenarioFromCampaign(key: CampaignKey, seed = 42): Scenario {
   }
 }
 
-export type ThemeKey = 'dots' | 'office'
+export type ThemeKey = 'dots' | 'office' | 'office-hd'
 
 const THEME_STORAGE_KEY = 'wfm.cockpit.theme'
-const VALID_THEMES: readonly ThemeKey[] = ['dots', 'office']
+const VALID_THEMES: readonly ThemeKey[] = ['dots', 'office', 'office-hd']
 
 function isValidTheme(s: string | null): s is ThemeKey {
   return s !== null && (VALID_THEMES as readonly string[]).includes(s)

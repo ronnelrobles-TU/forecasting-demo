@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { THEME_REGISTRY } from '@/app/components/cockpit/agents/themes/AgentRenderer'
 
 describe('THEME_REGISTRY', () => {
-  it('has entries for both shipping themes', () => {
-    expect(Object.keys(THEME_REGISTRY).sort()).toEqual(['dots', 'office'])
+  it('has entries for all shipping themes', () => {
+    expect(Object.keys(THEME_REGISTRY).sort()).toEqual(['dots', 'office', 'office-hd'])
   })
 
   it('every entry is a function (React component)', () => {

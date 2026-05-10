@@ -5,6 +5,7 @@ import { useScenario, type ThemeKey } from '../ScenarioContext'
 const THEMES: Array<{ key: ThemeKey; label: string }> = [
   { key: 'dots', label: 'Dots' },
   { key: 'office', label: 'Office' },
+  { key: 'office-hd', label: 'Office HD' },
 ]
 
 export function ThemePicker() {

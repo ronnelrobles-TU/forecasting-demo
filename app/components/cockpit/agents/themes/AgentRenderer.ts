@@ -5,6 +5,7 @@ import type { ThemeKey } from '@/app/components/cockpit/ScenarioContext'
 import type { Speed } from '@/lib/animation/timeScale'
 import { DotsRenderer } from './DotsRenderer'
 import { IsoRenderer } from './IsoRenderer'
+import { IsoRendererHD } from './IsoRendererHD'
 
 export interface AgentRendererProps {
   agents: Array<{ id: string; state: AgentVisualState }>
@@ -48,4 +49,5 @@ export type AgentRendererComponent = ComponentType<AgentRendererProps>
 export const THEME_REGISTRY: Record<ThemeKey, AgentRendererComponent> = {
   dots: DotsRenderer,
   office: IsoRenderer,
+  'office-hd': IsoRendererHD,
 }
