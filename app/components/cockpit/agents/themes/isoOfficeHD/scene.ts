@@ -10,6 +10,7 @@ import type { AgentSpriteHD } from './agents'
 import { buildNpcLayer, destroyNpcLayer, type NpcLayer } from './npcs'
 import { buildSmokeLayer, destroySmokeLayer, type SmokeLayer } from './smoke'
 import { buildTileGlowLayer, type TileGlowLayer } from './tileGlow'
+import { buildDramaticLayer, destroyDramaticLayer, type DramaticLayerHD } from './dramaticEffectsHD'
 
 export interface HDSceneState {
   app: Application
@@ -30,6 +31,8 @@ export interface HDSceneState {
   effectLayer: Container
   /** Lighting overlay graphics — wall warmth, surge tint, outage tint. */
   lightingOverlay: Graphics
+  /** Round 9: dramatic-effect particles (phones, abandons, bolts, puffs). */
+  dramatic: DramaticLayerHD
   /** Sun / moon icon (re-positioned per lighting tick). */
   celestial: Graphics
   /** Per-agent sprite cache, keyed by agent id. */
@@ -77,6 +80,7 @@ export function buildHDScene(
   const effectLayer = new Container()
   effectLayer.sortableChildren = false
   const lightingOverlay = new Graphics()
+  const dramatic = buildDramaticLayer()
   const celestial = new Graphics()
 
   cameraLayer.addChild(
@@ -86,6 +90,7 @@ export function buildHDScene(
     npcs.container,
     smoke.container,
     lightingOverlay,
+    dramatic.container,
     effectLayer,
     celestial,
   )
@@ -100,6 +105,7 @@ export function buildHDScene(
     smoke,
     effectLayer,
     lightingOverlay,
+    dramatic,
     celestial,
     agentSprites: new Map(),
   }
@@ -114,4 +120,5 @@ export function destroyHDScene(scene: HDSceneState): void {
   scene.agentSprites.clear()
   destroyNpcLayer(scene.npcs)
   destroySmokeLayer(scene.smoke)
+  destroyDramaticLayer(scene.dramatic)
 }

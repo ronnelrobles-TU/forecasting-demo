@@ -7,6 +7,8 @@ import { useCamera } from './isoOffice/useCamera'
 import { CameraControls } from './isoOffice/CameraControls'
 import { EventBanner } from './isoOffice/EventBanner'
 import { activeInjectedEvents, eventVisualFlags } from './isoOffice/injectedEventVisuals'
+import { computeDramaticState, estimateQueueDepth } from './isoOffice/dramaticEffects'
+import { DramaticEffectsLayer } from './isoOffice/DramaticEffectsLayer'
 import { AgentFloor } from './isoOffice/AgentFloor'
 import { ManagerOffices } from './isoOffice/ManagerOffices'
 import { Reception, ReceptionDefs } from './isoOffice/Reception'
@@ -454,6 +456,20 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
     [injectedEvents, simTimeMin],
   )
   const visualFlags = useMemo(() => eventVisualFlags(activeEvents), [activeEvents])
+  const dramaticState = useMemo(
+    () => computeDramaticState(activeEvents, simTimeMin),
+    [activeEvents, simTimeMin],
+  )
+  // Most-recent perInterval queueLen (proxy "live" queue depth) for the
+  // floating CALLS WAITING counter during a surge.
+  const liveQueueLen = useMemo(() => {
+    const idx = Math.max(0, Math.min(47, Math.floor(simTimeMin / 30)))
+    const it = perInterval?.[idx]
+    return it?.queueLen ?? null
+  }, [perInterval, simTimeMin])
+  const queueDepth = dramaticState.surgeActive
+    ? estimateQueueDepth(dramaticState.surgeIntensity, dramaticState.surgeMagnitude, liveQueueLen)
+    : 0
 
   // SVG ref for keyboard focus.
   const svgRef = useRef<SVGSVGElement | null>(null)
@@ -522,7 +538,10 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
       ref={svgRef}
       viewBox={`${camera.viewBox.x} ${camera.viewBox.y} ${camera.viewBox.w} ${camera.viewBox.h}`}
       className={`cockpit-iso-svg ${camera.dragging ? 'cockpit-iso-svg--dragging' : ''}`}
-      style={{ width: '100%', height: '100%', display: 'block', background: lighting.skyColor }}
+      style={{
+        width: '100%', height: '100%', display: 'block',
+        background: dramaticState.staffDropActive ? '#475569' : lighting.skyColor,
+      }}
       onWheel={camera.onWheel}
       onMouseDown={camera.onMouseDown}
       onTouchStart={camera.onTouchStart}
@@ -548,7 +567,7 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
         x={0} y={0}
         width={layout.viewBox.w}
         height={layout.viewBox.h}
-        fill={lighting.skyColor}
+        fill={dramaticState.staffDropActive ? '#475569' : lighting.skyColor}
       />
 
       {/* Sun or moon arcing across the sky. Hidden during transitional twilight. */}
@@ -644,6 +663,17 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
           </polygon>
         </g>
       )}
+
+      {/* Round 9: dramatic SVG effects layer (phone particles, abandons,
+          lightning bolts, puff bursts, "?" markers). Drawn last so it sits
+          above the office. */}
+      <DramaticEffectsLayer
+        layout={layout}
+        state={dramaticState}
+        agents={agents.map(a => ({ id: a.id, state: a.state }))}
+        events={events}
+        positions={positions}
+      />
     </svg>
 
     {/* Round 5.7 clarity overlays. HTML siblings of the SVG, absolutely
@@ -677,6 +707,31 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
         className="cockpit-scene-overlay cockpit-scene-overlay--bottom-left"
       >
         <div className="cockpit-camera-hint" aria-live="polite">Press 0 to reset view</div>
+      </div>
+    )}
+
+    {/* ── Round 9: HTML-overlay dramatic effects ──────────────────────── */}
+
+    {/* Storm overlay (typhoon): dark blue-grey wash + animated diagonal rain.
+        Sits below the building so the office is still visible underneath. */}
+    {dramaticState.staffDropActive && (
+      <div className="cockpit-storm-overlay" aria-hidden="true"/>
+    )}
+
+    {/* Emergency lighting (outage): red corner glows + global dim + flicker. */}
+    {dramaticState.outageActive && (
+      <div className="cockpit-emergency-lighting" aria-hidden="true"/>
+    )}
+
+    {/* Pulsing red viewport border (surge): "the office literally pulses". */}
+    {dramaticState.surgeActive && (
+      <div className="cockpit-surge-border" aria-hidden="true"/>
+    )}
+
+    {/* Live "calls waiting" counter floating above the door. */}
+    {dramaticState.surgeActive && (
+      <div className="cockpit-queue-counter" role="status">
+        📞 CALLS WAITING: {queueDepth}
       </div>
     )}
 

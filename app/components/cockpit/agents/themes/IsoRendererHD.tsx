@@ -45,6 +45,9 @@ import {
   activeInjectedEvents,
   eventVisualFlags,
 } from './isoOffice/injectedEventVisuals'
+import { computeDramaticState, estimateQueueDepth } from './isoOffice/dramaticEffects'
+import { updateDramaticLayer } from './isoOfficeHD/dramaticEffectsHD'
+import type { ScreenPoint } from './isoOffice/geometry'
 import { SceneClock } from './isoOffice/SceneClock'
 import { ActivityCounter, type ActivityCounts } from './isoOffice/ActivityCounter'
 import { StatusLegend } from './isoOffice/StatusLegend'
@@ -321,6 +324,18 @@ export function IsoRendererHD({
     }
   }, [layout])
 
+  // ── Active injected events + dramatic state (Round 9) ────────────────
+  // Computed up here so the ticker effect (next) can read the latest via
+  // refs without re-binding when sim minute or events change.
+  const activeEvents = useMemo(
+    () => activeInjectedEvents(injectedEvents, simTimeMin),
+    [injectedEvents, simTimeMin],
+  )
+  const dramaticState = useMemo(
+    () => computeDramaticState(activeEvents, simTimeMin),
+    [activeEvents, simTimeMin],
+  )
+
   // Per-frame agent updates via Pixi's ticker. We intentionally avoid React
   // setState in the hot loop — sprite mutations happen directly on the Pixi
   // containers and the renderer pushes a single GPU pass per frame.
@@ -330,6 +345,10 @@ export function IsoRendererHD({
   // tick when simTimeMin advances.
   const simTimeMinRef = useRef(simTimeMin)
   useEffect(() => { simTimeMinRef.current = simTimeMin }, [simTimeMin])
+  const dramaticStateRef = useRef(dramaticState)
+  useEffect(() => { dramaticStateRef.current = dramaticState }, [dramaticState])
+  const eventsRef = useRef(events)
+  useEffect(() => { eventsRef.current = events }, [events])
   useEffect(() => {
     const scene = sceneRef.current
     if (!scene) return
@@ -353,6 +372,28 @@ export function IsoRendererHD({
       paintTileGlows(sceneNow.tileGlows, agents, journeysRef.current, layout.deskPositions)
       updateNpcs(sceneNow.npcs, layout, simTimeMinRef.current, now)
       updateSmokeLayer(sceneNow.smoke, now)
+      // Round 9: dramatic-effect particle update. Read positions from the
+      // already-updated agent sprites so the lightning bolts anchor to the
+      // current screen position of each on-call agent.
+      const positions: Record<string, { pos: ScreenPoint; visible: boolean }> = {}
+      for (const a of agents) {
+        const sp = sceneNow.agentSprites.get(a.id)
+        if (sp) {
+          positions[a.id] = {
+            pos: { x: sp.container.x, y: sp.container.y },
+            visible: sp.container.visible,
+          }
+        }
+      }
+      updateDramaticLayer(
+        sceneNow.dramatic,
+        layout,
+        dramaticStateRef.current,
+        agents,
+        positions,
+        eventsRef.current,
+        now,
+      )
     }
     ticker.add(onTick)
     return () => { ticker.remove(onTick) }
@@ -360,11 +401,15 @@ export function IsoRendererHD({
 
   // Lighting + injected-event overlay paint pass (cheap; runs whenever the
   // lighting state or the active-event flags actually change).
-  const activeEvents = useMemo(
-    () => activeInjectedEvents(injectedEvents, simTimeMin),
-    [injectedEvents, simTimeMin],
-  )
   const visualFlags = useMemo(() => eventVisualFlags(activeEvents), [activeEvents])
+  const liveQueueLen = useMemo(() => {
+    const idx = Math.max(0, Math.min(47, Math.floor(simTimeMin / 30)))
+    const it = perInterval?.[idx]
+    return it?.queueLen ?? null
+  }, [perInterval, simTimeMin])
+  const queueDepth = dramaticState.surgeActive
+    ? estimateQueueDepth(dramaticState.surgeIntensity, dramaticState.surgeMagnitude, liveQueueLen)
+    : 0
   useEffect(() => {
     const scene = sceneRef.current
     if (!scene) return
@@ -528,6 +573,21 @@ export function IsoRendererHD({
         />
       </div>
 
+      {/* Round 9: HTML overlays — same as SVG renderer for parity. */}
+      {dramaticState.staffDropActive && (
+        <div className="cockpit-storm-overlay" aria-hidden="true"/>
+      )}
+      {dramaticState.outageActive && (
+        <div className="cockpit-emergency-lighting" aria-hidden="true"/>
+      )}
+      {dramaticState.surgeActive && (
+        <div className="cockpit-surge-border" aria-hidden="true"/>
+      )}
+      {dramaticState.surgeActive && (
+        <div className="cockpit-queue-counter" role="status">
+          📞 CALLS WAITING: {queueDepth}
+        </div>
+      )}
       {visualFlags.outageActive && (
         <div className="cockpit-outage-banner" role="status">
           <span aria-hidden="true">⚠️</span>
