@@ -1650,9 +1650,12 @@ details[open] .learn-tip summary::before { content: '▼ '; }
   left: 0.5rem;
 }
 .cockpit-scene-overlay--top-right-lower {
-  /* Sit just below the theme picker (which is top:0.5rem; right:0.5rem). */
+  /* Sit just below the theme picker (which is top:0.5rem; right:0.5rem).
+     Round 5.8: stacks SceneClock + ActivityCounter + StatusLegend vertically
+     and right-aligns each child so widths stay tight against the edge. */
   top: 2.4rem;
   right: 0.5rem;
+  align-items: flex-end;
 }
 
 .cockpit-scene-clock {
@@ -1751,13 +1754,23 @@ details[open] .learn-tip summary::before { content: '▼ '; }
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.28rem; /* Round 5.8: more breathing room between rows */
 }
 .cockpit-activity-counter li {
-  display: grid;
-  grid-template-columns: 1.1rem 1fr auto;
-  align-items: center;
+  /* Round 5.8: 2-column flex row so icon+label hug the left and the count
+     hugs the right with proper space between. Prevents the awkward
+     "Smoking patio" wrap and the no-space "At desks154" formatting. */
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  white-space: nowrap;
+}
+.cockpit-activity-counter-left {
+  display: inline-flex;
+  align-items: baseline;
   gap: 0.4rem;
+  min-width: 0;
 }
 .cockpit-activity-counter-emoji { line-height: 1; }
 .cockpit-activity-counter-label { opacity: 0.85; }
@@ -1765,21 +1778,57 @@ details[open] .learn-tip summary::before { content: '▼ '; }
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   color: #f1f5f9;
+  text-align: right;
+  min-width: 1.6rem; /* keeps single + triple digits column-aligned */
 }
 
+/* Round 5.8: Speed hint moved out of the inline PlayControls row. Now a
+   single 💡 icon button next to the speed buttons; hovering reveals a
+   tooltip popover above. Dismiss clears it forever (localStorage). */
 .cockpit-speed-hint {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.35rem;
+}
+.cockpit-speed-hint-icon-btn {
+  background: transparent;
+  border: 1px solid rgba(100, 116, 139, 0.45);
+  color: #fbbf24;
+  cursor: help;
+  font-size: 0.85rem;
+  line-height: 1;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.cockpit-speed-hint-icon-btn:hover,
+.cockpit-speed-hint-icon-btn:focus-visible {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.6);
+  outline: none;
+}
+.cockpit-speed-hint-tooltip {
+  position: absolute;
+  bottom: calc(100% + 0.4rem);
+  right: 0;
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  margin-left: 0.5rem;
-  background: rgba(59, 130, 246, 0.12);
+  background: rgba(15, 23, 42, 0.95);
   border: 1px solid rgba(59, 130, 246, 0.55);
   color: #cbd5e1;
-  padding: 0.3rem 0.55rem;
+  padding: 0.4rem 0.6rem;
   border-radius: 6px;
   font-size: 0.7rem;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  z-index: 5;
 }
-.cockpit-speed-hint-icon { font-size: 0.85rem; }
 .cockpit-speed-hint-text strong { color: #f1f5f9; font-weight: 600; }
 .cockpit-speed-hint-dismiss {
   background: transparent;

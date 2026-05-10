@@ -133,15 +133,29 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
   }
 
   // Initialize / re-initialize journeys when agent count changes.
+  //
+  // Round 5.8: this effect now ONLY prunes/preserves existing journeys
+  // when the agent roster shifts. It does NOT create journeys for new
+  // agents — the sim-state effect below owns creation, so it can use the
+  // *effective* state (Erlang-overlay-corrected) and seed the journey
+  // directly into the right resting phase. Without this split, fresh
+  // agents at 9am were being created at-desk by this effect and then the
+  // sim-state effect dispatched arriving_at_door for the same agents,
+  // producing the mass door rush.
   useEffect(() => {
     if (prevAgentCountRef.current !== agents.length) {
       const now = performance.now()
       const journeys: Record<string, VisualJourney> = {}
+      // Preserve any existing journeys for agent IDs that survive.
       for (let i = 0; i < agents.length; i++) {
         const a = agents[i]
-        const desk = layout.deskPositions[i] ?? layout.deskPositions[layout.deskPositions.length - 1] ?? { x: 0, y: 0 }
         const existing = journeysRef.current[a.id]
-        journeys[a.id] = existing ?? makeJourney(a.id, desk, a.state, now)
+        if (existing) journeys[a.id] = existing
+      }
+      // Drop journeys for agents that no longer exist; clear their prev
+      // state so a future re-add is treated as a first-sighting.
+      for (const id of Object.keys(prevStatesRef.current)) {
+        if (!journeys[id]) delete prevStatesRef.current[id]
       }
       journeysRef.current = journeys
       setJourneySnapshot(journeys)
@@ -156,6 +170,17 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
   // walk-to-door + gone (visible exodus). When the schedule ramps back up
   // and an agent becomes active again, their state flips back to idle/
   // on_call/etc. and the journey machinery walks them in from the door.
+  //
+  // Round 5.8 fix (9am reload door rush): on the FIRST evaluation for an
+  // agent (no prior recorded state), we skip the transitionJourney call
+  // entirely. The journey was just constructed by makeJourney() with the
+  // correct initial phase (at_desk / on_call_at_desk / gone) — there's
+  // nothing to "transition" yet. Without this, agents that the shift model
+  // says should already be in-office at the starting simTime got dispatched
+  // through `arriving_at_door` (walk-from-door) the first time, causing the
+  // 234-agent rush at 9am on page load. Door arrivals now only happen for
+  // genuine state TRANSITIONS during playback (off_shift -> idle), never
+  // for the initial population.
   useEffect(() => {
     const now = performance.now()
     const prev = prevStatesRef.current
@@ -166,15 +191,6 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
       const desk = next[a.id]?.homeDeskPosition
         ?? layout.deskPositions[Number(a.id.replace(/^A/, '')) || 0]
         ?? { x: 0, y: 0 }
-      if (!next[a.id]) {
-        // First-ever sight of this agent. If they're inactive at sim start
-        // (e.g. midnight skeleton + 200 agents), spawn them as `gone` so
-        // they don't pop into existence at their desks before walking out.
-        const initial: AgentVisualState = isActiveByIndex[i] ? a.state : 'off_shift'
-        next[a.id] = makeJourney(a.id, desk, initial, now)
-        changed = true
-      }
-      const prevState = prev[a.id]
 
       let effectiveState: AgentVisualState = a.state
       if (!isActiveByIndex[i]) {
@@ -189,6 +205,20 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
         effectiveState = 'off_shift'
       }
 
+      const isFirstSighting = !next[a.id]
+      if (isFirstSighting) {
+        // First-ever sight of this agent — seed the journey with the phase
+        // matching the *effective* state (so initially-inactive agents
+        // start as `gone` and initially-active ones start at-desk). This
+        // skips the door arrival animation for the starting population.
+        next[a.id] = makeJourney(a.id, desk, effectiveState, now)
+        changed = true
+        // Record state so the next evaluation only fires on real changes.
+        prev[a.id] = effectiveState
+        continue
+      }
+
+      const prevState = prev[a.id]
       if (prevState !== effectiveState) {
         const breakDur = effectiveState === 'on_break'
           ? breakDurationFor(lookahead, a.id, simTimeMin)
@@ -454,12 +484,13 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
 
     {/* Round 5.7 clarity overlays. HTML siblings of the SVG, absolutely
         positioned inside the .cockpit-agent-scene container. Subtle,
-        non-interfering, dismissible — purely informational for new users. */}
-    <div className="cockpit-scene-overlay cockpit-scene-overlay--top-left">
+        non-interfering, dismissible — purely informational for new users.
+        Round 5.8: clock + counter + legend now stack vertically along the
+        right edge so the StatusLegend "?" can never collide with an
+        ActivityCounter row. */}
+    <div className="cockpit-scene-overlay cockpit-scene-overlay--top-right-lower">
       <SceneClock simTimeMin={simTimeMin}/>
       <ActivityCounter counts={activityCounts}/>
-    </div>
-    <div className="cockpit-scene-overlay cockpit-scene-overlay--top-right-lower">
       <StatusLegend/>
     </div>
     </>

@@ -1,13 +1,18 @@
 'use client'
 
 // Round 5.7: live counts of how many agents are at each location. Sits
-// under the SceneClock in the top-left and gives users a numeric read-out
+// under the SceneClock in the top-right and gives users a numeric read-out
 // of what the activity scatter is doing — so the visualization isn't only
 // "cool to look at" but also clearly shows the breakdown.
 //
 // Counts are derived from journey phases (the source of truth for where an
 // agent currently IS) plus activity assignments for agents who haven't
 // started their journey yet. Pure render — counting happens in the parent.
+//
+// Round 5.8: switched from a 3-column grid to a 2-column flex row
+// ([icon][label] -- [count]) with `white-space: nowrap` so multi-word
+// labels like "Smoking patio" or "Water cooler" can never wrap onto a
+// second line and counts always right-align cleanly.
 
 interface ActivityCounts {
   atDesks: number
@@ -44,8 +49,10 @@ export function ActivityCounter({ counts }: ActivityCounterProps) {
       <ul>
         {ROWS.map(r => (
           <li key={r.key}>
-            <span className="cockpit-activity-counter-emoji" aria-hidden="true">{r.emoji}</span>
-            <span className="cockpit-activity-counter-label">{r.label}</span>
+            <span className="cockpit-activity-counter-left">
+              <span className="cockpit-activity-counter-emoji" aria-hidden="true">{r.emoji}</span>
+              <span className="cockpit-activity-counter-label">{r.label}</span>
+            </span>
             <span className="cockpit-activity-counter-num">{counts[r.key]}</span>
           </li>
         ))}

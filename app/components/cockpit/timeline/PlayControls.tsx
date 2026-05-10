@@ -40,8 +40,11 @@ export function PlayControls({ playing, speed, simTimeMin, onPlayToggle, onSpeed
             {s}×
           </button>
         ))}
+        {/* Round 5.8: hint moved inside the speed cluster as a 💡 icon
+            button so it sits next to the buttons it refers to and doesn't
+            spread the controls bar wide. */}
+        <SpeedHint />
       </div>
-      <SpeedHint />
     </div>
   )
 }
