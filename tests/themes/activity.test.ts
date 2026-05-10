@@ -48,22 +48,28 @@ describe('computeActivityAssignments', () => {
     }
   })
 
-  it('is stable within the same 30-min window', () => {
+  it('most agents are stable across a sub-1-min sim step (Round 4: per-agent staggered windows)', () => {
+    // With staggered per-agent windows + an 8-min window length, most agents
+    // should NOT flip between adjacent sim minutes — but a few will (those
+    // whose phase puts a window boundary in between).
     const a = computeActivityAssignments(agents, 100, layout)
-    const b = computeActivityAssignments(agents, 110, layout)  // same window (90..120)
-    for (const id of Object.keys(a)) {
-      expect(a[id].activity).toBe(b[id].activity)
-    }
-  })
-
-  it('changes assignments across windows', () => {
-    const a = computeActivityAssignments(agents, 0, layout)     // window 0
-    const b = computeActivityAssignments(agents, 60, layout)    // window 2
+    const b = computeActivityAssignments(agents, 100.5, layout)  // half a sim minute later
     let differences = 0
     for (const id of Object.keys(a)) {
       if (a[id].activity !== b[id].activity) differences++
     }
-    // With 25%+ scatter, at least some should change across windows.
+    // Vast majority stay the same.
+    expect(differences).toBeLessThan(agents.length * 0.2)
+  })
+
+  it('changes assignments across larger time gaps', () => {
+    const a = computeActivityAssignments(agents, 0, layout)
+    const b = computeActivityAssignments(agents, 60, layout)
+    let differences = 0
+    for (const id of Object.keys(a)) {
+      if (a[id].activity !== b[id].activity) differences++
+    }
+    // With shorter per-agent windows, plenty of agents should rotate.
     expect(differences).toBeGreaterThan(5)
   })
 

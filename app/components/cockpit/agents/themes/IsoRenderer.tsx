@@ -12,6 +12,8 @@ import { Restrooms } from './isoOffice/Restrooms'
 import { Gym } from './isoOffice/Gym'
 import { SmokingPatio } from './isoOffice/SmokingPatio'
 import { Janitor } from './isoOffice/Janitor'
+import { ExecutiveWalker } from './isoOffice/ExecutiveWalker'
+import { DeliveryPerson } from './isoOffice/DeliveryPerson'
 import { TileGlowDefs } from './isoOffice/TileGlow'
 import { computeBuildingLayout, type BuildingLayout, type ScreenPoint } from './isoOffice/geometry'
 import { computeActivityAssignments, type ActivityAssignment } from './isoOffice/activity'
@@ -19,9 +21,12 @@ import {
   makeJourney,
   tickJourney,
   transitionJourney,
+  startWalkToRoom,
+  startWalkBackToDesk,
   isWalkingPhase,
   journeyPosition,
   type VisualJourney,
+  type RoomKind,
 } from './isoOffice/journey'
 import { computeJourneyLookahead, breakDurationFor, hasUpcomingShiftEnd } from './isoOffice/lookahead'
 import type { AgentVisualState } from '@/lib/animation/agentTimeline'
@@ -52,6 +57,7 @@ export function IsoRenderer({ agents, simTimeMin, events }: AgentRendererProps) 
   // Frame-time-resolved render positions. Updated alongside the snapshot.
   const [positions, setPositions] = useState<Record<string, RenderedPosition>>({})
   const prevStatesRef = useRef<Record<string, AgentVisualState>>({})
+  const prevActivitiesRef = useRef<Record<string, string>>({})
   const prevAgentCountRef = useRef<number>(0)
 
   function resolvePositions(journeys: Record<string, VisualJourney>, now: number): Record<string, RenderedPosition> {
@@ -120,6 +126,61 @@ export function IsoRenderer({ agents, simTimeMin, events }: AgentRendererProps) 
     }
   }, [agents, simTimeMin, layout, lookahead])
 
+  // React to *display activity* changes (gym/training/restroom/chat/water_cooler).
+  // These don't show up in sim state — they're a visual fluff layer — so we
+  // dispatch journey walks here so every transition is a visible walk
+  // (no teleports). When activity flips back to at_desk, we walk back from
+  // wherever the agent currently is.
+  useEffect(() => {
+    const now = performance.now()
+    const prev = prevActivitiesRef.current
+    let changed = false
+    const next: Record<string, VisualJourney> = { ...journeysRef.current }
+    for (const a of agents) {
+      // Don't drive activity-walks for non-idle agents — sim state owns them.
+      if (a.state !== 'idle') {
+        prev[a.id] = activities[a.id]?.activity ?? 'at_desk'
+        continue
+      }
+      const newActivity = activities[a.id]?.activity ?? 'at_desk'
+      const prevActivity = prev[a.id]
+      if (prevActivity === newActivity) continue
+      prev[a.id] = newActivity
+      const j = next[a.id]
+      if (!j) continue
+      const target = activities[a.id]?.position
+      if (newActivity === 'at_desk') {
+        // Walk back from wherever we are.
+        const updated = startWalkBackToDesk(j, now)
+        if (updated !== j) {
+          next[a.id] = updated
+          changed = true
+        }
+      } else if (target) {
+        // Map activity to a RoomKind.
+        const roomKind: RoomKind | null =
+            newActivity === 'in_gym'         ? 'gym'
+          : newActivity === 'in_training'    ? 'training'
+          : newActivity === 'in_restroom'    ? 'restroom'
+          : newActivity === 'chatting'       ? 'chat'
+          : newActivity === 'at_water_cooler'? 'water_cooler'
+          : null
+        if (roomKind) {
+          const updated = startWalkToRoom(j, roomKind, target, now)
+          if (updated !== j) {
+            next[a.id] = updated
+            changed = true
+          }
+        }
+      }
+    }
+    if (changed) {
+      journeysRef.current = next
+      setJourneySnapshot(next)
+      setPositions(resolvePositions(next, now))
+    }
+  }, [agents, activities])
+
   // Per-frame tick: advance in-flight phases AND refresh resolved positions
   // while anything is mid-walk.
   useEffect(() => {
@@ -170,18 +231,20 @@ export function IsoRenderer({ agents, simTimeMin, events }: AgentRendererProps) 
 
       <Building layout={layout}/>
 
-      <TrainingRoom layout={layout} agents={agents} activities={activities} walkingIds={walkingIds}/>
+      <TrainingRoom layout={layout} agents={agents} activities={activities} journeys={journeySnapshot} walkingIds={walkingIds}/>
       <BreakRoom agents={agents} journeys={journeySnapshot} positions={positions} layout={layout} activities={activities} walkingIds={walkingIds}/>
       <Restrooms layout={layout}/>
-      <Gym layout={layout} agents={agents} activities={activities} walkingIds={walkingIds}/>
+      <Gym layout={layout} agents={agents} activities={activities} journeys={journeySnapshot} walkingIds={walkingIds}/>
 
       <ManagerOffices layout={layout}/>
 
       <AgentFloor agents={agents} journeys={journeySnapshot} positions={positions} layout={layout} activities={activities}/>
 
-      <SmokingPatio layout={layout} agents={agents} activities={activities}/>
+      <SmokingPatio layout={layout} agents={agents} activities={activities} journeys={journeySnapshot}/>
 
       <Janitor layout={layout} simTimeMin={simTimeMin}/>
+      <ExecutiveWalker layout={layout}/>
+      <DeliveryPerson layout={layout} simTimeMin={simTimeMin}/>
 
       <Reception layout={layout}/>
     </svg>

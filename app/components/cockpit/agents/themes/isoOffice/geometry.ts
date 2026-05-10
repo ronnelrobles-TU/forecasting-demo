@@ -92,6 +92,19 @@ export interface SmokingPatioLayout {
   standingPositions: ScreenPoint[]
 }
 
+// A hotspot the free-roaming janitor NPC may walk to. The renderer picks a
+// random hotspot every "leg" (weighted per janitor preference) so the
+// behaviour reads as autonomous rather than a fixed loop.
+export type JanitorHotspotType = 'aisle' | 'corner' | 'near_room'
+export interface JanitorHotspot {
+  pos: ScreenPoint
+  type: JanitorHotspotType
+  // For 'near_room' hotspots: which room this hotspot is at the entrance of.
+  // The janitor can occasionally enter the room (rendered at roomCenter).
+  roomId?: 'gym' | 'training' | 'breakRoom' | 'restroom'
+  roomCenter?: ScreenPoint
+}
+
 export interface AgentFloorLayout extends RoomBounds {
   pods: CubiclePod[]
   // Pairs of nearby points where idle agents can stand chatting in the aisles
@@ -106,6 +119,12 @@ export interface AgentFloorLayout extends RoomBounds {
   // Optional one-off room visits a janitor can pause inside (mop the gym,
   // training, etc.). Used by the Janitor renderer to occasionally divert.
   janitorRoomVisits: Array<{ roomId: 'gym' | 'training' | 'breakRoom'; pos: ScreenPoint }>
+  // Free-roaming hotspots used by the janitor state machine to pick random
+  // destinations (Round 4). Each janitor weights them differently.
+  janitorHotspots: JanitorHotspot[]
+  // Position of the water cooler in screen space (cached for the coffee-run
+  // micro-event so callers don't have to dig into breakRoom).
+  waterCoolerPos: ScreenPoint
 }
 
 export interface BuildingLayout {
@@ -254,7 +273,20 @@ export function computeBuildingLayout(agentCount: number): BuildingLayout {
     jMin: AGENT_FLOOR_J_MIN,
     jMax: tilesD - RECEPTION_DEPTH,
   }
-  const agentFloor = makeAgentFloor(podCount, podCols, podRows, agentFloorBounds, originX, originY)
+  const agentFloor = makeAgentFloor(
+    podCount, podCols, podRows, agentFloorBounds, originX, originY,
+    {
+      gymCenter: isoToScreen((GYM_BOUNDS.iMin + GYM_BOUNDS.iMax) / 2, (GYM_BOUNDS.jMin + GYM_BOUNDS.jMax) / 2, originX, originY),
+      trainingCenter: isoToScreen((TRAINING_BOUNDS.iMin + TRAINING_BOUNDS.iMax) / 2, (TRAINING_BOUNDS.jMin + TRAINING_BOUNDS.jMax) / 2, originX, originY),
+      breakCenter: isoToScreen((BREAK_BOUNDS.iMin + BREAK_BOUNDS.iMax) / 2, (BREAK_BOUNDS.jMin + BREAK_BOUNDS.jMax) / 2, originX, originY),
+      restroomCenter: isoToScreen((RESTROOM_BOUNDS.iMin + RESTROOM_BOUNDS.iMax) / 2, (RESTROOM_BOUNDS.jMin + RESTROOM_BOUNDS.jMax) / 2, originX, originY),
+      gymDoor: isoToScreen(GYM_BOUNDS.iMax, (GYM_BOUNDS.jMin + GYM_BOUNDS.jMax) / 2, originX, originY),
+      trainingDoor: isoToScreen(TRAINING_BOUNDS.iMax, (TRAINING_BOUNDS.jMin + TRAINING_BOUNDS.jMax) / 2, originX, originY),
+      breakDoor: isoToScreen(BREAK_BOUNDS.iMax, (BREAK_BOUNDS.jMin + BREAK_BOUNDS.jMax) / 2, originX, originY),
+      restroomDoor: isoToScreen(RESTROOM_BOUNDS.iMax, (RESTROOM_BOUNDS.jMin + RESTROOM_BOUNDS.jMax) / 2, originX, originY),
+      waterCoolerPos: breakRoom.waterCoolerPosition,
+    },
+  )
 
   // Distribute windows along the back walls (NE + NW). One window per ~3 iso tiles.
   const windowsPerWall = Math.max(3, Math.floor(Math.max(tilesW, tilesD) / 3))
@@ -311,6 +343,18 @@ function rectWalls(b: IsoBounds, originX: number, originY: number): Array<[Scree
 
 // ---------- Room builders ----------
 
+interface RoomAnchors {
+  gymCenter: ScreenPoint
+  trainingCenter: ScreenPoint
+  breakCenter: ScreenPoint
+  restroomCenter: ScreenPoint
+  gymDoor: ScreenPoint
+  trainingDoor: ScreenPoint
+  breakDoor: ScreenPoint
+  restroomDoor: ScreenPoint
+  waterCoolerPos: ScreenPoint
+}
+
 function makeAgentFloor(
   podCount: number,
   podCols: number,
@@ -318,6 +362,7 @@ function makeAgentFloor(
   bounds: IsoBounds,
   originX: number,
   originY: number,
+  rooms: RoomAnchors,
 ): AgentFloorLayout {
   const pods: CubiclePod[] = []
   // Margin: 1 iso tile from each side of the agent-floor bounds.
@@ -401,6 +446,38 @@ function makeAgentFloor(
     { roomId: 'breakRoom',pos: isoToScreen((BREAK_BOUNDS.iMin + BREAK_BOUNDS.iMax) / 2 - 0.5, (BREAK_BOUNDS.jMin + BREAK_BOUNDS.jMax) / 2 + 0.6, originX, originY) },
   ]
 
+  // Build a richer hotspot list for the free-roaming janitor state machine.
+  // Mix of: aisle midpoints (between pod columns AND rows), 4 corners of the
+  // agent floor, and one entrance per nearby room.
+  const janitorHotspots: JanitorHotspot[] = []
+  // Aisles between pod columns (vertical aisles)
+  for (let r = 0; r < podRows; r++) {
+    for (let c = 0; c < podCols - 1; c++) {
+      const aisleI = i0 + c * POD_SPACING_I + POD_SPACING_I
+      const aisleJ = j0 + r * POD_SPACING_J + POD_SPACING_J / 2
+      janitorHotspots.push({ pos: isoToScreen(aisleI, aisleJ, originX, originY), type: 'aisle' })
+    }
+  }
+  // Aisles between pod rows (horizontal aisles)
+  for (let r = 0; r < podRows - 1; r++) {
+    for (let c = 0; c < podCols; c++) {
+      const aisleI = i0 + c * POD_SPACING_I + POD_SPACING_I / 2
+      const aisleJ = j0 + r * POD_SPACING_J + POD_SPACING_J
+      janitorHotspots.push({ pos: isoToScreen(aisleI, aisleJ, originX, originY), type: 'aisle' })
+    }
+  }
+  // 4 corners
+  const cornerPad = 0.7
+  janitorHotspots.push({ pos: isoToScreen(bounds.iMin + cornerPad, bounds.jMin + cornerPad, originX, originY), type: 'corner' })
+  janitorHotspots.push({ pos: isoToScreen(bounds.iMax - cornerPad, bounds.jMin + cornerPad, originX, originY), type: 'corner' })
+  janitorHotspots.push({ pos: isoToScreen(bounds.iMax - cornerPad, bounds.jMax - cornerPad, originX, originY), type: 'corner' })
+  janitorHotspots.push({ pos: isoToScreen(bounds.iMin + cornerPad, bounds.jMax - cornerPad, originX, originY), type: 'corner' })
+  // Near-room entrances (just inside the agent floor near each NW room's east-side door).
+  janitorHotspots.push({ pos: rooms.gymDoor,      type: 'near_room', roomId: 'gym',      roomCenter: rooms.gymCenter })
+  janitorHotspots.push({ pos: rooms.trainingDoor, type: 'near_room', roomId: 'training', roomCenter: rooms.trainingCenter })
+  janitorHotspots.push({ pos: rooms.breakDoor,    type: 'near_room', roomId: 'breakRoom', roomCenter: rooms.breakCenter })
+  janitorHotspots.push({ pos: rooms.restroomDoor, type: 'near_room', roomId: 'restroom', roomCenter: rooms.restroomCenter })
+
   return {
     isoBounds: bounds,
     zonePoints: isoRect(bounds, originX, originY),
@@ -410,6 +487,8 @@ function makeAgentFloor(
     janitorPath: perimeterPath,
     janitorPaths,
     janitorRoomVisits,
+    janitorHotspots,
+    waterCoolerPos: rooms.waterCoolerPos,
   }
 }
 
@@ -418,30 +497,35 @@ function makeSmokingPatio(
   W: ScreenPoint,
   agentFloor: AgentFloorLayout,
 ): SmokingPatioLayout {
-  // Attach to the SW face. The face runs from S to W in screen space; we
-  // extend a small flat patio outward (downward in screen y) of fixed pixel
-  // size. The patio is intentionally rectangular (not iso-aligned) for
-  // visual contrast — it reads as a "deck" attached to the side wall.
-  const PATIO_OFFSET_Y = 18    // distance below the wall line (screen px)
-  const PATIO_DEPTH = 28       // depth of the patio in screen y
-  const PATIO_WIDTH_PCT = 0.55  // fraction of the SW wall length the patio covers
+  // Attach FLUSH to the SW face — Round 4 reposition. Removes the previous
+  // floating-deck offset and instead sits the patio tight against the wall
+  // line, then extends outward perpendicular to the wall. Reads as a small
+  // attached balcony rather than a disconnected deck.
+  const PATIO_DEPTH = 32       // depth perpendicular to the wall (screen px)
+  const PATIO_WIDTH_PCT = 0.5  // fraction of the SW wall length the patio covers
 
-  // Pick the midpoint of S->W and extend symmetrically.
   const dx = W.x - S.x
   const dy = W.y - S.y
   const wallLen = Math.hypot(dx, dy)
   const ux = dx / wallLen
   const uy = dy / wallLen
+  // Outward-pointing normal to the SW wall (screen-down/left side of building).
+  // The SW wall runs from S to W with positive y-direction; outward normal
+  // (away from the building) points toward (+y) in screen space mostly.
+  const nx = uy
+  const ny = -ux
+  // Choose the outward-pointing normal: building interior is "above" (smaller
+  // y) the SW wall, so outward = direction with positive y component.
+  const outward = ny > 0 ? { x: nx, y: ny } : { x: -nx, y: -ny }
+
   const halfPatio = (wallLen * PATIO_WIDTH_PCT) / 2
   const midX = (S.x + W.x) / 2
   const midY = (S.y + W.y) / 2
 
-  // Two endpoints along the wall (where the patio meets the building).
-  const wallA: ScreenPoint = { x: midX - ux * halfPatio, y: midY - uy * halfPatio + PATIO_OFFSET_Y - 18 }
-  const wallB: ScreenPoint = { x: midX + ux * halfPatio, y: midY + uy * halfPatio + PATIO_OFFSET_Y - 18 }
-  // Outer corners (away from the building).
-  const outerA: ScreenPoint = { x: wallA.x + 6, y: wallA.y + PATIO_DEPTH }
-  const outerB: ScreenPoint = { x: wallB.x - 6, y: wallB.y + PATIO_DEPTH }
+  const wallA: ScreenPoint = { x: midX - ux * halfPatio, y: midY - uy * halfPatio }
+  const wallB: ScreenPoint = { x: midX + ux * halfPatio, y: midY + uy * halfPatio }
+  const outerA: ScreenPoint = { x: wallA.x + outward.x * PATIO_DEPTH, y: wallA.y + outward.y * PATIO_DEPTH }
+  const outerB: ScreenPoint = { x: wallB.x + outward.x * PATIO_DEPTH, y: wallB.y + outward.y * PATIO_DEPTH }
 
   const zonePoints: ScreenPoint[] = [wallA, wallB, outerB, outerA]
   const railingSegments: Array<[ScreenPoint, ScreenPoint]> = [
@@ -450,21 +534,28 @@ function makeSmokingPatio(
     [outerB, wallB],
   ]
 
-  // Bench along the back (against the building wall).
-  const bench: ScreenPoint = { x: (wallA.x + wallB.x) / 2, y: (wallA.y + wallB.y) / 2 + 4 }
-  // Ashtray near the outer-left corner.
-  const ashtray: ScreenPoint = { x: outerA.x + 6, y: outerA.y - 4 }
+  // Bench along the back (against the building wall): midway between wallA/wallB,
+  // pushed slightly outward into the patio.
+  const benchX = (wallA.x + wallB.x) / 2 + outward.x * 6
+  const benchY = (wallA.y + wallB.y) / 2 + outward.y * 6
+  const bench: ScreenPoint = { x: benchX, y: benchY }
+  // Ashtray near one outer corner.
+  const ashtray: ScreenPoint = {
+    x: outerA.x + (outerB.x - outerA.x) * 0.18,
+    y: outerA.y + (outerB.y - outerA.y) * 0.18 - 3,
+  }
 
-  // 6 standing positions across the patio (3 pairs).
+  // 6 standing positions across the patio in 3 paired clusters. Pairs are
+  // offset along the wall direction so they read as "facing each other".
   const standingPositions: ScreenPoint[] = []
-  const innerLeftX = wallA.x + 8
-  const innerRightX = wallB.x - 8
-  const midPatioY = (wallA.y + wallB.y) / 2 + 14
   for (let k = 0; k < 3; k++) {
     const t = (k + 0.5) / 3
-    const cx = innerLeftX + (innerRightX - innerLeftX) * t
-    standingPositions.push({ x: cx - 4, y: midPatioY })
-    standingPositions.push({ x: cx + 4, y: midPatioY + 2 })
+    // Anchor along the patio's long axis (wallA → wallB).
+    const baseX = wallA.x + (wallB.x - wallA.x) * t + outward.x * (PATIO_DEPTH * 0.55)
+    const baseY = wallA.y + (wallB.y - wallA.y) * t + outward.y * (PATIO_DEPTH * 0.55)
+    // Pair offset along the wall axis (so partners face each other).
+    standingPositions.push({ x: baseX - ux * 4, y: baseY - uy * 4 })
+    standingPositions.push({ x: baseX + ux * 4, y: baseY + uy * 4 })
   }
   // Reference agentFloor so it isn't reported unused (useful for future
   // patio-routing tweaks tied to floor layout).

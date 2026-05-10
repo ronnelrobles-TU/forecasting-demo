@@ -79,7 +79,7 @@ export function LiveSimTab({ onLiveChange }: LiveSimTabProps = {}) {
             simTimeMin={simTimeMin}
             onPlayToggle={() => setPlaying(!playing)}
             onSpeedChange={setSpeed}
-            onReset={() => setSimTimeMin(0)}
+            onReset={() => setSimTimeMin(540)}
           />
           <TimelineScrubber
             simTimeMin={simTimeMin}

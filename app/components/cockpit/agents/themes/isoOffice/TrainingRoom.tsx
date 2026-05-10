@@ -38,11 +38,15 @@ function Whiteboard({ x, y }: { x: number; y: number }) {
   )
 }
 
-export function TrainingRoom({ layout, agents = [], activities, walkingIds }: TrainingRoomProps) {
+export function TrainingRoom({ layout, agents = [], activities, journeys, walkingIds }: TrainingRoomProps) {
   const t = layout.rooms.trainingRoom
-  const trainingAgents = activities
-    ? agents.filter(a => activities[a.id]?.activity === 'in_training')
-    : []
+  // Render only agents whose journey says "in_room: training". Falls back to
+  // activity-only when no journey is present (initial render).
+  const trainingAgents = agents.filter(a => {
+    const j = journeys?.[a.id]
+    if (j) return j.phase.kind === 'in_room' && j.phase.targetRoom === 'training'
+    return activities?.[a.id]?.activity === 'in_training' && !walkingIds?.has(a.id)
+  })
   return (
     <g>
       <Whiteboard x={t.whiteboardPosition.x} y={t.whiteboardPosition.y}/>
@@ -50,8 +54,9 @@ export function TrainingRoom({ layout, agents = [], activities, walkingIds }: Tr
         <StudentChair key={`tc${i}`} x={s.x} y={s.y}/>
       ))}
       {trainingAgents.map(a => {
-        if (walkingIds?.has(a.id)) return null
-        const pos = activities![a.id].position
+        const pos = (journeys?.[a.id]?.phase.kind === 'in_room'
+          ? (journeys![a.id].phase as { pos: { x: number; y: number } }).pos
+          : activities![a.id].position)
         return (
           <g key={`student-${a.id}`}>
             <AgentSprite x={pos.x} y={pos.y - 1} shirtColor="#22c55e"/>

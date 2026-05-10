@@ -13,9 +13,13 @@ interface UseAnimationReturn {
 }
 
 export function useAnimation(): UseAnimationReturn {
-  const [simTimeMin, setSimTimeMin] = useState(0)
+  // Default open at 9am so the office is busy from the first frame
+  // (was 0/midnight which left the floor empty until the user scrubbed).
+  const [simTimeMin, setSimTimeMin] = useState(540)
   const [playing, setPlaying] = useState(false)
-  const [speed, setSpeed] = useState<Speed>(10)
+  // Default to 0.25× — a full day in ~4 real minutes. Slow enough to
+  // follow individual NPC walks across the floor.
+  const [speed, setSpeed] = useState<Speed>(0.25)
 
   const lastFrameRef = useRef<number | null>(null)
   const rafRef = useRef<number | null>(null)

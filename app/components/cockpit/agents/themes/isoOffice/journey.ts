@@ -19,7 +19,7 @@ import type { ScreenPoint, BuildingLayout } from './geometry'
 // Visual phases an agent can be in. Some are "stable resting points"
 // (interruptible), others are "in-flight" (must complete before honoring new
 // sim state). See `isRestingPhase` for the precise mapping.
-export type RoomKind = 'gym' | 'training' | 'restroom' | 'patio'
+export type RoomKind = 'gym' | 'training' | 'restroom' | 'patio' | 'water_cooler' | 'chat'
 
 export type JourneyPhase =
   | { kind: 'arriving_at_door'; from: ScreenPoint; to: ScreenPoint; duration: number }
@@ -36,6 +36,20 @@ export type JourneyPhase =
   | { kind: 'walking_to_room'; targetRoom: RoomKind; from: ScreenPoint; to: ScreenPoint; duration: number; roomPos: ScreenPoint }
   | { kind: 'in_room'; targetRoom: RoomKind; pos: ScreenPoint; until: number }
   | { kind: 'walking_back_from_room'; targetRoom: RoomKind; from: ScreenPoint; to: ScreenPoint; duration: number }
+  // Restroom is rendered as a 5-phase visible journey (Round 4): walk to door,
+  // fade out at door, hidden inside, fade in at door, walk back. The agent is
+  // never teleported.
+  | { kind: 'walking_to_restroom_door'; from: ScreenPoint; to: ScreenPoint; duration: number }
+  | { kind: 'entering_restroom'; pos: ScreenPoint; duration: number }
+  | { kind: 'inside_restroom'; pos: ScreenPoint; until: number }
+  | { kind: 'exiting_restroom'; pos: ScreenPoint; duration: number }
+  | { kind: 'walking_back_from_restroom'; from: ScreenPoint; to: ScreenPoint; duration: number }
+  // Chatting (now visible — agent walks to a chat hotspot, stands a beat,
+  // walks back). Distinct from in_room so the chatter remains owned by the
+  // floor renderer rather than a room component.
+  | { kind: 'walking_to_chat_spot'; from: ScreenPoint; to: ScreenPoint; duration: number; spot: ScreenPoint }
+  | { kind: 'at_chat_spot'; pos: ScreenPoint; until: number }
+  | { kind: 'walking_back_from_chat'; from: ScreenPoint; to: ScreenPoint; duration: number }
 
 export interface VisualJourney {
   agentId: string
@@ -43,11 +57,19 @@ export interface VisualJourney {
   phaseStartedAt: number
   pendingSimState: AgentVisualState | null
   homeDeskPosition: ScreenPoint
+  // Last on-screen position of the agent (updated whenever a walk completes
+  // or a resting phase is entered). Used to source-position room→desk walks
+  // so the agent appears to walk back from the room they were last in,
+  // instead of teleporting to a door first.
+  lastKnownPosition: ScreenPoint
 }
 
 export const MIN_BREAK_HOLD_MS = 2500
 export const MIN_LUNCH_OUT_MS = 4000
 export const MIN_ROOM_HOLD_MS = 3000
+export const MIN_CHAT_HOLD_MS = 2500
+export const MIN_RESTROOM_HOLD_MS = 3500
+export const RESTROOM_FADE_MS = 500
 export const WALK_DURATION_MS = 1500
 export const LUNCH_WALK_DURATION_MS = 2000
 
@@ -87,6 +109,7 @@ export function makeJourney(
     phaseStartedAt: nowMs,
     pendingSimState: null,
     homeDeskPosition,
+    lastKnownPosition: homeDeskPosition,
   }
 }
 
@@ -100,6 +123,8 @@ export function isRestingPhase(phase: JourneyPhase, nowMs: number): boolean {
     case 'at_break_table':
     case 'in_room':
     case 'outside_for_lunch':
+    case 'at_chat_spot':
+    case 'inside_restroom':
       return nowMs >= phase.until
     default:
       return false
@@ -107,7 +132,7 @@ export function isRestingPhase(phase: JourneyPhase, nowMs: number): boolean {
 }
 
 // Compute the agent's current screen position + opacity. Returns opacity 0
-// when the agent is hidden (outside_for_lunch / gone).
+// when the agent is hidden (outside_for_lunch / gone / inside_restroom).
 export function journeyPosition(
   journey: VisualJourney,
   nowMs: number,
@@ -121,7 +146,11 @@ export function journeyPosition(
     case 'walking_to_door_for_lunch':
     case 'walking_back_from_lunch':
     case 'walking_to_room':
-    case 'walking_back_from_room': {
+    case 'walking_back_from_room':
+    case 'walking_to_restroom_door':
+    case 'walking_back_from_restroom':
+    case 'walking_to_chat_spot':
+    case 'walking_back_from_chat': {
       const t = phase.duration > 0 ? Math.min(1, elapsed / phase.duration) : 1
       return { pos: lerp(phase.from, phase.to, t), opacity: 1, visible: true }
     }
@@ -131,12 +160,24 @@ export function journeyPosition(
       const opacity = t < 0.7 ? 1 : Math.max(0, 1 - (t - 0.7) / 0.3)
       return { pos: lerp(phase.from, phase.to, t), opacity, visible: true }
     }
+    case 'entering_restroom': {
+      // Standing at the door, opacity 1 -> 0.
+      const t = phase.duration > 0 ? Math.min(1, elapsed / phase.duration) : 1
+      return { pos: phase.pos, opacity: 1 - t, visible: t < 0.999 }
+    }
+    case 'exiting_restroom': {
+      // Standing at the door, opacity 0 -> 1.
+      const t = phase.duration > 0 ? Math.min(1, elapsed / phase.duration) : 1
+      return { pos: phase.pos, opacity: t, visible: true }
+    }
     case 'at_desk':
     case 'on_call_at_desk':
       return { pos: phase.pos, opacity: 1, visible: true }
     case 'at_break_table':
     case 'in_room':
+    case 'at_chat_spot':
       return { pos: phase.pos, opacity: 1, visible: true }
+    case 'inside_restroom':
     case 'outside_for_lunch':
     case 'gone':
       return { pos: { x: 0, y: 0 }, opacity: 0, visible: false }
@@ -148,7 +189,13 @@ function getCurrentPos(journey: VisualJourney, nowMs: number): ScreenPoint {
 }
 
 function startPhase(journey: VisualJourney, phase: JourneyPhase, nowMs: number): VisualJourney {
-  return { ...journey, phase, phaseStartedAt: nowMs }
+  // Update lastKnownPosition opportunistically — whenever we transition to a
+  // new phase, snapshot where the agent currently is (resolved via the OLD
+  // phase's position, which is our latest visible point) so subsequent
+  // walks can source from there instead of teleporting to a door.
+  const lastResolved = journeyPosition(journey, nowMs)
+  const lastKnown = lastResolved.visible ? lastResolved.pos : journey.lastKnownPosition
+  return { ...journey, phase, phaseStartedAt: nowMs, lastKnownPosition: lastKnown }
 }
 
 // Pick a stable seat for an agent (deterministic by agent id).
@@ -250,6 +297,76 @@ function startPhaseForState(
       }, nowMs)
     }
   }
+}
+
+// Dispatch a visible walk to a non-break room (gym, training, water cooler,
+// chat spot, restroom). Returns the new journey. If the agent is currently
+// mid-walk this is a no-op (we don't want to interrupt an in-flight journey).
+export function startWalkToRoom(
+  journey: VisualJourney,
+  room: RoomKind,
+  roomPos: ScreenPoint,
+  nowMs: number,
+): VisualJourney {
+  // Don't interrupt anything that isn't a stable resting phase at the desk.
+  const k = journey.phase.kind
+  if (k !== 'at_desk' && k !== 'on_call_at_desk') return journey
+  const from = journey.lastKnownPosition
+  if (room === 'restroom') {
+    return startPhase(journey, {
+      kind: 'walking_to_restroom_door',
+      from,
+      to: roomPos,
+      duration: WALK_DURATION_MS,
+    }, nowMs)
+  }
+  if (room === 'chat') {
+    return startPhase(journey, {
+      kind: 'walking_to_chat_spot',
+      from,
+      to: roomPos,
+      duration: WALK_DURATION_MS,
+      spot: roomPos,
+    }, nowMs)
+  }
+  return startPhase(journey, {
+    kind: 'walking_to_room',
+    targetRoom: room,
+    from,
+    to: roomPos,
+    duration: WALK_DURATION_MS,
+    roomPos,
+  }, nowMs)
+}
+
+// Dispatch a walk back to the desk from wherever the agent currently is.
+// No-op if the agent is already at-desk or mid-walk.
+export function startWalkBackToDesk(
+  journey: VisualJourney,
+  nowMs: number,
+): VisualJourney {
+  const phase = journey.phase
+  // If at a stable non-desk resting phase, walk back. The room→desk source
+  // position is the resting phase's pos (so no teleport).
+  if (phase.kind === 'in_room') {
+    return startPhase(journey, {
+      kind: 'walking_back_from_room',
+      targetRoom: phase.targetRoom,
+      from: phase.pos,
+      to: journey.homeDeskPosition,
+      duration: WALK_DURATION_MS,
+    }, nowMs)
+  }
+  if (phase.kind === 'at_chat_spot') {
+    return startPhase(journey, {
+      kind: 'walking_back_from_chat',
+      from: phase.pos,
+      to: journey.homeDeskPosition,
+      duration: WALK_DURATION_MS,
+    }, nowMs)
+  }
+  // For inside_restroom we let the natural exit phase handle the return walk.
+  return journey
 }
 
 // Apply a sim state change to a journey. May DEFER if the agent is mid-walk.
@@ -397,6 +514,98 @@ export function tickJourney(
       }
       break
     }
+    case 'walking_to_restroom_door': {
+      if (elapsed >= phase.duration) {
+        return startPhase(journey, {
+          kind: 'entering_restroom',
+          pos: phase.to,
+          duration: RESTROOM_FADE_MS,
+        }, nowMs)
+      }
+      break
+    }
+    case 'entering_restroom': {
+      if (elapsed >= phase.duration) {
+        return startPhase(journey, {
+          kind: 'inside_restroom',
+          pos: phase.pos,
+          until: nowMs + MIN_RESTROOM_HOLD_MS,
+        }, nowMs)
+      }
+      break
+    }
+    case 'inside_restroom': {
+      if (nowMs >= phase.until) {
+        if (journey.pendingSimState && journey.pendingSimState !== 'idle') {
+          return startPhase(journey, {
+            kind: 'exiting_restroom',
+            pos: phase.pos,
+            duration: RESTROOM_FADE_MS,
+          }, nowMs)
+        }
+        // Auto-exit even if sim state hasn't changed (visit ended naturally).
+        return startPhase(journey, {
+          kind: 'exiting_restroom',
+          pos: phase.pos,
+          duration: RESTROOM_FADE_MS,
+        }, nowMs)
+      }
+      break
+    }
+    case 'exiting_restroom': {
+      if (elapsed >= phase.duration) {
+        return startPhase(journey, {
+          kind: 'walking_back_from_restroom',
+          from: phase.pos,
+          to: journey.homeDeskPosition,
+          duration: WALK_DURATION_MS,
+        }, nowMs)
+      }
+      break
+    }
+    case 'walking_back_from_restroom': {
+      if (elapsed >= phase.duration) {
+        const stableState = journey.pendingSimState ?? 'idle'
+        const nextPhase: JourneyPhase = stableState === 'on_call'
+          ? { kind: 'on_call_at_desk', pos: journey.homeDeskPosition }
+          : { kind: 'at_desk', pos: journey.homeDeskPosition }
+        return startPhase({ ...journey, pendingSimState: null }, nextPhase, nowMs)
+      }
+      break
+    }
+    case 'walking_to_chat_spot': {
+      if (elapsed >= phase.duration) {
+        return startPhase(journey, {
+          kind: 'at_chat_spot',
+          pos: phase.spot,
+          until: nowMs + MIN_CHAT_HOLD_MS,
+        }, nowMs)
+      }
+      break
+    }
+    case 'at_chat_spot': {
+      if (nowMs >= phase.until) {
+        if (journey.pendingSimState && journey.pendingSimState !== 'idle') {
+          return startPhase(journey, {
+            kind: 'walking_back_from_chat',
+            from: phase.pos,
+            to: journey.homeDeskPosition,
+            duration: WALK_DURATION_MS,
+          }, nowMs)
+        }
+      }
+      break
+    }
+    case 'walking_back_from_chat': {
+      if (elapsed >= phase.duration) {
+        const stableState = journey.pendingSimState ?? 'idle'
+        const nextPhase: JourneyPhase = stableState === 'on_call'
+          ? { kind: 'on_call_at_desk', pos: journey.homeDeskPosition }
+          : { kind: 'at_desk', pos: journey.homeDeskPosition }
+        return startPhase({ ...journey, pendingSimState: null }, nextPhase, nowMs)
+      }
+      break
+    }
     case 'at_desk':
     case 'on_call_at_desk':
     case 'gone':
@@ -432,6 +641,12 @@ export function isWalkingPhase(phase: JourneyPhase): boolean {
     case 'walking_to_door_for_shift_end':
     case 'walking_to_room':
     case 'walking_back_from_room':
+    case 'walking_to_restroom_door':
+    case 'walking_back_from_restroom':
+    case 'walking_to_chat_spot':
+    case 'walking_back_from_chat':
+    case 'entering_restroom':
+    case 'exiting_restroom':
       return true
     default:
       return false

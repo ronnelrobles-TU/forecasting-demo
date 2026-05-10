@@ -3,6 +3,8 @@ import {
   makeJourney,
   tickJourney,
   transitionJourney,
+  startWalkToRoom,
+  startWalkBackToDesk,
   journeyPosition,
   isRestingPhase,
   isWalkingPhase,
@@ -11,6 +13,8 @@ import {
   LUNCH_WALK_DURATION_MS,
   MIN_BREAK_HOLD_MS,
   MIN_LUNCH_OUT_MS,
+  MIN_RESTROOM_HOLD_MS,
+  RESTROOM_FADE_MS,
   type VisualJourney,
 } from '@/app/components/cockpit/agents/themes/isoOffice/journey'
 import { computeBuildingLayout } from '@/app/components/cockpit/agents/themes/isoOffice/geometry'
@@ -229,6 +233,99 @@ describe('isWalkingPhase / isAtBreakTable helpers', () => {
   it('isAtBreakTable detects at_break_table only', () => {
     expect(isAtBreakTable({ kind: 'at_break_table', pos: desk, until: 0 })).toBe(true)
     expect(isAtBreakTable({ kind: 'at_desk', pos: desk })).toBe(false)
+  })
+})
+
+describe('Round 4: restroom 5-phase visible journey', () => {
+  const restroomDoor = layout.rooms.restrooms.doorPositions[0]
+  it('walks to door -> fades out at door -> hidden -> fades in -> walks back', () => {
+    let j = makeJourney('A0', desk, 'idle', 0)
+    // Dispatch the restroom walk.
+    j = startWalkToRoom(j, 'restroom', restroomDoor, 0)
+    expect(j.phase.kind).toBe('walking_to_restroom_door')
+
+    // Walk completes -> entering_restroom (fade out).
+    j = tickJourney(j, layout, WALK_DURATION_MS + 1)
+    expect(j.phase.kind).toBe('entering_restroom')
+
+    // Fade duration elapses -> inside_restroom.
+    j = tickJourney(j, layout, WALK_DURATION_MS + RESTROOM_FADE_MS + 5)
+    expect(j.phase.kind).toBe('inside_restroom')
+    // Hidden — opacity 0.
+    const hidden = journeyPosition(j, WALK_DURATION_MS + RESTROOM_FADE_MS + 100)
+    expect(hidden.opacity).toBe(0)
+    expect(hidden.visible).toBe(false)
+
+    // Min restroom hold elapses -> exiting_restroom.
+    const tHold = WALK_DURATION_MS + RESTROOM_FADE_MS + MIN_RESTROOM_HOLD_MS + 50
+    j = tickJourney(j, layout, tHold)
+    expect(j.phase.kind).toBe('exiting_restroom')
+
+    // Fade-in completes -> walking back to desk.
+    j = tickJourney(j, layout, tHold + RESTROOM_FADE_MS + 5)
+    expect(j.phase.kind).toBe('walking_back_from_restroom')
+
+    // Walk completes -> at_desk.
+    j = tickJourney(j, layout, tHold + RESTROOM_FADE_MS + WALK_DURATION_MS + 10)
+    expect(j.phase.kind).toBe('at_desk')
+  })
+
+  it('entering_restroom interpolates opacity from 1 -> 0', () => {
+    let j = makeJourney('A0', desk, 'idle', 0)
+    j = startWalkToRoom(j, 'restroom', restroomDoor, 0)
+    j = tickJourney(j, layout, WALK_DURATION_MS + 1)
+    expect(j.phase.kind).toBe('entering_restroom')
+    const start = journeyPosition(j, WALK_DURATION_MS + 1)
+    const half = journeyPosition(j, WALK_DURATION_MS + 1 + RESTROOM_FADE_MS / 2)
+    expect(start.opacity).toBeCloseTo(1, 1)
+    expect(half.opacity).toBeCloseTo(0.5, 1)
+  })
+})
+
+describe('Round 4: chat walks (no teleport)', () => {
+  it('startWalkToRoom chat -> walking_to_chat_spot -> at_chat_spot -> walking_back_from_chat', () => {
+    const chatSpot = { x: 100, y: 100 }
+    let j = makeJourney('A0', desk, 'idle', 0)
+    j = startWalkToRoom(j, 'chat', chatSpot, 0)
+    expect(j.phase.kind).toBe('walking_to_chat_spot')
+
+    j = tickJourney(j, layout, WALK_DURATION_MS + 1)
+    expect(j.phase.kind).toBe('at_chat_spot')
+
+    // Walk back triggered by startWalkBackToDesk after the agent settles.
+    const tBack = WALK_DURATION_MS + 1 + 5000
+    // Mark pending so the at_chat_spot tick triggers the walk-back.
+    j = { ...j, pendingSimState: 'on_call' }
+    j = tickJourney(j, layout, tBack)
+    expect(j.phase.kind).toBe('walking_back_from_chat')
+  })
+
+  it('startWalkBackToDesk from in_room phase walks back from the room pos (no teleport)', () => {
+    const gymPos = { x: 50, y: 50 }
+    let j = makeJourney('A0', desk, 'idle', 0)
+    j = startWalkToRoom(j, 'gym', gymPos, 0)
+    j = tickJourney(j, layout, WALK_DURATION_MS + 1)
+    expect(j.phase.kind).toBe('in_room')
+
+    j = startWalkBackToDesk(j, WALK_DURATION_MS + 100)
+    expect(j.phase.kind).toBe('walking_back_from_room')
+    if (j.phase.kind === 'walking_back_from_room') {
+      // Walk source must be the gym position, NOT the door / origin.
+      expect(j.phase.from).toEqual(gymPos)
+    }
+  })
+
+  it('lastKnownPosition is updated as walks complete', () => {
+    const gymPos = { x: 50, y: 50 }
+    let j = makeJourney('A0', desk, 'idle', 0)
+    expect(j.lastKnownPosition).toEqual(desk)
+    j = startWalkToRoom(j, 'gym', gymPos, 0)
+    // Walk reaches gym.
+    j = tickJourney(j, layout, WALK_DURATION_MS + 1)
+    expect(j.phase.kind).toBe('in_room')
+    // lastKnownPosition should now reflect the arrival point.
+    expect(j.lastKnownPosition.x).toBeCloseTo(gymPos.x, 0)
+    expect(j.lastKnownPosition.y).toBeCloseTo(gymPos.y, 0)
   })
 })
 

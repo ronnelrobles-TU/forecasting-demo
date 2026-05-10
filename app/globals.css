@@ -1623,3 +1623,32 @@ details[open] .learn-tip summary::before { content: '▼ '; }
   transform-box: fill-box;
   transform-origin: center;
 }
+
+/* ───────── Cockpit iso-office: Janitor mop sway (Round 4) ───────── */
+@keyframes cockpit-janitor-mop-sway {
+  0%, 100% { transform: rotate(-7deg); }
+  50%      { transform: rotate(7deg); }
+}
+.cockpit-janitor-mop {
+  animation: cockpit-janitor-mop-sway 0.8s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: 5px -2px;
+}
+
+/* ───────── Cockpit iso-office: smoke curl on the patio (Round 4) ───────── */
+@keyframes cockpit-smoke-rise {
+  0%   { transform: translate(0px, 0px); opacity: 0.7; }
+  50%  { opacity: 0.45; }
+  100% { transform: translate(2px, -12px); opacity: 0; }
+}
+.cockpit-smoke-curl {
+  animation: cockpit-smoke-rise 2s ease-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.cockpit-smoke-curl--delay {
+  animation-delay: 0.7s;
+}
+.cockpit-smoke-curl--delay2 {
+  animation-delay: 1.3s;
+}

@@ -29,17 +29,11 @@ export interface ActivityAssignment {
 }
 
 // Window length (sim minutes) over which activity assignments are stable.
-const WINDOW_MIN = 30
-
-// Activity mix for IDLE agents. Probabilities must sum to <=1; remainder is
-// at_desk. Tweak these to change office vibes.
-const PROBS = {
-  in_training:     0.08,
-  in_gym:          0.06,
-  chatting:        0.06,
-  at_water_cooler: 0.05,
-  in_restroom:     0.05,
-} as const
+// Round 4: shortened from 30 -> 8 minutes so visible transitions happen often
+// and the floor never feels static. Per-agent windows are STAGGERED by hash
+// so we don't get a synchronous shuffle of every agent at the same boundary
+// (which would look chaotic).
+export const WINDOW_MIN = 8
 
 // FNV-1a hash, returns float in [0, 1).
 export function hash(s: string): number {
@@ -53,12 +47,27 @@ export function hash(s: string): number {
 
 interface AgentLite { id: string; state: AgentVisualState }
 
+// Activity mix for IDLE agents. Probabilities must sum to <=1; remainder is
+// at_desk. Tweak these to change office vibes.
+const PROBS = {
+  in_training:     0.08,
+  in_gym:          0.06,
+  chatting:        0.06,
+  at_water_cooler: 0.05,
+  in_restroom:     0.05,
+} as const
+
+// Per-agent window phase offset, so not every agent flips at the same
+// boundary. Returns an offset in [0, WINDOW_MIN).
+function windowPhaseOffset(agentId: string): number {
+  return hash(`${agentId}|window-phase`) * WINDOW_MIN
+}
+
 export function computeActivityAssignments(
   agents: ReadonlyArray<AgentLite>,
   simTimeMin: number,
   layout: BuildingLayout,
 ): Record<string, ActivityAssignment> {
-  const window = Math.floor(simTimeMin / WINDOW_MIN)
   const out: Record<string, ActivityAssignment> = {}
   const deskPositions = layout.deskPositions
 
@@ -85,8 +94,11 @@ export function computeActivityAssignments(
       out[a.id] = { activity: 'at_desk', position: desks[a.id] }
       continue
     }
-    // idle — hash-based scatter.
-    const r = hash(`${a.id}|${window}|act`)
+    // idle — hash-based scatter. Each agent's window is offset by a stable
+    // per-agent phase, so activity changes ripple through the floor instead
+    // of all flipping at the same minute.
+    const agentWindow = Math.floor((simTimeMin + windowPhaseOffset(a.id)) / WINDOW_MIN)
+    const r = hash(`${a.id}|${agentWindow}|act`)
     let acc = 0
     let activity: DisplayActivity = 'at_desk'
     if (r < (acc += PROBS.in_training)) activity = 'in_training'

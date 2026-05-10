@@ -75,9 +75,13 @@ export function BreakRoom({ agents, journeys = {}, positions, layout, activities
   })
 
   // Water-cooler hangouts (idle agents informally chatting near the cooler).
-  const waterCoolerAgents = activities
-    ? agents.filter(a => activities[a.id]?.activity === 'at_water_cooler')
-    : []
+  // Render only agents who have ARRIVED at the cooler (journey in_room or
+  // walking has finished). Falls back to activity if no journey present.
+  const waterCoolerAgents = agents.filter(a => {
+    const j = journeys[a.id]
+    if (j) return j.phase.kind === 'in_room' && j.phase.targetRoom === 'water_cooler'
+    return activities?.[a.id]?.activity === 'at_water_cooler' && !walkingIds?.has(a.id)
+  })
 
   return (
     <g>
@@ -96,8 +100,10 @@ export function BreakRoom({ agents, journeys = {}, positions, layout, activities
         )
       })}
       {waterCoolerAgents.map(a => {
-        if (walkingIds?.has(a.id)) return null
-        const pos = activities![a.id].position
+        const j = journeys[a.id]
+        const pos = (j?.phase.kind === 'in_room'
+          ? (j.phase as { pos: { x: number; y: number } }).pos
+          : activities![a.id].position)
         return (
           <g key={`wc-${a.id}`}>
             <AgentSprite x={pos.x} y={pos.y} shirtColor="#22c55e"/>

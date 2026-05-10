@@ -50,19 +50,24 @@ function Weights({ x, y }: { x: number; y: number }) {
   )
 }
 
-export function Gym({ layout, agents = [], activities, walkingIds }: GymProps) {
+export function Gym({ layout, agents = [], activities, journeys, walkingIds }: GymProps) {
   const g = layout.rooms.gym
-  const gymAgents = activities
-    ? agents.filter(a => activities[a.id]?.activity === 'in_gym')
-    : []
+  // Only render agents who are actually in_room (journey says so).
+  // Falls back to activity-only when no journey is present (defensive).
+  const gymAgents = agents.filter(a => {
+    const j = journeys?.[a.id]
+    if (j) return j.phase.kind === 'in_room' && j.phase.targetRoom === 'gym'
+    return activities?.[a.id]?.activity === 'in_gym' && !walkingIds?.has(a.id)
+  })
   return (
     <g>
       <Treadmill x={g.treadmillPosition.x} y={g.treadmillPosition.y}/>
       <Weights x={g.weightsPosition.x} y={g.weightsPosition.y}/>
       {gymAgents.map(a => {
-        if (walkingIds?.has(a.id)) return null
-        const pos = activities![a.id].position
-        const bob = activities![a.id].position === g.treadmillPosition
+        const pos = (journeys?.[a.id]?.phase.kind === 'in_room'
+          ? (journeys![a.id].phase as { pos: { x: number; y: number } }).pos
+          : activities![a.id].position)
+        const bob = activities?.[a.id]?.position === g.treadmillPosition
         return (
           <g key={`gym-${a.id}`}>
             <AgentSprite x={pos.x} y={pos.y - 4} shirtColor="#22c55e" bob={bob}/>
