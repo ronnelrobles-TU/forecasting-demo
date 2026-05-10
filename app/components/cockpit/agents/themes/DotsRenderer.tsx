@@ -23,6 +23,7 @@ import { computeBuildingLayout } from './isoOffice/geometry'
 import { computeActivityAssignments } from './isoOffice/activity'
 import {
   activeAgentIndicesAllocated,
+  activeAgentIndicesFromRoster,
   peakInOfficeCount,
 } from './isoOffice/shiftModel'
 import { computeLighting, quantizeLightingTime } from './isoOffice/lighting'
@@ -61,6 +62,7 @@ export function DotsRenderer({
   simTimeMin,
   perInterval,
   shrinkPct,
+  roster,
 }: AgentRendererProps) {
   // ── Layout: roughly 16:9 grid sized for peakAgents. Stable across renders.
   const W = 320
@@ -75,15 +77,28 @@ export function DotsRenderer({
   // ── Shift model — only render in-office agents (productive + shrinkage).
   // Falls back to "all agents present" when perInterval isn't supplied, so
   // existing callers (and the original test cases) still work.
+  // When the user has authored a roster, snap each agent to the exact
+  // start/end the user dragged on the Gantt — same path Office takes.
+  // Without this, Dots was reading the smoothed Erlang curve while Office
+  // honored the roster, so the two themes disagreed about who was on shift.
+  const useRoster = roster != null && roster.length > 0
   const allocation = useMemo(
-    () => activeAgentIndicesAllocated(agents.length, perInterval, simTimeMin, shrinkPct),
-    [agents.length, perInterval, simTimeMin, shrinkPct],
+    () => useRoster
+      ? activeAgentIndicesFromRoster(roster!, agents.length, simTimeMin, shrinkPct)
+      : activeAgentIndicesAllocated(agents.length, perInterval, simTimeMin, shrinkPct),
+    [useRoster, roster, agents.length, perInterval, simTimeMin, shrinkPct],
   )
   const peakInOffice = useMemo(
     () => peakInOfficeCount(perInterval, shrinkPct),
     [perInterval, shrinkPct],
   )
-  const absentSlots = perInterval && perInterval.length > 0
+  // When the roster path is in use, the per-minute shift assignment already
+  // governs visibility — no need to mark a separate "absentee tail". When
+  // only perInterval is provided, the trailing slots above the day's peak
+  // in-office count are today's absentees and stay hidden.
+  const absentSlots = useRoster
+    ? 0
+    : perInterval && perInterval.length > 0
     ? Math.max(0, agents.length - peakInOffice)
     : 0
 
@@ -114,7 +129,10 @@ export function DotsRenderer({
     state: AgentVisualState
     emoji: string | null
   } {
-    if (!perInterval || perInterval.length === 0) {
+    // Without a shift signal (no roster AND no perInterval), assume every
+    // agent is at their desk. Preserves the legacy test fixtures.
+    const haveShiftSignal = useRoster || (perInterval != null && perInterval.length > 0)
+    if (!haveShiftSignal) {
       return { visible: true, state: a.state, emoji: STATE_EMOJI[a.state] }
     }
     if (i >= tailStart) return { visible: false, state: 'off_shift', emoji: null }

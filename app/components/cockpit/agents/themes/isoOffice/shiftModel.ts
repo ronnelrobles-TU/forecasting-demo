@@ -20,7 +20,14 @@
 import type { IntervalStat, RosterShift } from '@/lib/types'
 import { assignAgentsToShifts, isAgentInShift } from '@/lib/animation/rosterAssignment'
 
-const INTERVAL_MIN = 15
+// Bucket size of the kernel's `perInterval` array. The kernel produces 48
+// entries (24h ÷ 30min). Earlier rounds incorrectly used 15min here, which
+// made shiftModel read the wrong bucket — at 5:54am it would index bucket
+// 23 (= 11:30am peak) instead of bucket 11 (= 5:30am low), so the whole
+// shift roster appeared "in office" before the morning had even started.
+// Both Office and Dots themes consume the result, so the bug surfaced as
+// hundreds of visible agents at 5:54am when only ~22 were actually needed.
+const INTERVAL_MIN = 30
 
 // Minutes either side of an interval boundary across which agents trickle
 // in or out, instead of all flipping at once.
