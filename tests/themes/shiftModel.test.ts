@@ -4,6 +4,8 @@ import {
   smoothScheduledAt,
   isAgentActive,
   activeAgentIndices,
+  activeAgentIndicesAllocated,
+  smoothOfficeAllocation,
   staggerOffset,
   STAGGER_WINDOW_MIN,
   inOfficeFromErlang,
@@ -221,5 +223,86 @@ describe('peakInOfficeCount', () => {
   it('scales the peak by 1/(1 - shrink/100)', () => {
     // peak = 100, shrink = 32% → 147 (rounded)
     expect(peakInOfficeCount(ramp, 32)).toBe(Math.round(100 / 0.68))
+  })
+})
+
+describe('smoothOfficeAllocation (Round 7.1)', () => {
+  const ramp = makeRamp()
+
+  it('returns zeros when perInterval is missing', () => {
+    const a = smoothOfficeAllocation(undefined, 720, 32)
+    expect(a).toEqual({ productive: 0, shrinkageInOffice: 0, inOffice: 0 })
+    const b = smoothOfficeAllocation([], 720, 32)
+    expect(b).toEqual({ productive: 0, shrinkageInOffice: 0, inOffice: 0 })
+  })
+
+  it('productive equals Erlang count when shrinkPct is 0', () => {
+    // smoothScheduledAt interpolates *into* the current interval, so at the
+    // start of interval 48 (minute 720) it reads halfway between ramp[47]=98
+    // and ramp[48]=100 → 98. Use a boundary that lands cleanly on 100.
+    const a = smoothOfficeAllocation(ramp, 720 + 14.99, 0)
+    expect(a.productive).toBe(100)
+    expect(a.inOffice).toBe(100)
+    expect(a.shrinkageInOffice).toBe(0)
+  })
+
+  it('inOffice = productive / (1 - shrink/100) at peak', () => {
+    const a = smoothOfficeAllocation(ramp, 720 + 14.99, 32)
+    expect(a.productive).toBe(100)
+    expect(a.inOffice).toBe(Math.round(100 / 0.68))
+    expect(a.shrinkageInOffice).toBe(a.inOffice - a.productive)
+  })
+
+  it('matches the conceptual example from the fix spec (Erlang 159, shrink 32%)', () => {
+    const peak159: IntervalStat[] = [{ sl: 1, agents: 159, queueLen: 0, abandons: 0, occ: 0.7 }]
+    const a = smoothOfficeAllocation(peak159, 0, 32)
+    expect(a.productive).toBe(159)
+    expect(a.inOffice).toBe(Math.round(159 / 0.68))      // 234
+    expect(a.shrinkageInOffice).toBe(Math.round(159 / 0.68) - 159) // 75
+  })
+})
+
+describe('activeAgentIndicesAllocated (Round 7.1)', () => {
+  const ramp = makeRamp()
+
+  it('returns all agents in productive set when perInterval is missing', () => {
+    const r = activeAgentIndicesAllocated(50, undefined, 720, 32)
+    expect(r.productive.size).toBe(50)
+    expect(r.shrinkage.size).toBe(0)
+  })
+
+  it('partitions agents into productive vs shrinkage at peak with shrinkage', () => {
+    const r = activeAgentIndicesAllocated(200, ramp, 720, 32)
+    // At peak: productive ≈ 100, inOffice ≈ 147. Shrinkage ≈ 47.
+    // With per-agent stagger ±6 min, the actual counts jitter slightly.
+    expect(r.productive.size).toBeGreaterThan(85)
+    expect(r.productive.size).toBeLessThan(115)
+    expect(r.shrinkage.size).toBeGreaterThan(35)
+    expect(r.shrinkage.size).toBeLessThan(60)
+  })
+
+  it('productive and shrinkage sets never overlap', () => {
+    const r = activeAgentIndicesAllocated(200, ramp, 720, 32)
+    for (const i of r.productive) {
+      expect(r.shrinkage.has(i)).toBe(false)
+    }
+  })
+
+  it('shrinkage is empty when shrinkPct is 0', () => {
+    const r = activeAgentIndicesAllocated(200, ramp, 720, 0)
+    expect(r.shrinkage.size).toBe(0)
+  })
+
+  it('inactive (off-shift) agents land in neither set', () => {
+    const r = activeAgentIndicesAllocated(200, ramp, 720, 32)
+    const inactive = 200 - r.productive.size - r.shrinkage.size
+    // ~50 agents should be off-shift / absent at peak with 100 + 47 in-office.
+    expect(inactive).toBeGreaterThan(30)
+  })
+
+  it('low at midnight: most agents in neither set', () => {
+    const r = activeAgentIndicesAllocated(200, ramp, 0, 32)
+    // ramp[0]=5 productive; with 32% shrink inOffice ≈ 7. So ~193 off-shift.
+    expect(r.productive.size + r.shrinkage.size).toBeLessThan(40)
   })
 })

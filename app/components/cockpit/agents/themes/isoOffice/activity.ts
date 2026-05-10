@@ -7,6 +7,15 @@
 //
 // All routing is purely visual fluff — the simulation kernel only knows
 // about idle/on_call/on_break/off_shift. Visual activity is layered on top.
+//
+// Round 7.1: the scheduler now accepts a partition of agent indices into
+// PRODUCTIVE (Erlang-required at-desk count) and SHRINKAGE (extra in-
+// office population doing non-desk activities). Productive agents always
+// stay at desks (Erlang counts them as available for calls); shrinkage
+// agents are deterministically distributed across the non-desk rooms.
+// This fixes the double-counting where productive agents were being
+// pulled into gym/training/break and the on-screen "At desks" count
+// undershot the KPI strip's "Active Agents" total.
 
 import type { AgentVisualState } from '@/lib/animation/agentTimeline'
 import type { BuildingLayout, ScreenPoint } from './geometry'
@@ -47,10 +56,10 @@ export function hash(s: string): number {
 
 interface AgentLite { id: string; state: AgentVisualState }
 
-// Activity mix for IDLE agents. Probabilities must sum to <=1; remainder is
-// at_desk. Tweak these to change office vibes. Restroom bumped to 0.08
-// (Round 5.6) so the bathroom visibly has activity — combined with the
-// stall-occupancy indicators, the user can now SEE who's in there.
+// Legacy probability mix used when no allocation sets are provided. Kept so
+// existing callers / tests that don't pass the partition continue to work.
+// When the renderer DOES pass productive/shrinkage sets (the Round 7.1
+// path) all shrinkage agents are forced into a non-desk activity instead.
 const PROBS = {
   in_training:     0.08,
   in_gym:          0.06,
@@ -59,16 +68,57 @@ const PROBS = {
   in_restroom:     0.08,
 } as const
 
+// Round 7.1 distribution for forced shrinkage routing (sums to 1.0). Keeps
+// the rough visual proportions the legacy mix produced, scaled up to fill
+// the entire shrinkage population:
+//   training 25, gym 20, break 20, smoking patio chat 15, water cooler 10,
+//   restroom 10.
+const SHRINKAGE_CDF: Array<{ activity: NonDeskActivity; cum: number }> = [
+  { activity: 'in_training',     cum: 0.25 },
+  { activity: 'in_gym',          cum: 0.45 },
+  { activity: 'at_break_table',  cum: 0.65 },
+  { activity: 'chatting',        cum: 0.80 },
+  { activity: 'at_water_cooler', cum: 0.90 },
+  { activity: 'in_restroom',     cum: 1.00 },
+]
+
+type NonDeskActivity =
+  | 'in_training'
+  | 'in_gym'
+  | 'at_break_table'
+  | 'chatting'
+  | 'at_water_cooler'
+  | 'in_restroom'
+
 // Per-agent window phase offset, so not every agent flips at the same
 // boundary. Returns an offset in [0, WINDOW_MIN).
 function windowPhaseOffset(agentId: string): number {
   return hash(`${agentId}|window-phase`) * WINDOW_MIN
 }
 
+// Pick a stable shrinkage activity for an agent given the current sim
+// window. Uses the per-agent phase-offset window so transitions ripple.
+function pickShrinkageActivity(agentId: string, simTimeMin: number): NonDeskActivity {
+  const agentWindow = Math.floor((simTimeMin + windowPhaseOffset(agentId)) / WINDOW_MIN)
+  const r = hash(`${agentId}|${agentWindow}|shrinkage`)
+  for (const slot of SHRINKAGE_CDF) {
+    if (r < slot.cum) return slot.activity
+  }
+  return 'at_break_table'
+}
+
+export interface ActivityAllocation {
+  // Agent indices that must stay at desks (Erlang productive count).
+  productive: ReadonlySet<number>
+  // Agent indices that must be in a non-desk activity (shrinkage uplift).
+  shrinkage: ReadonlySet<number>
+}
+
 export function computeActivityAssignments(
   agents: ReadonlyArray<AgentLite>,
   simTimeMin: number,
   layout: BuildingLayout,
+  allocation?: ActivityAllocation,
 ): Record<string, ActivityAssignment> {
   const out: Record<string, ActivityAssignment> = {}
   const deskPositions = layout.deskPositions
@@ -80,6 +130,7 @@ export function computeActivityAssignments(
   const restroomIds: string[] = []
   const chattingIds: string[] = []
   const waterCoolerIds: string[] = []
+  const breakRoomIds: string[] = []
   const desks: Record<string, ScreenPoint> = {}
 
   for (let i = 0; i < agents.length; i++) {
@@ -96,9 +147,34 @@ export function computeActivityAssignments(
       out[a.id] = { activity: 'at_desk', position: desks[a.id] }
       continue
     }
-    // idle — hash-based scatter. Each agent's window is offset by a stable
-    // per-agent phase, so activity changes ripple through the floor instead
-    // of all flipping at the same minute.
+
+    // Round 7.1 allocation path: productive agents stay at desks, shrinkage
+    // agents are FORCED into a non-desk activity. The scheduler is no longer
+    // free to scatter productive agents into shrinkage rooms.
+    if (allocation) {
+      if (allocation.productive.has(i)) {
+        out[a.id] = { activity: 'at_desk', position: desks[a.id] }
+        continue
+      }
+      if (allocation.shrinkage.has(i)) {
+        const activity = pickShrinkageActivity(a.id, simTimeMin)
+        if (activity === 'in_training') trainingIds.push(a.id)
+        else if (activity === 'in_gym') gymIds.push(a.id)
+        else if (activity === 'in_restroom') restroomIds.push(a.id)
+        else if (activity === 'chatting') chattingIds.push(a.id)
+        else if (activity === 'at_water_cooler') waterCoolerIds.push(a.id)
+        else if (activity === 'at_break_table') breakRoomIds.push(a.id)
+        continue
+      }
+      // Off-shift / absent — render at desk slot (the renderer's
+      // isActiveByIndex / absent-tail logic hides them anyway).
+      out[a.id] = { activity: 'at_desk', position: desks[a.id] }
+      continue
+    }
+
+    // Legacy path (no allocation): hash-based scatter. Each agent's window
+    // is offset by a stable per-agent phase, so activity changes ripple
+    // through the floor instead of all flipping at the same minute.
     const agentWindow = Math.floor((simTimeMin + windowPhaseOffset(a.id)) / WINDOW_MIN)
     const r = hash(`${a.id}|${agentWindow}|act`)
     let acc = 0
@@ -117,8 +193,7 @@ export function computeActivityAssignments(
     else out[a.id] = { activity: 'at_desk', position: desks[a.id] }
   }
 
-  // Training: assign UNIQUE student seats. If trainees exceed seat count,
-  // overflow agents stay at desk (rather than stacking).
+  // Training: assign UNIQUE student seats. Overflow stays at desk.
   const trainingSeats = layout.rooms.trainingRoom.studentSeats
   trainingIds.sort()
   trainingIds.forEach((id, idx) => {
@@ -133,7 +208,7 @@ export function computeActivityAssignments(
     }
   })
 
-  // Gym: distribute across the 12 workout spots. Overflow stays at desk.
+  // Gym: distribute across the workout spots. Overflow stays at desk.
   const gym = layout.rooms.gym
   const gymSpots = gym.workoutSpots ?? [gym.treadmillPosition, gym.weightsPosition]
   gymIds.sort()
@@ -145,8 +220,7 @@ export function computeActivityAssignments(
     }
   })
 
-  // Water cooler: assign UNIQUE positions from the cluster. Overflow stays
-  // at desk (water cooler can only hold so many people).
+  // Water cooler: assign UNIQUE positions. Overflow stays at desk.
   const cluster = layout.rooms.breakRoom.waterCoolerCluster
   waterCoolerIds.sort()
   waterCoolerIds.forEach((id, idx) => {
@@ -178,6 +252,21 @@ export function computeActivityAssignments(
   chattingIds.forEach((id, idx) => {
     if (idx < chatPositions.length) {
       out[id] = { activity: 'chatting', position: chatPositions[idx] }
+    } else {
+      out[id] = { activity: 'at_desk', position: desks[id] }
+    }
+  })
+
+  // Break room (Round 7.1): shrinkage agents routed to break-table seats.
+  // The seat positions are owned by BreakRoom; we record at_break_table
+  // with the agent's desk position (BreakRoom looks up its own seat slot
+  // by agent id, the position field is unused for break-table rendering).
+  // Overflow cascades to desks.
+  const breakSeatCount = layout.rooms.breakRoom.seatPositions?.length ?? 0
+  breakRoomIds.sort()
+  breakRoomIds.forEach((id, idx) => {
+    if (idx < breakSeatCount) {
+      out[id] = { activity: 'at_break_table', position: desks[id] }
     } else {
       out[id] = { activity: 'at_desk', position: desks[id] }
     }

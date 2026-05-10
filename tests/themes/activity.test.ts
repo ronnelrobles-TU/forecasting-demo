@@ -113,3 +113,109 @@ describe('computeActivityAssignments', () => {
     }
   })
 })
+
+describe('computeActivityAssignments with allocation (Round 7.1)', () => {
+  const layout = computeBuildingLayout(150)
+  const agents = makeAgents(150, 'idle')
+
+  it('keeps productive agents at desks regardless of hash scatter', () => {
+    // First 100 are productive; next 30 are shrinkage; rest off-shift.
+    const productive = new Set<number>()
+    const shrinkage = new Set<number>()
+    for (let i = 0; i < 100; i++) productive.add(i)
+    for (let i = 100; i < 130; i++) shrinkage.add(i)
+    const out = computeActivityAssignments(agents, 100, layout, { productive, shrinkage })
+    for (let i = 0; i < 100; i++) {
+      const a = agents[i]
+      expect(out[a.id].activity).toBe('at_desk')
+    }
+  })
+
+  it('forces every shrinkage agent into a non-desk activity', () => {
+    const productive = new Set<number>()
+    const shrinkage = new Set<number>()
+    for (let i = 0; i < 50; i++) productive.add(i)
+    for (let i = 50; i < 110; i++) shrinkage.add(i)
+    const out = computeActivityAssignments(agents, 100, layout, { productive, shrinkage })
+    let nonDesk = 0
+    for (let i = 50; i < 110; i++) {
+      const a = agents[i]
+      if (out[a.id].activity !== 'at_desk') nonDesk++
+    }
+    // Most shrinkage agents land in a non-desk room. A few may overflow back
+    // to desks if a particular sub-room (e.g. water cooler) hits its slot
+    // cap, but the vast majority should be off-desk.
+    expect(nonDesk).toBeGreaterThan(50) // out of 60
+  })
+
+  it('shrinkage agents are distributed across multiple non-desk activities', () => {
+    const productive = new Set<number>()
+    const shrinkage = new Set<number>()
+    for (let i = 0; i < 50; i++) productive.add(i)
+    for (let i = 50; i < 130; i++) shrinkage.add(i)
+    const out = computeActivityAssignments(agents, 100, layout, { productive, shrinkage })
+    const counts: Record<DisplayActivity, number> = {
+      at_desk: 0, in_training: 0, in_gym: 0, in_restroom: 0,
+      chatting: 0, at_water_cooler: 0, at_break_table: 0,
+    }
+    for (let i = 50; i < 130; i++) {
+      counts[out[agents[i].id].activity]++
+    }
+    // Each shrinkage activity should pick up at least one agent (with 80
+    // shrinkage agents distributed across 6 buckets the smallest bucket
+    // should still have several).
+    expect(counts.in_training).toBeGreaterThan(2)
+    expect(counts.in_gym).toBeGreaterThan(2)
+    expect(counts.at_break_table).toBeGreaterThan(2)
+    expect(counts.chatting).toBeGreaterThan(0)
+    expect(counts.at_water_cooler).toBeGreaterThan(0)
+    expect(counts.in_restroom).toBeGreaterThan(0)
+  })
+
+  it('off-shift agents (in neither set) render at_desk placeholder', () => {
+    const productive = new Set<number>()
+    const shrinkage = new Set<number>()
+    for (let i = 0; i < 50; i++) productive.add(i)
+    for (let i = 50; i < 80; i++) shrinkage.add(i)
+    const out = computeActivityAssignments(agents, 100, layout, { productive, shrinkage })
+    // Indices 80..149 are off-shift — they don't render anyway, but we
+    // assign at_desk so the position lookup is well-defined.
+    for (let i = 80; i < 150; i++) {
+      expect(out[agents[i].id].activity).toBe('at_desk')
+    }
+  })
+
+  it('partition counts match: productive + shrinkage + off-shift = total', () => {
+    const productive = new Set<number>()
+    const shrinkage = new Set<number>()
+    for (let i = 0; i < 100; i++) productive.add(i)
+    for (let i = 100; i < 130; i++) shrinkage.add(i)
+    const out = computeActivityAssignments(agents, 100, layout, { productive, shrinkage })
+    expect(Object.keys(out)).toHaveLength(150)
+    expect(productive.size + shrinkage.size + (150 - productive.size - shrinkage.size))
+      .toBe(150)
+  })
+
+  it('on_call agents always render at_desk, even if marked productive', () => {
+    const mixed: Array<{ id: string; state: AgentVisualState }> = [
+      { id: 'A0', state: 'on_call' },
+      { id: 'A1', state: 'on_call' },
+    ]
+    const productive = new Set<number>([0, 1])
+    const shrinkage = new Set<number>()
+    const out = computeActivityAssignments(mixed, 100, layout, { productive, shrinkage })
+    expect(out.A0.activity).toBe('at_desk')
+    expect(out.A1.activity).toBe('at_desk')
+  })
+
+  it('on_break sim state always wins over allocation', () => {
+    const mixed: Array<{ id: string; state: AgentVisualState }> = [
+      { id: 'A0', state: 'on_break' },
+    ]
+    // Even if "marked" productive, on_break should render at break table.
+    const productive = new Set<number>([0])
+    const shrinkage = new Set<number>()
+    const out = computeActivityAssignments(mixed, 100, layout, { productive, shrinkage })
+    expect(out.A0.activity).toBe('at_break_table')
+  })
+})

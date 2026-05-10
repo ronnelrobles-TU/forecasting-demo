@@ -40,7 +40,7 @@ import {
   hasUpcomingShiftEnd,
 } from './isoOffice/lookahead'
 import { computeLighting, quantizeLightingTime } from './isoOffice/lighting'
-import { activeAgentIndices, peakInOfficeCount } from './isoOffice/shiftModel'
+import { activeAgentIndicesAllocated, peakInOfficeCount } from './isoOffice/shiftModel'
 import {
   activeInjectedEvents,
   eventVisualFlags,
@@ -76,13 +76,24 @@ export function IsoRendererHD({
     [perInterval, shrinkPct],
   )
   const absentSlots = Math.max(0, agents.length - peakInOffice)
+
+  // Round 7.1: three-tier allocation. Mirrors IsoRenderer.
+  const allocation = useMemo(
+    () => activeAgentIndicesAllocated(agents.length, perInterval, simTimeMin, shrinkPct),
+    [agents.length, perInterval, simTimeMin, shrinkPct],
+  )
   const isActiveByIndex = useMemo(() => {
-    const arr = activeAgentIndices(agents.length, perInterval, simTimeMin, shrinkPct)
-    for (let i = agents.length - absentSlots; i < agents.length; i++) {
-      if (i >= 0) arr[i] = false
+    const arr = new Array<boolean>(agents.length)
+    const tailStart = agents.length - absentSlots
+    for (let i = 0; i < agents.length; i++) {
+      if (i >= tailStart && tailStart >= 0) {
+        arr[i] = false
+        continue
+      }
+      arr[i] = allocation.productive.has(i) || allocation.shrinkage.has(i)
     }
     return arr
-  }, [agents.length, perInterval, simTimeMin, shrinkPct, absentSlots])
+  }, [agents.length, allocation, absentSlots])
 
   const deskCount = Math.max(agents.length, deskCapacity ?? agents.length)
   const layout: BuildingLayout = useMemo(
@@ -97,8 +108,8 @@ export function IsoRendererHD({
     [lightingTime, layout.viewBox],
   )
   const activities: Record<string, ActivityAssignment> = useMemo(
-    () => computeActivityAssignments(agents, simTimeMin, layout),
-    [agents, simTimeMin, layout],
+    () => computeActivityAssignments(agents, simTimeMin, layout, allocation),
+    [agents, simTimeMin, layout, allocation],
   )
   const lookahead = useMemo(
     () => computeJourneyLookahead(events ?? []),

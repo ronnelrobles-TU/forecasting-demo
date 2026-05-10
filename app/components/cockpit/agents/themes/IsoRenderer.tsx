@@ -34,7 +34,7 @@ import {
 } from './isoOffice/journey'
 import { computeJourneyLookahead, breakDurationFor, hasUpcomingShiftEnd } from './isoOffice/lookahead'
 import { computeLighting, quantizeLightingTime } from './isoOffice/lighting'
-import { activeAgentIndices, peakInOfficeCount } from './isoOffice/shiftModel'
+import { activeAgentIndicesAllocated, peakInOfficeCount } from './isoOffice/shiftModel'
 import { SceneClock } from './isoOffice/SceneClock'
 import { StatusLegend } from './isoOffice/StatusLegend'
 import { ActivityCounter, type ActivityCounts } from './isoOffice/ActivityCounter'
@@ -76,18 +76,32 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
     [perInterval, shrinkPct],
   )
   const absentSlots = Math.max(0, agents.length - peakInOffice)
+
+  // Round 7.1: three-tier allocation by agent index. Productive agents
+  // (the first N matching the Erlang count) stay at desks; shrinkage
+  // agents (the next M up to the in-office target) are forced into non-
+  // desk activities; the rest are off-shift / absent.
+  const allocation = useMemo(
+    () => activeAgentIndicesAllocated(agents.length, perInterval, simTimeMin, shrinkPct),
+    [agents.length, perInterval, simTimeMin, shrinkPct],
+  )
   const isActiveByIndex = useMemo(
     () => {
-      // Force the "absentee" tail (last `absentSlots` indices) to inactive
-      // for the entire day. The first `peakInOffice` agents follow the
-      // schedule curve.
-      const arr = activeAgentIndices(agents.length, perInterval, simTimeMin, shrinkPct)
-      for (let i = agents.length - absentSlots; i < agents.length; i++) {
-        if (i >= 0) arr[i] = false
+      // An agent is "active" (in the office) iff they're in either the
+      // productive or shrinkage set. Force the absentee tail to inactive
+      // even if the schedule curve briefly sweeps past it.
+      const arr = new Array<boolean>(agents.length)
+      const tailStart = agents.length - absentSlots
+      for (let i = 0; i < agents.length; i++) {
+        if (i >= tailStart && tailStart >= 0) {
+          arr[i] = false
+          continue
+        }
+        arr[i] = allocation.productive.has(i) || allocation.shrinkage.has(i)
       }
       return arr
     },
-    [agents.length, perInterval, simTimeMin, shrinkPct, absentSlots],
+    [agents.length, allocation, absentSlots],
   )
   // Effective desk count: caller-supplied capacity, or one per agent. Layout
   // grows to fit `deskCount` so users can SEE empty desks fill in as the
@@ -108,9 +122,14 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
   )
 
   // Activity assignments — pure, stable within a 30-min sim window.
+  // Round 7.1: pass the productive/shrinkage allocation so productive
+  // agents stay at desks and shrinkage agents are routed into non-desk
+  // rooms. Without this, the scheduler would scatter productive agents
+  // out of their desks and the "At desks" overlay would undershoot the
+  // KPI strip's "Active Agents" total.
   const activities: Record<string, ActivityAssignment> = useMemo(
-    () => computeActivityAssignments(agents, simTimeMin, layout),
-    [agents, simTimeMin, layout],
+    () => computeActivityAssignments(agents, simTimeMin, layout, allocation),
+    [agents, simTimeMin, layout, allocation],
   )
 
   // Lookahead: per-agent break durations + shift_end times derived from events.

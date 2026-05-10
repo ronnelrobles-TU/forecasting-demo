@@ -125,3 +125,93 @@ export function peakInOfficeCount(
   }
   return Math.round(peak)
 }
+
+// Round 7.1: three-tier office allocation.
+// Workforce-management math ties together three counts at any given moment:
+//   - PRODUCTIVE   = Erlang-required headcount at desks taking calls.
+//                    This is what `perInterval[t].agents` represents and
+//                    what KPI strips show as "Active Agents".
+//   - IN_OFFICE    = productive / (1 - shrink/100). Includes both
+//                    productive agents AND shrinkage agents (training,
+//                    gym, break, etc.) — i.e. everyone physically in.
+//   - SHRINKAGE_IN_OFFICE = inOffice - productive.
+//
+// The activity scheduler used to scatter ~30% of the productive agents
+// into non-desk activities, double-counting shrinkage and producing the
+// "Active Agents 249 but only 177 at desks" mismatch. Now the renderer
+// partitions agents into productive vs shrinkage by index, so productive
+// agents stay at desks (their state comes from the sim) and shrinkage
+// agents are routed into the non-desk rooms.
+export interface OfficeAllocation {
+  productive: number          // at desks (productive headcount per Erlang)
+  shrinkageInOffice: number   // in non-desk activities
+  inOffice: number            // productive + shrinkageInOffice
+}
+
+// Smooth office allocation at the current sim time, accounting for the
+// Erlang-required productive headcount and the shrinkage uplift.
+//
+// `productive` rides the un-shrunk Erlang curve (so it interpolates the
+// same way `scheduledCountAt`/`smoothScheduledAt(...without shrink)` do),
+// and `inOffice` is `productive / (1 - shrink/100)`. The difference is
+// the shrinkage population in the office at this instant.
+export function smoothOfficeAllocation(
+  perInterval: ReadonlyArray<IntervalStat> | undefined,
+  simTimeMin: number,
+  shrinkPct?: number,
+): OfficeAllocation {
+  if (!perInterval || perInterval.length === 0) {
+    return { productive: 0, shrinkageInOffice: 0, inOffice: 0 }
+  }
+  const productiveSmooth = smoothScheduledAt(perInterval, simTimeMin, 0)
+  const inOfficeSmooth = inOfficeFromErlang(productiveSmooth, shrinkPct)
+  const productive = Math.round(productiveSmooth)
+  const inOffice = Math.round(inOfficeSmooth)
+  return {
+    productive,
+    shrinkageInOffice: Math.max(0, inOffice - productive),
+    inOffice,
+  }
+}
+
+// Three-tier per-agent allocation by agent index.
+//
+//   indices 0 .. productive-1                       PRODUCTIVE  (at desks)
+//   indices productive .. inOffice-1                SHRINKAGE   (non-desk)
+//   indices inOffice .. (peakAgents-1)              OFF SHIFT / ABSENT
+//
+// Per-agent stagger is applied so the morning ramp doesn't bunch at the
+// 15-min boundary. An agent with negative stagger arrives slightly
+// earlier than the bulk count; positive stagger arrives later. The
+// productive/shrinkage split itself is also staggered so transitions
+// are smooth (an agent doesn't pop from "at desk" to "in gym" — they
+// trickle into the shrinkage band one at a time).
+export function activeAgentIndicesAllocated(
+  agentCount: number,
+  perInterval: ReadonlyArray<IntervalStat> | undefined,
+  simTimeMin: number,
+  shrinkPct?: number,
+): { productive: Set<number>; shrinkage: Set<number> } {
+  const productive = new Set<number>()
+  const shrinkage = new Set<number>()
+  if (!perInterval || perInterval.length === 0) {
+    // No schedule data — preserve legacy "everyone idle at desks"
+    // behaviour. Productive set covers all agents; shrinkage is empty.
+    for (let i = 0; i < agentCount; i++) productive.add(i)
+    return { productive, shrinkage }
+  }
+  for (let i = 0; i < agentCount; i++) {
+    const adjustedTime = simTimeMin - staggerOffset(i)
+    const productiveSmooth = smoothScheduledAt(perInterval, adjustedTime, 0)
+    const inOfficeSmooth = inOfficeFromErlang(productiveSmooth, shrinkPct)
+    const productiveTarget = Math.round(productiveSmooth)
+    const inOfficeTarget = Math.round(inOfficeSmooth)
+    if (i < productiveTarget) {
+      productive.add(i)
+    } else if (i < inOfficeTarget) {
+      shrinkage.add(i)
+    }
+    // else: off-shift / absent, in neither set.
+  }
+  return { productive, shrinkage }
+}
