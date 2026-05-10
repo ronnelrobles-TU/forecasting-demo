@@ -1,19 +1,24 @@
 'use client'
 
 import type { AgentVisualState } from '@/lib/animation/agentTimeline'
-import type { BuildingLayout } from './geometry'
+import type { BuildingLayout, ScreenPoint } from './geometry'
 import { AgentSprite } from './AgentSprite'
 import { StatusBubble } from './StatusBubble'
-import type { AnimState } from './animation'
 import type { ActivityAssignment } from './activity'
+import { isAtBreakTable, type VisualJourney } from './journey'
+
+interface RenderedPosition { pos: ScreenPoint; opacity: number; visible: boolean }
 
 interface BreakRoomProps {
   agents: Array<{ id: string; state: AgentVisualState }>
-  anim?: AnimState
+  journeys?: Record<string, VisualJourney>
+  // positions is currently unused inside BreakRoom (sitting agents use the
+  // phase's static seat pos), but accepted for symmetry with AgentFloor and
+  // future need (e.g., animating agents arriving at the table).
+  positions?: Record<string, RenderedPosition>
   layout: BuildingLayout
-  // Activity assignments (computed by IsoRenderer). BreakRoom uses this to
-  // render water-cooler agents in addition to on_break agents.
   activities?: Record<string, ActivityAssignment>
+  walkingIds?: Set<string>
 }
 
 function Table({ x, y }: { x: number; y: number }) {
@@ -44,17 +49,12 @@ function WaterCooler({ x, y }: { x: number; y: number }) {
 function VendingMachine({ x, y }: { x: number; y: number }) {
   return (
     <g transform={`translate(${x}, ${y - 26})`}>
-      {/* Shadow */}
       <ellipse cx={0} cy={13} rx={7} ry={2} fill="#1e293b" opacity={0.4}/>
-      {/* Body */}
       <rect x={-6} y={-3} width={12} height={16} fill="#dc2626" stroke="#7f1d1d" strokeWidth={0.5} rx={0.5}/>
-      {/* Glass front */}
       <rect x={-5} y={-2} width={10} height={11} fill="#1e293b" opacity={0.55} stroke="#7f1d1d" strokeWidth={0.3}/>
-      {/* Snack rows */}
       <line x1={-5} y1={1} x2={5} y2={1} stroke="#fbbf24" strokeWidth={0.3} opacity={0.7}/>
       <line x1={-5} y1={4} x2={5} y2={4} stroke="#fbbf24" strokeWidth={0.3} opacity={0.7}/>
       <line x1={-5} y1={7} x2={5} y2={7} stroke="#fbbf24" strokeWidth={0.3} opacity={0.7}/>
-      {/* Buttons / coin slot */}
       <rect x={-4.5} y={10} width={1} height={2} fill="#0f172a"/>
       <rect x={-3} y={10} width={1} height={2} fill="#0f172a"/>
       <rect x={-1.5} y={10} width={1} height={2} fill="#0f172a"/>
@@ -64,15 +64,17 @@ function VendingMachine({ x, y }: { x: number; y: number }) {
   )
 }
 
-export function BreakRoom({ agents, anim, layout, activities }: BreakRoomProps) {
+export function BreakRoom({ agents, journeys = {}, positions, layout, activities, walkingIds }: BreakRoomProps) {
+  void positions
   const r = layout.rooms.breakRoom
-  const seatPositions = r.seatPositions
 
-  // Stable seat assignment for on_break agents: map by their position in the
-  // ON-BREAK subset (not the original agents array). This avoids two agents
-  // landing on the same seat just because their indices in `agents` happen
-  // to alias under modulo.
-  const breakAgents = agents.filter(a => a.state === 'on_break')
+  // Sitting-at-break-table agents are owned by the journey state machine.
+  const sittingBreakAgents = agents.filter(a => {
+    const j = journeys[a.id]
+    return j && isAtBreakTable(j.phase)
+  })
+
+  // Water-cooler hangouts (idle agents informally chatting near the cooler).
   const waterCoolerAgents = activities
     ? agents.filter(a => activities[a.id]?.activity === 'at_water_cooler')
     : []
@@ -82,14 +84,10 @@ export function BreakRoom({ agents, anim, layout, activities }: BreakRoomProps) 
       <WaterCooler x={r.waterCoolerPosition.x} y={r.waterCoolerPosition.y}/>
       <VendingMachine x={r.vendingMachinePosition.x} y={r.vendingMachinePosition.y}/>
       <Table x={r.tableCenter.x} y={r.tableCenter.y}/>
-      {/* On_break agents at their assigned table seats. */}
-      {breakAgents.map((a, idx) => {
-        const animEntry = anim?.[a.id]
-        // Don't double-render: the AgentFloor handles the desk_to_break /
-        // break_to_desk lerp in its own pass. Skip here while the walk is in
-        // flight.
-        if (animEntry?.kind === 'desk_to_break' || animEntry?.kind === 'break_to_desk') return null
-        const seat = seatPositions[idx % seatPositions.length]
+      {sittingBreakAgents.map(a => {
+        const j = journeys[a.id]
+        if (!j || j.phase.kind !== 'at_break_table') return null
+        const seat = j.phase.pos
         return (
           <g key={`break-${a.id}`}>
             <AgentSprite x={seat.x} y={seat.y} shirtColor="#d97706"/>
@@ -97,11 +95,8 @@ export function BreakRoom({ agents, anim, layout, activities }: BreakRoomProps) 
           </g>
         )
       })}
-      {/* Water-cooler hangouts (idle agents informally chatting near the cooler). */}
       {waterCoolerAgents.map(a => {
-        const animEntry = anim?.[a.id]
-        // Hide while walking — AgentFloor draws the lerp.
-        if (animEntry?.kind === 'desk_to_room' || animEntry?.kind === 'room_to_desk') return null
+        if (walkingIds?.has(a.id)) return null
         const pos = activities![a.id].position
         return (
           <g key={`wc-${a.id}`}>

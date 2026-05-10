@@ -35,7 +35,7 @@ export function AgentScene({ events, peakAgents, simTimeMin }: AgentSceneProps) 
 
   return (
     <div className="cockpit-agent-scene">
-      <Renderer agents={agents} peakAgents={peakAgents} simTimeMin={simTimeMin} />
+      <Renderer agents={agents} peakAgents={peakAgents} simTimeMin={simTimeMin} events={events} />
       <ThemePicker />
     </div>
   )

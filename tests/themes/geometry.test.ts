@@ -223,6 +223,34 @@ describe('computeBuildingLayout', () => {
     }
   })
 
+  it('multiple janitor paths exist (Round 3 — variety)', () => {
+    const layout = computeBuildingLayout(150)
+    expect(layout.rooms.agentFloor.janitorPaths.length).toBeGreaterThanOrEqual(2)
+    for (const path of layout.rooms.agentFloor.janitorPaths) {
+      expect(path.length).toBeGreaterThanOrEqual(3)
+    }
+  })
+
+  it('janitor room visits target gym/training/breakRoom', () => {
+    const layout = computeBuildingLayout(150)
+    const visits = layout.rooms.agentFloor.janitorRoomVisits
+    expect(visits.length).toBeGreaterThanOrEqual(1)
+    const allowed = new Set(['gym', 'training', 'breakRoom'])
+    for (const v of visits) {
+      expect(allowed.has(v.roomId)).toBe(true)
+    }
+  })
+
+  it('smoking patio has zone, railing, bench, ashtray, and standing positions', () => {
+    const layout = computeBuildingLayout(150)
+    const p = layout.rooms.smokingPatio
+    expect(p.zonePoints.length).toBe(4)
+    expect(p.railingSegments.length).toBeGreaterThanOrEqual(3)
+    expect(p.bench).toBeDefined()
+    expect(p.ashtray).toBeDefined()
+    expect(p.standingPositions.length).toBeGreaterThanOrEqual(4)
+  })
+
   it('all rooms fit within the building footprint', () => {
     const layout = computeBuildingLayout(150)
     const inBuilding = (b: IsoBounds) =>

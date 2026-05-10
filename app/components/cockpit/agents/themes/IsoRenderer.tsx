@@ -10,137 +10,154 @@ import { BreakRoom } from './isoOffice/BreakRoom'
 import { TrainingRoom } from './isoOffice/TrainingRoom'
 import { Restrooms } from './isoOffice/Restrooms'
 import { Gym } from './isoOffice/Gym'
+import { SmokingPatio } from './isoOffice/SmokingPatio'
 import { Janitor } from './isoOffice/Janitor'
 import { TileGlowDefs } from './isoOffice/TileGlow'
-import { computeBuildingLayout, type BuildingLayout } from './isoOffice/geometry'
-import { advanceAnimations, detectTransitions, type AnimState, type StateMap, type Transition } from './isoOffice/animation'
-import { computeActivityAssignments, type ActivityAssignment, type DisplayActivity } from './isoOffice/activity'
+import { computeBuildingLayout, type BuildingLayout, type ScreenPoint } from './isoOffice/geometry'
+import { computeActivityAssignments, type ActivityAssignment } from './isoOffice/activity'
+import {
+  makeJourney,
+  tickJourney,
+  transitionJourney,
+  isWalkingPhase,
+  journeyPosition,
+  type VisualJourney,
+} from './isoOffice/journey'
+import { computeJourneyLookahead, breakDurationFor, hasUpcomingShiftEnd } from './isoOffice/lookahead'
+import type { AgentVisualState } from '@/lib/animation/agentTimeline'
 
-export function IsoRenderer({ agents, simTimeMin }: AgentRendererProps) {
-  // Compute building layout once per render based on agent count. Floor + walls
-  // + viewBox all derive from this — high counts produce a larger building and
-  // a bigger viewBox, scaled to fit the panel via xMidYMid meet (zoom-out
-  // effect).
+const SHIFT_END_LOOKAHEAD_MIN = 3
+
+export interface RenderedPosition { pos: ScreenPoint; opacity: number; visible: boolean }
+
+export function IsoRenderer({ agents, simTimeMin, events }: AgentRendererProps) {
+  // Compute building layout once per agent count.
   const layout: BuildingLayout = useMemo(() => computeBuildingLayout(agents.length), [agents.length])
 
-  // Activity assignments — recomputed every render but cheap (pure function,
-  // hashes are O(1) per agent). Stable within a 30-min sim window so agents
-  // don't ping-pong between rooms each frame.
+  // Activity assignments — pure, stable within a 30-min sim window.
   const activities: Record<string, ActivityAssignment> = useMemo(
     () => computeActivityAssignments(agents, simTimeMin, layout),
     [agents, simTimeMin, layout],
   )
 
-  const prevStatesRef = useRef<StateMap>({})
-  const prevActivitiesRef = useRef<Record<string, DisplayActivity>>({})
-  const animRef = useRef<AnimState>({})
-  const lastTickRef = useRef<number | null>(null)
-  // animSnapshot mirrors animRef.current, set inside the rAF loop / transition
-  // detector. We read this (not the ref) during render so we don't violate
-  // react-hooks/refs while still letting the rAF loop mutate animRef freely.
-  const [animSnapshot, setAnimSnapshot] = useState<AnimState>({})
+  // Lookahead: per-agent break durations + shift_end times derived from events.
+  const lookahead = useMemo(
+    () => computeJourneyLookahead(events ?? []),
+    [events],
+  )
 
-  // Build current state map keyed by agent id
-  const currStates: StateMap = {}
-  for (const a of agents) currStates[a.id] = a.state
+  // Per-agent visual journeys.
+  const journeysRef = useRef<Record<string, VisualJourney>>({})
+  const [journeySnapshot, setJourneySnapshot] = useState<Record<string, VisualJourney>>({})
+  // Frame-time-resolved render positions. Updated alongside the snapshot.
+  const [positions, setPositions] = useState<Record<string, RenderedPosition>>({})
+  const prevStatesRef = useRef<Record<string, AgentVisualState>>({})
+  const prevAgentCountRef = useRef<number>(0)
 
-  // Detect transitions: state changes (off_shift→idle ⇒ door_to_desk;
-  // idle→off_shift ⇒ desk_to_door; idle/on_call↔on_break ⇒ desk_to_break)
-  // and ACTIVITY changes (at_desk↔in_room ⇒ desk_to_room / room_to_desk).
+  function resolvePositions(journeys: Record<string, VisualJourney>, now: number): Record<string, RenderedPosition> {
+    const out: Record<string, RenderedPosition> = {}
+    for (const id of Object.keys(journeys)) {
+      out[id] = journeyPosition(journeys[id], now)
+    }
+    return out
+  }
+
+  // Initialize / re-initialize journeys when agent count changes.
   useEffect(() => {
-    const transitions: Transition[] = []
-    const baseTransitions = detectTransitions(prevStatesRef.current, currStates)
-
-    // Replace shift_start fade_in with door_to_desk and shift_end fade_out
-    // with desk_to_door so agents walk across the lobby instead of teleporting.
-    for (const t of baseTransitions) {
-      if (t.kind === 'fade_in') {
-        transitions.push({
-          agentId: t.agentId,
-          kind: 'door_to_desk',
-          targetPosition: layout.rooms.reception.doorPosition,
-        })
-      } else if (t.kind === 'fade_out') {
-        transitions.push({
-          agentId: t.agentId,
-          kind: 'desk_to_door',
-          targetPosition: layout.rooms.reception.doorPosition,
-        })
-      } else {
-        transitions.push(t)
+    if (prevAgentCountRef.current !== agents.length) {
+      const now = performance.now()
+      const journeys: Record<string, VisualJourney> = {}
+      for (let i = 0; i < agents.length; i++) {
+        const a = agents[i]
+        const desk = layout.deskPositions[i] ?? layout.deskPositions[layout.deskPositions.length - 1] ?? { x: 0, y: 0 }
+        const existing = journeysRef.current[a.id]
+        journeys[a.id] = existing ?? makeJourney(a.id, desk, a.state, now)
       }
+      journeysRef.current = journeys
+      setJourneySnapshot(journeys)
+      setPositions(resolvePositions(journeys, now))
+      prevAgentCountRef.current = agents.length
     }
+  }, [agents, layout])
 
-    // Activity transitions for idle agents. We only animate when an agent's
-    // activity flipped between at_desk and a room-bound activity (skip
-    // chatting — they just appear/disappear in aisles, no walking yet).
-    for (const id of Object.keys(activities)) {
-      const prevAct = prevActivitiesRef.current[id]
-      const currAct = activities[id].activity
-      if (!prevAct || prevAct === currAct) continue
-      // Don't fight state-change animations
-      if (transitions.some(t => t.agentId === id)) continue
-      // Skip activity changes when state is on_break or off_shift (those are
-      // owned by other transitions).
-      const state = currStates[id]
-      if (state === 'on_break' || state === 'off_shift') continue
-
-      const wasAtDesk = prevAct === 'at_desk'
-      const isAtDesk = currAct === 'at_desk'
-      if (wasAtDesk && !isAtDesk && currAct !== 'in_restroom' && currAct !== 'at_break_table') {
-        transitions.push({
-          agentId: id,
-          kind: 'desk_to_room',
-          targetPosition: activities[id].position,
-        })
-      } else if (!wasAtDesk && isAtDesk && prevAct !== 'in_restroom' && prevAct !== 'at_break_table') {
-        // We need to know where they came from. Use prev activity slot via
-        // a ref of last-known positions — but to keep this simple, look up
-        // the position they were assigned LAST window: we don't have it
-        // anymore, so just lerp from a sensible source. Best approximation:
-        // use the new desk position - a small offset toward the room they
-        // were in. As a pragmatic shortcut, just snap (no walk) for now.
-        // Simpler: treat returning trips with a tiny delay so they don't
-        // pop, by also dispatching room_to_desk with the prev position
-        // unknown — fall back to door if we can't infer.
-        // Use the door as a generic "came from somewhere" source.
-        transitions.push({
-          agentId: id,
-          kind: 'room_to_desk',
-          targetPosition: layout.rooms.reception.doorPosition,
-        })
+  // React to sim-state changes for each agent.
+  useEffect(() => {
+    const now = performance.now()
+    const prev = prevStatesRef.current
+    let changed = false
+    const next: Record<string, VisualJourney> = { ...journeysRef.current }
+    for (const a of agents) {
+      const desk = next[a.id]?.homeDeskPosition
+        ?? layout.deskPositions[Number(a.id.replace(/^A/, '')) || 0]
+        ?? { x: 0, y: 0 }
+      if (!next[a.id]) {
+        next[a.id] = makeJourney(a.id, desk, a.state, now)
+        changed = true
       }
-    }
+      const prevState = prev[a.id]
 
-    if (transitions.length > 0) {
-      animRef.current = advanceAnimations(animRef.current, 0, transitions, performance.now())
-      setAnimSnapshot(animRef.current)
-    }
-    prevStatesRef.current = currStates
-    const nextActMap: Record<string, DisplayActivity> = {}
-    for (const id of Object.keys(activities)) nextActMap[id] = activities[id].activity
-    prevActivitiesRef.current = nextActMap
-  }, [simTimeMin]) // eslint-disable-line react-hooks/exhaustive-deps -- intentional: only react to sim time advance
+      let effectiveState: AgentVisualState = a.state
+      if (
+        a.state !== 'off_shift'
+        && hasUpcomingShiftEnd(lookahead, a.id, simTimeMin, SHIFT_END_LOOKAHEAD_MIN)
+      ) {
+        effectiveState = 'off_shift'
+      }
 
-  // requestAnimationFrame loop: advance in-flight transitions only.
-  // Idle bob is a pure CSS animation, so the loop only does React work when
-  // there are active transitions. A static office (everyone at desks) costs
-  // ~0 React work — only the GPU animates.
+      if (prevState !== effectiveState) {
+        const breakDur = effectiveState === 'on_break'
+          ? breakDurationFor(lookahead, a.id, simTimeMin)
+          : undefined
+        next[a.id] = transitionJourney(next[a.id], effectiveState, layout, now, breakDur)
+        changed = true
+      }
+      prev[a.id] = effectiveState
+    }
+    if (changed) {
+      journeysRef.current = next
+      setJourneySnapshot(next)
+      setPositions(resolvePositions(next, now))
+    }
+  }, [agents, simTimeMin, layout, lookahead])
+
+  // Per-frame tick: advance in-flight phases AND refresh resolved positions
+  // while anything is mid-walk.
   useEffect(() => {
     let raf = 0
     function tick(now: number) {
-      const dt = lastTickRef.current === null ? 0 : (now - lastTickRef.current) / 1000
-      lastTickRef.current = now
-      const before = Object.keys(animRef.current).length
-      if (before > 0) {
-        animRef.current = advanceAnimations(animRef.current, dt)
-        setAnimSnapshot(animRef.current)
+      let phaseChanged = false
+      const cur = journeysRef.current
+      const nextJ: Record<string, VisualJourney> = {}
+      let anyWalking = false
+      for (const id of Object.keys(cur)) {
+        const before = cur[id]
+        const after = tickJourney(before, layout, now)
+        nextJ[id] = after
+        if (after !== before) phaseChanged = true
+        if (isWalkingPhase(after.phase)) anyWalking = true
+      }
+      if (phaseChanged) {
+        journeysRef.current = nextJ
+        setJourneySnapshot(nextJ)
+      }
+      // Re-resolve positions only when something is walking (otherwise nothing
+      // moves frame-to-frame; CSS bob is GPU-only).
+      if (anyWalking || phaseChanged) {
+        setPositions(resolvePositions(journeysRef.current, now))
       }
       raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [])
+  }, [layout])
+
+  const walkingIds = useMemo(() => {
+    const out = new Set<string>()
+    for (const id of Object.keys(journeySnapshot)) {
+      if (isWalkingPhase(journeySnapshot[id].phase)) out.add(id)
+    }
+    return out
+  }, [journeySnapshot])
 
   return (
     <svg
@@ -151,25 +168,21 @@ export function IsoRenderer({ agents, simTimeMin }: AgentRendererProps) {
       <ReceptionDefs/>
       <defs><TileGlowDefs/></defs>
 
-      {/* Building shell: perimeter walls, floor, room tints, interior dividers, windows, front door cut-out. */}
       <Building layout={layout}/>
 
-      {/* NW back wing: training, break, restrooms, gym (drawn back-to-front). */}
-      <TrainingRoom layout={layout} agents={agents} activities={activities} anim={animSnapshot}/>
-      <BreakRoom agents={agents} anim={animSnapshot} layout={layout} activities={activities}/>
+      <TrainingRoom layout={layout} agents={agents} activities={activities} walkingIds={walkingIds}/>
+      <BreakRoom agents={agents} journeys={journeySnapshot} positions={positions} layout={layout} activities={activities} walkingIds={walkingIds}/>
       <Restrooms layout={layout}/>
-      <Gym layout={layout} agents={agents} activities={activities} anim={animSnapshot}/>
+      <Gym layout={layout} agents={agents} activities={activities} walkingIds={walkingIds}/>
 
-      {/* Manager mini-offices along the NE strip. */}
       <ManagerOffices layout={layout}/>
 
-      {/* Agent floor: cubicle pods + desks + agents. */}
-      <AgentFloor agents={agents} anim={animSnapshot} layout={layout} activities={activities}/>
+      <AgentFloor agents={agents} journeys={journeySnapshot} positions={positions} layout={layout} activities={activities}/>
 
-      {/* Janitor NPC walking the perimeter loop. */}
+      <SmokingPatio layout={layout} agents={agents} activities={activities}/>
+
       <Janitor layout={layout} simTimeMin={simTimeMin}/>
 
-      {/* Reception at the front (drawn last so it sits on top of the front wall door cut-out). */}
       <Reception layout={layout}/>
     </svg>
   )

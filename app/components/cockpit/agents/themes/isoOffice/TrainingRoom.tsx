@@ -3,14 +3,15 @@
 import type { AgentVisualState } from '@/lib/animation/agentTimeline'
 import type { BuildingLayout } from './geometry'
 import { AgentSprite } from './AgentSprite'
-import type { AnimState } from './animation'
 import type { ActivityAssignment } from './activity'
+import type { VisualJourney } from './journey'
 
 interface TrainingRoomProps {
   layout: BuildingLayout
   agents?: Array<{ id: string; state: AgentVisualState }>
   activities?: Record<string, ActivityAssignment>
-  anim?: AnimState
+  journeys?: Record<string, VisualJourney>
+  walkingIds?: Set<string>
 }
 
 function StudentChair({ x, y }: { x: number; y: number }) {
@@ -31,14 +32,13 @@ function Whiteboard({ x, y }: { x: number; y: number }) {
       <line x1={-15} y1={-15} x2={2} y2={-15} stroke="#dc2626" strokeWidth={0.5}/>
       <line x1={-15} y1={-13} x2={8} y2={-13} stroke="#16a34a" strokeWidth={0.5}/>
       <rect x={-18.5} y={-9} width={37} height={1.5} fill="#94a3b8"/>
-      {/* Easel/stand */}
       <line x1={-12} y1={-7} x2={-14} y2={2} stroke="#475569" strokeWidth={0.4}/>
       <line x1={12} y1={-7} x2={14} y2={2} stroke="#475569" strokeWidth={0.4}/>
     </g>
   )
 }
 
-export function TrainingRoom({ layout, agents = [], activities, anim }: TrainingRoomProps) {
+export function TrainingRoom({ layout, agents = [], activities, walkingIds }: TrainingRoomProps) {
   const t = layout.rooms.trainingRoom
   const trainingAgents = activities
     ? agents.filter(a => activities[a.id]?.activity === 'in_training')
@@ -50,8 +50,7 @@ export function TrainingRoom({ layout, agents = [], activities, anim }: Training
         <StudentChair key={`tc${i}`} x={s.x} y={s.y}/>
       ))}
       {trainingAgents.map(a => {
-        const animEntry = anim?.[a.id]
-        if (animEntry?.kind === 'desk_to_room' || animEntry?.kind === 'room_to_desk') return null
+        if (walkingIds?.has(a.id)) return null
         const pos = activities![a.id].position
         return (
           <g key={`student-${a.id}`}>

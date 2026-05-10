@@ -141,21 +141,27 @@ export function computeActivityAssignments(
     out[id] = { activity: 'in_restroom', position: desks[id] }
   })
 
-  // Chatting: pair agents up by sorted id and assign each pair to a hotspot.
-  // Each pair gets the two points of one hotspot. Loners (odd count) stand
-  // alone at the next available hotspot's first point.
-  const hotspots = layout.rooms.agentFloor.chattingHotspots
+  // Chatting: route agents to the smoking patio (a dedicated visible side
+  // area) instead of an aisle hotspot. Cycle through the patio's standing
+  // positions so multiple chatters spread across the deck. Falls back to
+  // aisle hotspots if the patio isn't defined (defensive — should always
+  // be present after Round 3).
+  const patioPositions = layout.rooms.smokingPatio?.standingPositions ?? []
+  const aisleHotspots = layout.rooms.agentFloor.chattingHotspots
   chattingIds.sort()
-  if (hotspots.length === 0) {
-    // No hotspots available — fall back to desk for chatting agents.
+  if (patioPositions.length > 0) {
+    chattingIds.forEach((id, idx) => {
+      out[id] = { activity: 'chatting', position: patioPositions[idx % patioPositions.length] }
+    })
+  } else if (aisleHotspots.length === 0) {
     chattingIds.forEach(id => {
       out[id] = { activity: 'at_desk', position: desks[id] }
     })
   } else {
     let i = 0
     while (i < chattingIds.length) {
-      const hotspotIdx = Math.floor(i / 2) % hotspots.length
-      const [pA, pB] = hotspots[hotspotIdx]
+      const hotspotIdx = Math.floor(i / 2) % aisleHotspots.length
+      const [pA, pB] = aisleHotspots[hotspotIdx]
       const idA = chattingIds[i]
       const idB = chattingIds[i + 1]
       out[idA] = { activity: 'chatting', position: pA }

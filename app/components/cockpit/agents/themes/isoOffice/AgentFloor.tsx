@@ -5,12 +5,15 @@ import type { BuildingLayout, ScreenPoint } from './geometry'
 import { AgentSprite } from './AgentSprite'
 import { StatusBubble } from './StatusBubble'
 import { TileGlow } from './TileGlow'
-import type { AnimState } from './animation'
 import type { ActivityAssignment } from './activity'
+import { isWalkingPhase, type VisualJourney } from './journey'
+
+interface RenderedPosition { pos: ScreenPoint; opacity: number; visible: boolean }
 
 interface AgentFloorProps {
   agents: Array<{ id: string; state: AgentVisualState }>
-  anim?: AnimState
+  journeys?: Record<string, VisualJourney>
+  positions?: Record<string, RenderedPosition>
   layout: BuildingLayout
   activities?: Record<string, ActivityAssignment>
 }
@@ -20,10 +23,6 @@ const SHIRT_COLOR: Record<AgentVisualState, string> = {
   on_call: '#dc2626',
   on_break: '#d97706',
   off_shift: '#475569',
-}
-
-function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t
 }
 
 const ptsStr = (pts: ReadonlyArray<ScreenPoint>) => pts.map(p => `${p.x},${p.y}`).join(' ')
@@ -52,7 +51,6 @@ function Desk({ x, y }: { x: number; y: number }) {
 }
 
 function PartitionWall(p1: ScreenPoint, p2: ScreenPoint) {
-  // Cubicle partition wall: ~10px-tall low wall extruded upward in screen y.
   return [
     p1,
     p2,
@@ -61,16 +59,12 @@ function PartitionWall(p1: ScreenPoint, p2: ScreenPoint) {
   ]
 }
 
-export function AgentFloor({ agents, anim = {}, layout, activities }: AgentFloorProps) {
+export function AgentFloor({ agents, journeys = {}, positions = {}, layout, activities }: AgentFloorProps) {
   const deskPositions = layout.deskPositions
-  const seatPositions = layout.rooms.breakRoom.seatPositions
   const pods = layout.rooms.agentFloor.pods
-  const doorPosition = layout.rooms.reception.doorPosition
 
   return (
     <g>
-      {/* Cubicle partition walls (one set per pod). Drawn FIRST so desks/agents
-          render above them. */}
       {pods.map((pod, pi) => (
         <g key={`pod-${pi}`}>
           {pod.partitionWalls.map(([p1, p2], wi) => (
@@ -86,89 +80,60 @@ export function AgentFloor({ agents, anim = {}, layout, activities }: AgentFloor
         </g>
       ))}
 
-      {/* Desks + agents (one per agent, stable order). */}
-      {deskPositions.map((pos, i) => {
+      {deskPositions.map((deskPos, i) => {
         const agent = agents[i]
         if (!agent) return null
-        const a = anim[agent.id]
-        const seat = seatPositions[i % seatPositions.length]
+        const journey = journeys[agent.id]
         const activity = activities?.[agent.id]?.activity
+        const resolved = positions[agent.id]
 
-        // Compute whether the agent should currently be DRAWN at the desk.
-        // Default for all states: agent is at-desk unless their activity sends
-        // them elsewhere (in_training/in_gym/at_water_cooler/in_restroom/chatting)
-        // in which case the room component owns the rendering — except DURING
-        // a desk_to_room/room_to_desk walk, when AgentFloor draws the lerping
-        // sprite (covering the lobby/aisles between rooms).
-        const offShift = agent.state === 'off_shift'
-        const onBreak = agent.state === 'on_break'
-        const atDeskActivity = !activity || activity === 'at_desk'
-
-        let agentX = pos.x
-        let agentY = pos.y - 1
+        let agentX = deskPos.x
+        let agentY = deskPos.y - 1
         let agentOpacity = 1
-        let renderAgentAtDesk = false
+        let renderAgentHere = false
+        const phaseKind = journey?.phase.kind
 
-        if (a?.kind === 'desk_to_break') {
-          agentX = lerp(pos.x, seat.x, a.progress)
-          agentY = lerp(pos.y - 1, seat.y, a.progress)
-          renderAgentAtDesk = true
-        } else if (a?.kind === 'break_to_desk') {
-          agentX = lerp(seat.x, pos.x, a.progress)
-          agentY = lerp(seat.y, pos.y - 1, a.progress)
-          renderAgentAtDesk = true
-        } else if (a?.kind === 'desk_to_room') {
-          const target = a.targetPosition ?? pos
-          agentX = lerp(pos.x, target.x, a.progress)
-          agentY = lerp(pos.y - 1, target.y, a.progress)
-          renderAgentAtDesk = true
-        } else if (a?.kind === 'room_to_desk') {
-          const source = a.targetPosition ?? pos
-          agentX = lerp(source.x, pos.x, a.progress)
-          agentY = lerp(source.y, pos.y - 1, a.progress)
-          renderAgentAtDesk = true
-        } else if (a?.kind === 'door_to_desk') {
-          const source = a.targetPosition ?? doorPosition
-          agentX = lerp(source.x, pos.x, a.progress)
-          agentY = lerp(source.y, pos.y - 1, a.progress)
-          renderAgentAtDesk = true
-        } else if (a?.kind === 'desk_to_door') {
-          const target = a.targetPosition ?? doorPosition
-          agentX = lerp(pos.x, target.x, a.progress)
-          agentY = lerp(pos.y - 1, target.y, a.progress)
-          // Fade out across the second half of the walk.
-          agentOpacity = a.progress < 0.7 ? 1 : 1 - (a.progress - 0.7) / 0.3
-          renderAgentAtDesk = true
-        } else if (a?.kind === 'fade_in') {
-          agentOpacity = a.progress
-          renderAgentAtDesk = true
-        } else if (a?.kind === 'fade_out') {
-          agentOpacity = 1 - a.progress
-          renderAgentAtDesk = true
+        if (journey) {
+          if (phaseKind === 'at_desk') {
+            renderAgentHere = true
+          } else if (phaseKind === 'on_call_at_desk') {
+            renderAgentHere = true
+          } else if (isWalkingPhase(journey.phase) && resolved) {
+            agentX = resolved.pos.x
+            agentY = resolved.pos.y - 1
+            agentOpacity = resolved.opacity
+            renderAgentHere = resolved.visible
+          } else {
+            renderAgentHere = false
+          }
         } else {
-          // No animation in flight: render at desk if state is active AND
-          // activity says at_desk. Off-shift / on-break / room-bound activity
-          // -> hide here (other components own that rendering).
-          renderAgentAtDesk = !offShift && !onBreak && atDeskActivity
+          // Defensive fallback for the very first render before journeys hydrate.
+          const offShift = agent.state === 'off_shift'
+          const onBreak = agent.state === 'on_break'
+          const atDeskActivity = !activity || activity === 'at_desk'
+          renderAgentHere = !offShift && !onBreak && atDeskActivity
         }
 
-        const isOnCall = renderAgentAtDesk && agent.state === 'on_call' && !a
+        const isOnCall = renderAgentHere && phaseKind === 'on_call_at_desk'
         const shirtColor = SHIRT_COLOR[agent.state]
-        const chairOpacity = offShift
+        const chairOpacity = (phaseKind === 'gone' || agent.state === 'off_shift')
           ? 0.6
-          : (a?.kind === 'desk_to_break' || a?.kind === 'break_to_desk' || onBreak
-              || activity === 'in_training' || activity === 'in_gym'
-              || activity === 'in_restroom' || activity === 'at_water_cooler'
-              || activity === 'chatting'
-              ? 0.7 : 1)
+          : (phaseKind && phaseKind !== 'at_desk' && phaseKind !== 'on_call_at_desk' ? 0.7 : 1)
+        const showStatus = renderAgentHere
+          && agentOpacity > 0.2
+          && (phaseKind === 'at_desk' || phaseKind === 'on_call_at_desk')
+          && agent.state !== 'off_shift'
+        const showGlow = renderAgentHere
+          && (phaseKind === 'at_desk' || phaseKind === 'on_call_at_desk')
+          && agent.state !== 'off_shift'
 
         return (
           <g key={`desk-${i}`}>
-            {renderAgentAtDesk && agent.state !== 'off_shift' && !a && (
-              <TileGlow x={pos.x} y={pos.y - 5} state={agent.state}/>
+            {showGlow && (
+              <TileGlow x={deskPos.x} y={deskPos.y - 5} state={agent.state}/>
             )}
-            <Chair x={pos.x} y={pos.y - 7} opacity={chairOpacity}/>
-            {renderAgentAtDesk && (
+            <Chair x={deskPos.x} y={deskPos.y - 7} opacity={chairOpacity}/>
+            {renderAgentHere && (
               <AgentSprite
                 x={agentX}
                 y={agentY}
@@ -177,24 +142,10 @@ export function AgentFloor({ agents, anim = {}, layout, activities }: AgentFloor
                 opacity={agentOpacity}
               />
             )}
-            <Desk x={pos.x} y={pos.y}/>
-            {renderAgentAtDesk && agentOpacity > 0.2 && !a && (
+            <Desk x={deskPos.x} y={deskPos.y}/>
+            {showStatus && (
               <StatusBubble x={agentX} y={agentY} state={agent.state}/>
             )}
-          </g>
-        )
-      })}
-
-      {/* Chatting agents standing in aisles between pods. */}
-      {activities && agents.map(a => {
-        const act = activities[a.id]
-        if (!act || act.activity !== 'chatting') return null
-        const animEntry = anim[a.id]
-        // Hide while walking — the desk_to_room lerp above draws the sprite.
-        if (animEntry?.kind === 'desk_to_room' || animEntry?.kind === 'room_to_desk') return null
-        return (
-          <g key={`chat-${a.id}`}>
-            <AgentSprite x={act.position.x} y={act.position.y} shirtColor="#22c55e"/>
           </g>
         )
       })}
