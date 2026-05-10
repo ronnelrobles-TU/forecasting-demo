@@ -90,6 +90,14 @@ const abandonStyle = new TextStyle({ fontSize: 11, fontWeight: '800', fill: 0xdc
 const lightningStyle = new TextStyle({ fontSize: 18 })
 const questionStyle = new TextStyle({ fontSize: 14, fontWeight: '900', fill: 0xdc2626 })
 
+// Round 13: super-sample dramatic-effect text for HD crispness. Same logic
+// as the agent bubble TEXT_RESOLUTION in agents.ts — bake the glyph texture
+// at >= 4× device-pixel density so the floating phones / lightning bolts /
+// abandon markers stay sharp at the user's typical zoom level.
+const FX_TEXT_RESOLUTION = typeof window !== 'undefined'
+  ? Math.min(8, Math.max(4, (window.devicePixelRatio || 1) * 2))
+  : 4
+
 function bezier(p0: number, p1: number, p2: number, t: number): number {
   const u = 1 - t
   return u * u * p0 + 2 * u * t * p1 + t * t * p2
@@ -123,7 +131,7 @@ export function updateDramaticLayer(
         const target = desks[Math.floor(Math.random() * desks.length)]
         const ctrlX = (door.x + target.x) / 2 + (Math.random() - 0.5) * 60
         const ctrlY = Math.min(door.y, target.y) - 60 - Math.random() * 30
-        const t = new Text({ text: '📞', style: phoneStyle })
+        const t = new Text({ text: '📞', style: phoneStyle, resolution: FX_TEXT_RESOLUTION })
         t.anchor.set(0.5, 0.5)
         t.x = door.x
         t.y = door.y - 4
@@ -155,7 +163,7 @@ export function updateDramaticLayer(
           x: minX + Math.random() * (maxX - minX),
           y: minY + Math.random() * (maxY - minY),
         }
-        const t = new Text({ text: '📞✕', style: abandonStyle })
+        const t = new Text({ text: '📞✕', style: abandonStyle, resolution: FX_TEXT_RESOLUTION })
         t.anchor.set(0.5, 0.5)
         t.x = at.x
         t.y = at.y
@@ -184,7 +192,7 @@ export function updateDramaticLayer(
           const p = positions[id]
           if (p && p.visible) {
             const at: ScreenPoint = { x: p.pos.x, y: p.pos.y - 26 }
-            const t = new Text({ text: '⚡', style: lightningStyle })
+            const t = new Text({ text: '⚡', style: lightningStyle, resolution: FX_TEXT_RESOLUTION })
             t.anchor.set(0.5, 0.5)
             t.x = at.x
             t.y = at.y
@@ -222,7 +230,7 @@ export function updateDramaticLayer(
             at: target, offsetX, offsetY,
           })
         }
-        const qt = new Text({ text: '?', style: questionStyle })
+        const qt = new Text({ text: '?', style: questionStyle, resolution: FX_TEXT_RESOLUTION })
         qt.anchor.set(0.5, 0.5)
         qt.x = target.x
         qt.y = target.y - 18

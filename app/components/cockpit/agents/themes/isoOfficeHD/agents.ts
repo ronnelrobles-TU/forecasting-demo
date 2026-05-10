@@ -43,9 +43,14 @@ function getOnCallGlow(): GlowFilter {
 
 // Cached devicePixelRatio for crisp text — captured once per sprite build
 // instead of on every getter call (it doesn't change at runtime).
+// Round 13: bump the floor and the ceiling. Status emoji is rendered at
+// `fontSize=8` then transform-scaled down; baking the texture at >= 4×
+// device-pixel density keeps the glyphs crisp at our typical zoom range
+// and even sharper when the user zooms in. Ceiling raised to 8 so retina
+// displays (DPR 3) get full benefit of super-sampling.
 const TEXT_RESOLUTION = typeof window !== 'undefined'
-  ? Math.min(4, Math.max(2, (window.devicePixelRatio || 1) * 2))
-  : 2
+  ? Math.min(8, Math.max(4, (window.devicePixelRatio || 1) * 2))
+  : 4
 
 // System emoji font stack — order matters so each platform picks its native
 // color-emoji face (Apple, Microsoft, Google) before falling back.

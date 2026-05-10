@@ -21,7 +21,7 @@
 //   - Restroom queue dots + occupancy markers
 //   - Event banners (these still surface via the SVG-overlay DOM siblings)
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AgentRendererProps } from './AgentRenderer'
 import { computeBuildingLayout, type BuildingLayout } from './isoOffice/geometry'
 import { computeActivityAssignments, type ActivityAssignment } from './isoOffice/activity'
@@ -247,6 +247,41 @@ export function IsoRendererHD({
   const sceneRef = useRef<HDSceneState | null>(null)
   // Bump this whenever the scene gets rebuilt so dependent effects re-run.
   const [sceneNonce, setSceneNonce] = useState(0)
+  // Layout is captured in a ref so applyCameraFromRefs can read the current
+  // viewBox without being re-bound (and thus invalidating the mount effect)
+  // every time the layout changes minute-to-minute.
+  const layoutRef = useRef(layout)
+  useEffect(() => { layoutRef.current = layout }, [layout])
+
+  // Apply the user's camera state composed with a "fit-to-canvas" baseline.
+  // - fitScale = scale needed to fit the iso world inside the current canvas
+  //   while preserving aspect ratio. Computed from the renderer's CSS dims.
+  // - The user's camera.scale composes on top of fitScale (so camera.scale=1
+  //   means "office fills the canvas"), and panX/panY translate after the
+  //   centering offset.
+  // Reads everything from refs so this can be called from non-React contexts
+  // (resize observer, renderer 'resize' event) without re-binding listeners.
+  const applyCameraFromRefs = useCallback(() => {
+    const scene = sceneRef.current
+    const app = appRef.current
+    if (!scene || !app) return
+    const lay = layoutRef.current
+    const cam = cameraRef.current
+    // `renderer.screen` is in CSS pixels (post-resolution divide). This is
+    // what we want — cameraLayer transforms are applied in CSS-pixel space
+    // because autoDensity already scales the canvas backing for us.
+    const containerW = app.renderer.screen.width
+    const containerH = app.renderer.screen.height
+    if (containerW <= 0 || containerH <= 0) return
+    const fitScale = Math.min(
+      containerW / lay.viewBox.w,
+      containerH / lay.viewBox.h,
+    )
+    const composed = fitScale * cam.scale
+    scene.cameraLayer.scale.set(composed)
+    scene.cameraLayer.x = (containerW - lay.viewBox.w * composed) / 2 + cam.panX
+    scene.cameraLayer.y = (containerH - lay.viewBox.h * composed) / 2 + cam.panY
+  }, [])
 
   // Capture the seed values for the scene init in a ref so the mount effect
   // doesn't re-fire when they change minute-to-minute. The scene uses them
@@ -272,19 +307,30 @@ export function IsoRendererHD({
   useEffect(() => {
     let mounted = true
     let createdApp: import('pixi.js').Application | null = null
+    let resizeObserver: ResizeObserver | null = null
     async function init() {
       // Dynamic import — Pixi pulls in the WebGL renderer modules and is
       // strictly client-side. Keeping it dynamic also avoids any chance of
       // the SSR pass touching browser globals.
       const PIXI = await import('pixi.js')
+      const containerEl = containerRef.current
+      if (!mounted || !containerEl) return
+      // Round 13: HD-quality fix. Using `resizeTo: containerEl` makes Pixi
+      // own the canvas's pixel dimensions — the canvas internal pixel size
+      // is `containerSize × resolution` and CSS exactly matches container.
+      // Without `resizeTo` the previous code locked the canvas to a fixed
+      // viewBox size and then CSS-stretched it to fill the parent, which
+      // upscaled the render and produced visibly blurry edges (the "360p
+      // vs 1080p" the user reported). We super-sample at minimum 2× DPR
+      // so HD looks crisper than the SVG renderer.
+      const dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1
       const app = new PIXI.Application()
       await app.init({
-        width: layout.viewBox.w,
-        height: layout.viewBox.h,
+        resizeTo: containerEl,
         backgroundColor: 0x0f172a,
         antialias: true,
         autoDensity: true,
-        resolution: typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1,
+        resolution: Math.max(2, dpr),
       })
       if (!mounted || !containerRef.current) {
         app.destroy(true, { children: true, texture: true })
@@ -295,8 +341,9 @@ export function IsoRendererHD({
       while (containerRef.current.firstChild) {
         containerRef.current.removeChild(containerRef.current.firstChild)
       }
-      app.canvas.style.width = '100%'
-      app.canvas.style.height = '100%'
+      // Important: do NOT set width/height CSS on the canvas — `autoDensity`
+      // already writes the correct CSS dims. Forcing 100% would override
+      // that and re-introduce the upscale we're trying to eliminate.
       app.canvas.style.display = 'block'
       containerRef.current.appendChild(app.canvas)
       const seed = initSeedRef.current
@@ -309,11 +356,35 @@ export function IsoRendererHD({
       appRef.current = app
       createdApp = app
       sceneRef.current = scene
+
+      // Pixi's built-in ResizePlugin only listens to window-resize events.
+      // Our container can change size on parent layout changes (sidebar
+      // collapse, etc.) without a window event, so add a ResizeObserver
+      // that triggers `app.resize()`.
+      if (typeof ResizeObserver !== 'undefined') {
+        resizeObserver = new ResizeObserver(() => {
+          // app.resize is added by ResizePlugin and reads from `resizeTo`.
+          if (appRef.current) appRef.current.resize()
+        })
+        resizeObserver.observe(containerEl)
+      }
+
+      // Whenever Pixi resizes the renderer, re-fit the camera so the iso
+      // world fills the canvas at the user's current zoom/pan.
+      app.renderer.on('resize', () => {
+        applyCameraFromRefs()
+      })
+      // Initial fit after the scene mounts.
+      applyCameraFromRefs()
       setSceneNonce(n => (n + 1) & 0xffff)
     }
     init()
     return () => {
       mounted = false
+      if (resizeObserver) {
+        try { resizeObserver.disconnect() } catch { /* noop */ }
+        resizeObserver = null
+      }
       const a = appRef.current ?? createdApp
       if (a) {
         try {
@@ -327,7 +398,7 @@ export function IsoRendererHD({
         sceneRef.current = null
       }
     }
-  }, [layout])
+  }, [layout, applyCameraFromRefs])
 
   // ── Active injected events + dramatic state (Round 9) ────────────────
   // Computed up here so the ticker effect (next) can read the latest via
@@ -423,14 +494,13 @@ export function IsoRendererHD({
     paintLighting(scene, layout, lighting, visualFlags)
   }, [sceneNonce, layout, lighting, visualFlags])
 
-  // Camera transform → cameraLayer transform.
+  // Camera transform → cameraLayer transform. We compose the user's camera
+  // with the fit-to-canvas baseline so camera.scale=1 means "office fills
+  // the canvas". applyCameraFromRefs reads the latest refs (camera, layout,
+  // renderer screen size) so it stays correct under resize too.
   useEffect(() => {
-    const scene = sceneRef.current
-    if (!scene) return
-    scene.cameraLayer.scale.set(camera.scale)
-    scene.cameraLayer.x = camera.panX
-    scene.cameraLayer.y = camera.panY
-  }, [sceneNonce, camera])
+    applyCameraFromRefs()
+  }, [sceneNonce, camera, layout, applyCameraFromRefs])
 
   // ── Activity counts for the on-canvas overlay ─────────────────────────
   // The Pixi ticker mutates `journeysRef.current` directly each frame, so we
@@ -558,7 +628,12 @@ export function IsoRendererHD({
       <div
         ref={containerRef}
         className={`cockpit-iso-hd ${camera.scale !== 1 || camera.panX !== 0 || camera.panY !== 0 ? 'cockpit-iso-hd--zoomed' : ''}`}
-        style={{ width: '100%', height: '100%', display: 'block', cursor: 'grab' }}
+        // position: relative + overflow: hidden so Pixi's resizeTo measures
+        // exactly the wrapper's content box. autoDensity writes the right
+        // CSS dims onto the canvas — we deliberately don't set width/height
+        // CSS on the canvas itself anywhere (that would re-introduce the
+        // upscale this fix removes).
+        style={{ width: '100%', height: '100%', display: 'block', position: 'relative', overflow: 'hidden', cursor: 'grab' }}
       />
       {/* Reuse the DOM-level overlays so HD has the same chrome as SVG.
           Round 8: ActivityCounter and StatusLegend are now included so
