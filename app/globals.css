@@ -834,7 +834,13 @@ details[open] .learn-tip summary::before { content: '▼ '; }
   display: flex;
   flex-direction: column;
   flex: 1;
+  /* Pin the cockpit to the viewport height so the KPI strip is always
+     visible at the bottom. Without this, the cockpit-body can grow past
+     the fold when the office canvas is tall, hiding the KPI strip below
+     the visible area (Round 5.5 fix). */
+  height: 100dvh;
   min-height: 0;
+  overflow: hidden;
   background: #0f172a;
   color: #e2e8f0;
   font-family: system-ui, -apple-system, sans-serif;
@@ -1001,7 +1007,10 @@ details[open] .learn-tip summary::before { content: '▼ '; }
 }
 .cockpit-chart-container { flex: 1; min-height: 240px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 0.75rem; }
 
-/* KPI strip */
+/* KPI strip — pinned at the bottom; never shrinks. The cockpit body is
+   `flex: 1; min-height: 0`, so without `flex-shrink: 0` here a tall office
+   canvas inside .cockpit-main would push the strip off-screen on shorter
+   viewports (root cause of the Round 4/5 "missing strip" bug). */
 .cockpit-kpi-strip {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -1009,6 +1018,7 @@ details[open] .learn-tip summary::before { content: '▼ '; }
   border-top: 1px solid #334155;
   padding: 0.6rem 1rem;
   background: #1e293b;
+  flex-shrink: 0;
 }
 .cockpit-kpi-label { opacity: 0.5; font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05em; }
 .cockpit-kpi-value { font-weight: 700; font-size: 1.1rem; }
@@ -1532,6 +1542,10 @@ details[open] .learn-tip summary::before { content: '▼ '; }
   flex-direction: column;
   background: #1e293b;
   border-top: 1px solid #334155;
+  /* Never shrink — the strip must always sit at the bottom of the cockpit
+     even when the office canvas would otherwise grow. The cockpit-body
+     above us is the flex:1 region; we are flex:0. */
+  flex-shrink: 0;
 }
 
 .cockpit-kpi-stack .cockpit-kpi-strip {

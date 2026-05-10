@@ -11,9 +11,11 @@ interface AgentSceneProps {
   events: SimEvent[]
   peakAgents: number
   simTimeMin: number
+  deskCapacity?: number
+  absenteeismPct?: number
 }
 
-export function AgentScene({ events, peakAgents, simTimeMin }: AgentSceneProps) {
+export function AgentScene({ events, peakAgents, simTimeMin, deskCapacity, absenteeismPct }: AgentSceneProps) {
   const { theme } = useScenario()
 
   const timelines = useMemo(
@@ -35,7 +37,14 @@ export function AgentScene({ events, peakAgents, simTimeMin }: AgentSceneProps) 
 
   return (
     <div className="cockpit-agent-scene">
-      <Renderer agents={agents} peakAgents={peakAgents} simTimeMin={simTimeMin} events={events} />
+      <Renderer
+        agents={agents}
+        peakAgents={peakAgents}
+        simTimeMin={simTimeMin}
+        events={events}
+        deskCapacity={deskCapacity}
+        absenteeismPct={absenteeismPct}
+      />
       <ThemePicker />
     </div>
   )

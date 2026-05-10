@@ -186,15 +186,25 @@ const MIN_BUILDING_DEPTH = 20 + RECEPTION_DEPTH    // = 24
  * Compute the full building layout for a given agent count.
  *
  * The number of cubicle pods (and hence the agent-floor footprint) scales with
- * agentCount; the number of manager mini-offices scales as max(2, ceil(N/35)).
+ * `deskCapacity` (defaults to `agentCount`). When deskCapacity > agentCount
+ * the extra desks render as empty (chair pushed in, no agent), so users can
+ * SEE the morning ramp — empty desks at midnight, agents arriving via the
+ * door, desks filling up as shifts begin.
+ *
+ * The number of manager mini-offices scales as max(2, ceil(N/35)).
  * Every other room is a fixed footprint. The building's overall iso width and
  * depth are sized so all rooms fit without overlap.
  */
-export function computeBuildingLayout(agentCount: number): BuildingLayout {
+export function computeBuildingLayout(agentCount: number, deskCapacity?: number): BuildingLayout {
+  // Desk count: caller-provided capacity, or fall back to agentCount.
+  // Always at least agentCount (so every active agent gets a real seat).
+  const deskCount = Math.max(agentCount, deskCapacity ?? agentCount)
   // 1. Decide how many pods we need (4 desks/pod, never less than 1 pod).
-  const podCount = Math.max(1, Math.ceil(agentCount / 4))
+  const podCount = Math.max(1, Math.ceil(deskCount / 4))
 
   // 2. Decide manager office count (one per ~35 agents, min 2, max 6).
+  //    Manager count is driven by agent count, not desk count — managers don't
+  //    care about empty desks.
   const managerCount = Math.max(2, Math.min(6, Math.ceil(agentCount / 35)))
 
   // 3. Decide agent-floor pod grid. Use roughly square aspect (cols ~ rows).
@@ -316,7 +326,7 @@ export function computeBuildingLayout(agentCount: number): BuildingLayout {
       gym,
       smokingPatio,
     },
-    deskPositions: agentFloor.pods.flatMap(p => p.desks).slice(0, agentCount),
+    deskPositions: agentFloor.pods.flatMap(p => p.desks).slice(0, deskCount),
   }
 }
 
@@ -663,10 +673,13 @@ function makeBreakRoom(agentCount: number, originX: number, originY: number): Br
   const waterCooler = isoToScreen(b.iMin + 1.2, b.jMin + 2.3, originX, originY)
   const vending = isoToScreen(b.iMax - 1.2, b.jMin + 2.3, originX, originY)
 
-  // Break seats: ring of 8 around the table + grid fill. Round 5: bumped from
-  // 25% → 40% of agent count so peak lunch-time break occupancy doesn't force
-  // multiple agents onto the same seat.
-  const maxBreakAgents = Math.max(8, Math.ceil(agentCount * 0.4))
+  // Break seats: ring of 8 around the table + grid fill. Round 5.5: bumped
+  // from 40% → 50% of agent count. At peak lunch (~30-40% of agents on
+  // break simultaneously) we want spare seats so the journey state machine's
+  // bijective seat assignment never hits a duplicate even when activity
+  // staggers a few extra arrivals on top of break-time agents. Overflow
+  // would otherwise stack two agents on the same seat (Round 5 reported).
+  const maxBreakAgents = Math.max(12, Math.ceil(agentCount * 0.5))
   const seats = computeBreakSeats(maxBreakAgents, tableCenter, b, originX, originY)
 
   // Cluster of 4 standing positions near the water cooler for the

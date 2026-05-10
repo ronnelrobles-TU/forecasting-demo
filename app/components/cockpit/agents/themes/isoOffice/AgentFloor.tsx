@@ -16,6 +16,10 @@ interface AgentFloorProps {
   positions?: Record<string, RenderedPosition>
   layout: BuildingLayout
   activities?: Record<string, ActivityAssignment>
+  /** 0..100 — fraction of empty desks to mark as "absent" (subtle coffee-cup
+   *  icon left behind). Visualization-only; sim kernel ignores absenteeism
+   *  per-agent. */
+  absenteeismPct?: number
 }
 
 const SHIRT_COLOR: Record<AgentVisualState, string> = {
@@ -33,6 +37,24 @@ function Chair({ x, y, opacity = 1 }: { x: number; y: number; opacity?: number }
       <polygon points="-5,2 5,2 4,5 -4,5" fill="#1e293b"/>
       <rect x={-4.5} y={-3} width={9} height={5} fill="#334155" stroke="#1e293b" strokeWidth={0.3} rx={0.5}/>
       <rect x={-4} y={-4.5} width={8} height={1.5} fill="#475569"/>
+    </g>
+  )
+}
+
+// Subtle "absent" indicator left on the desk — a small coffee mug + name tag,
+// telling the user "this agent didn't come in today" without looking like a
+// rendering bug. Painted on top of the desk.
+function AbsentMarker({ x, y }: { x: number; y: number }) {
+  return (
+    <g transform={`translate(${x}, ${y})`} opacity={0.85}>
+      {/* Mug body */}
+      <rect x={-1.4} y={-1.5} width={2.8} height={2.6} fill="#f8fafc" stroke="#475569" strokeWidth={0.25} rx={0.3}/>
+      {/* Mug handle */}
+      <path d="M1.4,-0.8 Q2.5,-0.5 2.5,0.4 Q2.5,1 1.4,0.8" fill="none" stroke="#475569" strokeWidth={0.3}/>
+      {/* Steam wisp */}
+      <path d="M-0.5,-2.2 Q-0.2,-3 0.4,-2.6" fill="none" stroke="#cbd5e1" strokeWidth={0.25} opacity={0.7}/>
+      {/* Sticky-note "OUT" tag tucked beside the mug */}
+      <rect x={2.6} y={-0.3} width={2.4} height={1.8} fill="#fde68a" stroke="#a16207" strokeWidth={0.2}/>
     </g>
   )
 }
@@ -59,9 +81,25 @@ function PartitionWall(p1: ScreenPoint, p2: ScreenPoint) {
   ]
 }
 
-export function AgentFloor({ agents, journeys = {}, positions = {}, layout, activities }: AgentFloorProps) {
+export function AgentFloor({ agents, journeys = {}, positions = {}, layout, activities, absenteeismPct }: AgentFloorProps) {
   const deskPositions = layout.deskPositions
   const pods = layout.rooms.agentFloor.pods
+
+  // Pre-compute which empty-desk indices should display the "absent" marker.
+  // Picks a deterministic stride across the empty desks so the layout looks
+  // stable across renders. Empty desks are at indices [agents.length .. end).
+  const emptyStart = agents.length
+  const emptyCount = Math.max(0, deskPositions.length - emptyStart)
+  const absentTarget = Math.round(emptyCount * Math.max(0, Math.min(100, absenteeismPct ?? 0)) / 100)
+  const absentDeskIdx = new Set<number>()
+  if (absentTarget > 0 && emptyCount > 0) {
+    // Even spacing across the empty range so absent desks don't cluster.
+    const stride = emptyCount / absentTarget
+    for (let k = 0; k < absentTarget; k++) {
+      const idx = emptyStart + Math.floor(k * stride + stride / 2)
+      if (idx < deskPositions.length) absentDeskIdx.add(idx)
+    }
+  }
 
   return (
     <g>
@@ -82,7 +120,19 @@ export function AgentFloor({ agents, journeys = {}, positions = {}, layout, acti
 
       {deskPositions.map((deskPos, i) => {
         const agent = agents[i]
-        if (!agent) return null
+        // Empty desk (i >= agents.length): render chair pushed in + desk only.
+        // No agent, no glow, no status bubble. Optionally with an "absent"
+        // marker on a deterministic subset.
+        if (!agent) {
+          const isAbsent = absentDeskIdx.has(i)
+          return (
+            <g key={`desk-empty-${i}`}>
+              <Chair x={deskPos.x} y={deskPos.y - 7} opacity={0.55}/>
+              <Desk x={deskPos.x} y={deskPos.y}/>
+              {isAbsent && <AbsentMarker x={deskPos.x - 1} y={deskPos.y + 1}/>}
+            </g>
+          )
+        }
         const journey = journeys[agent.id]
         const activity = activities?.[agent.id]?.activity
         const resolved = positions[agent.id]

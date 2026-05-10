@@ -22,6 +22,13 @@ export interface LightingState {
   isNight: boolean
   /** Sprite label: "sun" or "moon" — caller chooses how to render. */
   celestialBody: 'sun' | 'moon'
+  /**
+   * Fraction (0..1) of nighttime windows that should glow yellow ("someone
+   * working late"). Varies by hour: busy in early evening, sparse in deep
+   * night, picks back up at early-morning arrivals. Caller (Building) hashes
+   * each window deterministically against this fraction.
+   */
+  litWindowFraction: number
 }
 
 interface RGB { r: number; g: number; b: number }
@@ -159,6 +166,23 @@ function celestialPosition(
   return { x: p.x, y: p.y, visible: true, body: 'moon' }
 }
 
+// Fraction of nighttime windows that glow yellow at a given sim minute.
+// Round 5.5: previously a flat 0.30 — now varies by hour for atmosphere.
+//   18:00–22:00 → 0.65 (evening shift, late workers, busy)
+//   22:00–02:00 → 0.35 (mostly dark, some night shift)
+//   02:00–06:00 → 0.15 (deep night — just a couple lights)
+//   06:00–08:00 → 0.50 (early arrivals)
+// During daytime (8am-6pm) windows take the sky-blue fill anyway, so the
+// lit fraction is unused; we still return a sensible value (0.5) for callers.
+export function nightLitFraction(simTimeMin: number): number {
+  const t = ((simTimeMin % 1440) + 1440) % 1440
+  if (t >= 18 * 60 && t < 22 * 60) return 0.65
+  if (t >= 22 * 60 || t < 2 * 60)  return 0.35
+  if (t >= 2 * 60 && t < 6 * 60)   return 0.15
+  if (t >= 6 * 60 && t < 8 * 60)   return 0.50
+  return 0.50    // daytime fallback (unused — windows show sky during day)
+}
+
 export function computeLighting(
   simTimeMin: number,
   viewBox: { w: number; h: number },
@@ -175,6 +199,7 @@ export function computeLighting(
     sunPosition: { x: sun.x, y: sun.y, visible: sun.visible },
     isNight,
     celestialBody: sun.body,
+    litWindowFraction: nightLitFraction(simTimeMin),
   }
 }
 

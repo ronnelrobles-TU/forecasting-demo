@@ -160,17 +160,21 @@ export function Building({ layout, lighting }: BuildingProps) {
       <polygon points={ptsStr([N, wallTopN, wallTopE, E])} fill="url(#vO-wallNE)" stroke="#64748b" strokeWidth="0.8"/>
       <line x1={N.x} y1={wallTopN.y} x2={N.x} y2={N.y} stroke="#475569" strokeWidth="1.2"/>
 
-      {/* Back-wall windows. At night, ~30% of windows shine yellow ("someone
-          working late"); the rest take the time-of-day fill. During the day
-          we use the existing sky-blue gradient. */}
+      {/* Back-wall windows. At night, a time-of-day-varying fraction of
+          windows glow yellow ("someone working late"); the rest take the
+          time-of-day fill. The fraction comes from `lighting.litWindowFraction`
+          — busy in early evening, sparse in deep night. During the day we
+          use the existing sky-blue gradient. */}
       {nwWindows.map((w, i) => {
-        const litAtNight = lighting?.isNight && (windowHash(i * 7919 + 13) % 100) < 30
+        const litThreshold = Math.round((lighting?.litWindowFraction ?? 0.3) * 100)
+        const litAtNight = lighting?.isNight && (windowHash(i * 7919 + 13) % 100) < litThreshold
         const fill = litAtNight ? '#fbbf24' : (lighting?.windowFill ?? 'url(#vO-win)')
         const stroke = litAtNight ? '#b45309' : (lighting?.windowStroke ?? '#0c4a6e')
         return <polygon key={`nww${i}`} points={ptsStr(w)} fill={fill} stroke={stroke} strokeWidth="0.6"/>
       })}
       {neWindows.map((w, i) => {
-        const litAtNight = lighting?.isNight && (windowHash(i * 7919 + 17) % 100) < 30
+        const litThreshold = Math.round((lighting?.litWindowFraction ?? 0.3) * 100)
+        const litAtNight = lighting?.isNight && (windowHash(i * 7919 + 17) % 100) < litThreshold
         const fill = litAtNight ? '#fbbf24' : (lighting?.windowFill ?? 'url(#vO-win)')
         const stroke = litAtNight ? '#b45309' : (lighting?.windowStroke ?? '#0c4a6e')
         return <polygon key={`new${i}`} points={ptsStr(w)} fill={fill} stroke={stroke} strokeWidth="0.6"/>

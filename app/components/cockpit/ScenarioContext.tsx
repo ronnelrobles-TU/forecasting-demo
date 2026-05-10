@@ -37,7 +37,7 @@ interface ScenarioContextValue {
   setHoop: (hoop: HoopWindow) => void
   setCurve: (curve: number[]) => void
   setDailyTotal: (n: number) => void
-  setNumeric: (field: 'aht' | 'sl' | 'asa' | 'shrink' | 'abs', value: number) => void
+  setNumeric: (field: 'aht' | 'sl' | 'asa' | 'shrink' | 'abs' | 'deskCapacity', value: number) => void
   reseed: () => void
   setRngSeed: (seed: number) => void
   addInjection: (ev: InjectedEvent) => void
@@ -76,7 +76,7 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
   const setHoop = useCallback((hoop: HoopWindow) => setScenario(s => ({ ...s, hoop })), [])
   const setCurve = useCallback((curve: number[]) => setScenario(s => ({ ...s, curve })), [])
   const setDailyTotal = useCallback((n: number) => setScenario(s => ({ ...s, dailyTotal: n })), [])
-  const setNumeric = useCallback((field: 'aht' | 'sl' | 'asa' | 'shrink' | 'abs', value: number) => {
+  const setNumeric = useCallback((field: 'aht' | 'sl' | 'asa' | 'shrink' | 'abs' | 'deskCapacity', value: number) => {
     setScenario(s => ({ ...s, [field]: value }))
   }, [])
   const reseed = useCallback(() => setScenario(s => ({ ...s, rngSeed: Math.floor(Math.random() * 1_000_000) })), [])

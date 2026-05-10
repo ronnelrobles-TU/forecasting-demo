@@ -12,6 +12,13 @@ export interface AgentRendererProps {
   // Optional raw event stream — used by IsoRenderer for break-duration
   // lookahead (lunch detection) and shift_end pre-walks. DotsRenderer ignores.
   events?: SimEvent[]
+  // Optional explicit desk capacity. When set and > peakAgents, IsoRenderer
+  // draws extra empty desks (chair-pushed-in, no agent) so users can see
+  // morning ramp. DotsRenderer ignores.
+  deskCapacity?: number
+  // Absenteeism % (0..100). Used by IsoRenderer to mark a fraction of empty
+  // desks as "absent" with a subtle bag icon. DotsRenderer ignores.
+  absenteeismPct?: number
 }
 
 export type AgentRendererComponent = ComponentType<AgentRendererProps>

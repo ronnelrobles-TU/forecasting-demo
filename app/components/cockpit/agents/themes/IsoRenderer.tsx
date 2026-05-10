@@ -36,9 +36,16 @@ const SHIFT_END_LOOKAHEAD_MIN = 3
 
 export interface RenderedPosition { pos: ScreenPoint; opacity: number; visible: boolean }
 
-export function IsoRenderer({ agents, simTimeMin, events }: AgentRendererProps) {
-  // Compute building layout once per agent count.
-  const layout: BuildingLayout = useMemo(() => computeBuildingLayout(agents.length), [agents.length])
+export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absenteeismPct }: AgentRendererProps) {
+  // Effective desk count: caller-supplied capacity, or one per agent. Layout
+  // grows to fit `deskCount` so users can SEE empty desks fill in as the
+  // morning shift ramps up.
+  const deskCount = Math.max(agents.length, deskCapacity ?? agents.length)
+  // Compute building layout once per (agent count, desk count) pair.
+  const layout: BuildingLayout = useMemo(
+    () => computeBuildingLayout(agents.length, deskCount),
+    [agents.length, deskCount],
+  )
 
   // Time-of-day lighting. Quantize sim time to 5-min steps so the sky doesn't
   // recompute every frame (the colour is barely changing minute-to-minute).
@@ -269,7 +276,14 @@ export function IsoRenderer({ agents, simTimeMin, events }: AgentRendererProps) 
 
       <ManagerOffices layout={layout}/>
 
-      <AgentFloor agents={agents} journeys={journeySnapshot} positions={positions} layout={layout} activities={activities}/>
+      <AgentFloor
+        agents={agents}
+        journeys={journeySnapshot}
+        positions={positions}
+        layout={layout}
+        activities={activities}
+        absenteeismPct={absenteeismPct}
+      />
 
       <SmokingPatio layout={layout} agents={agents} activities={activities} journeys={journeySnapshot}/>
 
