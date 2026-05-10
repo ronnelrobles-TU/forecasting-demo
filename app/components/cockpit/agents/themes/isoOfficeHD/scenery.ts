@@ -17,7 +17,7 @@
 // SVG fallback theme. The HD theme's selling point is *agent throughput*,
 // not visual maximalism.
 
-import { Container, Graphics } from 'pixi.js'
+import { Container, FillGradient, Graphics } from 'pixi.js'
 import {
   WALL_HEIGHT,
   isoToScreen,
@@ -157,28 +157,58 @@ export function buildScenery(layout: BuildingLayout): SceneryLayer {
   const wallTopE = { x: E.x, y: E.y - WALL_HEIGHT }
   const wallTopW = { x: W.x, y: W.y - WALL_HEIGHT }
 
-  // ── Back perimeter walls (NE + NW) at full height.
+  // ── Back perimeter walls (NE + NW) at full height. HD: real linear
+  // gradients via Pixi v8's FillGradient — top edge bright, bottom edge
+  // shadowed. SVG version did this with a `<linearGradient>`; the original
+  // HD pass faked it with an overlay triangle.
   const backWalls = new Graphics()
-  drawFilledPoly(backWalls, [N, wallTopN, wallTopW, W], WALL_NW_TOP)
-  // Approximate the SVG gradient with a darker bottom triangle overlay.
-  drawFilledPoly(backWalls, [W, { x: W.x, y: W.y - WALL_HEIGHT * 0.5 }, { x: N.x, y: N.y - WALL_HEIGHT * 0.5 }, N], WALL_NW_BOT, 0.55)
+  // NW wall: top→bottom gradient in global coords so it lines up with the
+  // wall polygon regardless of where it sits.
+  const nwWallGrad = new FillGradient({
+    type: 'linear',
+    start: { x: 0, y: wallTopW.y },
+    end: { x: 0, y: W.y },
+    colorStops: [
+      { offset: 0, color: WALL_NW_TOP },
+      { offset: 1, color: WALL_NW_BOT },
+    ],
+    textureSpace: 'global',
+  })
+  backWalls.poly(polyPoints([N, wallTopN, wallTopW, W])).fill(nwWallGrad)
   strokePoly(backWalls, [N, wallTopN, wallTopW, W], WALL_OUTLINE, 0.8)
 
-  drawFilledPoly(backWalls, [N, wallTopN, wallTopE, E], WALL_NE_TOP)
-  drawFilledPoly(backWalls, [E, { x: E.x, y: E.y - WALL_HEIGHT * 0.5 }, { x: N.x, y: N.y - WALL_HEIGHT * 0.5 }, N], WALL_NE_BOT, 0.55)
+  const neWallGrad = new FillGradient({
+    type: 'linear',
+    start: { x: 0, y: wallTopE.y },
+    end: { x: 0, y: E.y },
+    colorStops: [
+      { offset: 0, color: WALL_NE_TOP },
+      { offset: 1, color: WALL_NE_BOT },
+    ],
+    textureSpace: 'global',
+  })
+  backWalls.poly(polyPoints([N, wallTopN, wallTopE, E])).fill(neWallGrad)
   strokePoly(backWalls, [N, wallTopN, wallTopE, E], WALL_OUTLINE, 0.8)
 
-  // Vertical seam at N corner.
-  backWalls.moveTo(N.x, wallTopN.y).lineTo(N.x, N.y).stroke({ color: 0x475569, width: 1.2 })
+  // Vertical seam at N corner. Round caps for a cleaner look at this scale.
+  backWalls.moveTo(N.x, wallTopN.y).lineTo(N.x, N.y)
+    .stroke({ color: 0x475569, width: 1.2, cap: 'round' })
   container.addChild(backWalls)
 
-  // ── Floor.
+  // ── Floor — true linear gradient from north (lighter) to south (darker).
+  // Replaces the previous triangle-overlay fake.
   const floor = new Graphics()
-  drawFilledPoly(floor, [N, E, S, W], FLOOR_TOP)
-  // Fake the vertical gradient with a translucent darker overlay over the
-  // bottom half (between mid-line N->S and S itself).
-  const midNS = { x: (N.x + S.x) / 2, y: (N.y + S.y) / 2 }
-  drawFilledPoly(floor, [midNS, { x: (E.x + S.x) / 2, y: (E.y + S.y) / 2 }, S, { x: (W.x + S.x) / 2, y: (W.y + S.y) / 2 }], FLOOR_BOTTOM, 0.55)
+  const floorGrad = new FillGradient({
+    type: 'linear',
+    start: { x: 0, y: N.y },
+    end: { x: 0, y: S.y },
+    colorStops: [
+      { offset: 0, color: FLOOR_TOP },
+      { offset: 1, color: FLOOR_BOTTOM },
+    ],
+    textureSpace: 'global',
+  })
+  floor.poly(polyPoints([N, E, S, W])).fill(floorGrad)
   strokePoly(floor, [N, E, S, W], 0x475569, 1)
   container.addChild(floor)
 

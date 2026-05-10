@@ -31,6 +31,10 @@ export interface HDSceneState {
   effectLayer: Container
   /** Lighting overlay graphics — wall warmth, surge tint, outage tint. */
   lightingOverlay: Graphics
+  /** Warm window glow drawn over the wall graphics at night. Sits between
+   *  scenery and the agents so glow halos bleed past the wall outline but
+   *  don't wash over agent sprites. HD-exclusive. */
+  windowGlow: Graphics
   /** Round 9: dramatic-effect particles (phones, abandons, bolts, puffs). */
   dramatic: DramaticLayerHD
   /** Sun / moon icon (re-positioned per lighting tick). */
@@ -82,9 +86,16 @@ export function buildHDScene(
   const lightingOverlay = new Graphics()
   const dramatic = buildDramaticLayer()
   const celestial = new Graphics()
+  // Subpixel positioning is the Pixi v8 default for Containers — no snap
+  // unless a Sprite explicitly opts into roundPixels. Walk animations stay
+  // smooth as a result.
+  // Warm-window-glow layer sits above scenery (so the glow paints over the
+  // wall edge) but below agents (so they aren't washed over by the halo).
+  const windowGlow = new Graphics()
 
   cameraLayer.addChild(
     scenery.container,
+    windowGlow,
     tileGlows.container,
     agentLayer,
     npcs.container,
@@ -105,6 +116,7 @@ export function buildHDScene(
     smoke,
     effectLayer,
     lightingOverlay,
+    windowGlow,
     dramatic,
     celestial,
     agentSprites: new Map(),

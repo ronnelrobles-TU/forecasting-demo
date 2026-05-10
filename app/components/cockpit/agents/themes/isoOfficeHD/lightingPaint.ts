@@ -5,12 +5,33 @@
 //
 // Pure mutations on the scene state; safe to call per frame.
 
+import { AdvancedBloomFilter } from 'pixi-filters'
 import type { BuildingLayout } from '../isoOffice/geometry'
 import { WALL_HEIGHT } from '../isoOffice/geometry'
 import type { LightingState } from '../isoOffice/lighting'
 import type { HDSceneState } from './scene'
 import { hexStringToNumber } from './colors'
 import { repaintWindows } from './scenery'
+
+// Single shared bloom filter instance for the sun/moon. Lazily constructed
+// because the AdvancedBloomFilter constructor touches the WebGL context
+// (which doesn't exist under jsdom). Pixi caches the shader program once
+// the instance is built so reusing it is cheap.
+let _celestialBloom: AdvancedBloomFilter | null = null
+function getCelestialBloom(): AdvancedBloomFilter {
+  if (!_celestialBloom) {
+    _celestialBloom = new AdvancedBloomFilter({
+      threshold: 0.3,
+      bloomScale: 1.6,
+      brightness: 1.0,
+      blur: 6,
+      quality: 4,
+    })
+  }
+  return _celestialBloom
+}
+
+let celestialBloomAttached = false
 
 // FNV-ish window hash — matches Building.tsx's deterministic pattern so window
 // glow lays down consistently between SVG and HD themes.
@@ -96,17 +117,49 @@ export function paintLighting(
     overlay.poly(flat).fill({ color: 0xef4444, alpha: 0.25 })
   }
 
-  // Celestial body (sun or moon).
+  // Celestial body (sun or moon). HD-only: AdvancedBloomFilter on the sun
+  // gives it the atmospheric "glare" feel that SVG can't match. Attached
+  // lazily on first paint so the cost is paid once per scene mount.
   scene.celestial.clear()
   if (lighting.sunPosition.visible) {
     if (lighting.celestialBody === 'sun') {
+      // Triple-ring sun: dim outer halo + warm inner glow + bright core.
+      // The bloom filter then smears the bright core across the halo.
       scene.celestial
-        .circle(lighting.sunPosition.x, lighting.sunPosition.y, 11).fill({ color: 0xfde68a, alpha: 0.4 })
+        .circle(lighting.sunPosition.x, lighting.sunPosition.y, 16).fill({ color: 0xfef3c7, alpha: 0.18 })
+        .circle(lighting.sunPosition.x, lighting.sunPosition.y, 11).fill({ color: 0xfde68a, alpha: 0.55 })
         .circle(lighting.sunPosition.x, lighting.sunPosition.y, 7).fill({ color: 0xfbbf24 })
+        .circle(lighting.sunPosition.x, lighting.sunPosition.y, 4).fill({ color: 0xfffbe8 })
     } else {
+      // Moon: cool halo + crescent.
       scene.celestial
+        .circle(lighting.sunPosition.x, lighting.sunPosition.y, 11).fill({ color: 0xe2e8f0, alpha: 0.25 })
         .circle(lighting.sunPosition.x, lighting.sunPosition.y, 6).fill({ color: 0xf1f5f9 })
         .circle(lighting.sunPosition.x + 1.6, lighting.sunPosition.y, 5.5).fill({ color: skyColor })
+    }
+    if (!celestialBloomAttached) {
+      scene.celestial.filters = [getCelestialBloom()]
+      celestialBloomAttached = true
+    }
+  }
+
+  // HD-only: warm radial glow halos under each lit window at night. The
+  // existing windows graphic gets the yellow fill via repaintWindows above;
+  // here we add the soft outer glow that bleeds past the wall outline so
+  // the lit windows feel like real warm interior lighting rather than a
+  // flat yellow rectangle. Keeping it as a Graphics paint (not a filter)
+  // means there's no per-frame shader cost.
+  const glow = scene.windowGlow
+  glow.clear()
+  if (lighting.isNight) {
+    const litThresholdInner = Math.round(lighting.litWindowFraction * 100)
+    for (let i = 0; i < scene.scenery.windowCenters.length; i++) {
+      if ((windowHash(i * 7919 + 13) % 100) >= litThresholdInner) continue
+      const c = scene.scenery.windowCenters[i]
+      // Two layered discs — outer atmospheric glow + tighter warm core.
+      glow
+        .circle(c.x, c.y, 9).fill({ color: 0xfde68a, alpha: 0.18 })
+        .circle(c.x, c.y, 5.5).fill({ color: 0xfbbf24, alpha: 0.32 })
     }
   }
 

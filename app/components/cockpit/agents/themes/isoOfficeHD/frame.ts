@@ -16,6 +16,7 @@ import {
   createAgentSprite,
   destroyAgentSprite,
   positionSprite,
+  setOnCallGlow,
   setShirtColor,
   setStatusBubble,
 } from './agents'
@@ -75,6 +76,14 @@ export function updateAgentLayer(
     // Shirt color from sim state.
     const shirt = SHIRT_COLOR_HEX[a.state] ?? 0x22c55e
     setShirtColor(sprite, shirt)
+    // HD-only flex: subtle red glow on on-call agents so they pop. Only
+    // applied when the agent is at-desk (or at-desk on call) and visible —
+    // walking glowing bodies look noisy. Capped count is naturally bounded
+    // by sim parallelism so we don't gate it explicitly here.
+    const onCallVisible = a.state === 'on_call'
+      && alpha > 0.6
+      && (phase.kind === 'on_call_at_desk' || phase.kind === 'at_desk')
+    setOnCallGlow(sprite, onCallVisible)
 
     // Bubble — only when at-desk and visible. Walking agents drop the bubble
     // (matches the SVG version which only shows StatusBubble when at desk).
