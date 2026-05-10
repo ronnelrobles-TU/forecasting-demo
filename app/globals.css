@@ -1881,3 +1881,158 @@ details[open] .learn-tip summary::before { content: '▼ '; }
 .cockpit-smoke-curl--delay2 {
   animation-delay: 1.3s;
 }
+
+/* ───────── Round 6: SimCity-style camera (zoom/pan) ───────── */
+.cockpit-iso-svg {
+  cursor: grab;
+  /* Stop the page from scrolling on wheel-zoom even when our preventDefault
+     loses the race (some browsers keep the wheel listener passive). */
+  touch-action: none;
+  user-select: none;
+}
+.cockpit-iso-svg--dragging { cursor: grabbing; }
+
+/* Camera controls (top-right, just left of the ThemePicker). */
+.cockpit-scene-overlay--top-right-camera {
+  top: 0.5rem;
+  /* Sit beside ThemePicker which is right:0.5rem and ~120px wide. We give it
+     enough room so the two never overlap on narrow viewports. */
+  right: 8.5rem;
+  flex-direction: row;
+  gap: 0.4rem;
+  align-items: center;
+}
+.cockpit-camera-controls {
+  display: inline-flex;
+  align-items: center;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  overflow: hidden;
+  font-size: 0.7rem;
+}
+.cockpit-camera-btn {
+  background: transparent;
+  color: #cbd5e1;
+  border: none;
+  padding: 0.3rem 0.55rem;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  line-height: 1;
+}
+.cockpit-camera-btn:hover { background: #334155; color: #f1f5f9; }
+.cockpit-camera-zoom-label {
+  color: #cbd5e1;
+  padding: 0 0.45rem;
+  font-variant-numeric: tabular-nums;
+  min-width: 3ch;
+  text-align: center;
+}
+.cockpit-camera-reset { font-size: 0.95rem; }
+.cockpit-camera-reset--active {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.12);
+}
+.cockpit-camera-hint {
+  background: rgba(15, 23, 42, 0.78);
+  color: #fde68a;
+  border: 1px solid rgba(251, 191, 36, 0.5);
+  border-radius: 999px;
+  padding: 0.18rem 0.55rem;
+  font-size: 0.65rem;
+  white-space: nowrap;
+  animation: cockpit-camera-hint-fade 4s ease-out forwards;
+}
+@keyframes cockpit-camera-hint-fade {
+  0%   { opacity: 0; transform: translateY(-2px); }
+  10%  { opacity: 1; transform: translateY(0); }
+  85%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ───────── Round 6: Injected-event banners ───────── */
+.cockpit-event-banner {
+  position: absolute;
+  top: 0.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  z-index: 4;
+  pointer-events: none;
+  max-width: min(70%, 480px);
+}
+.cockpit-event-toast {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(15, 23, 42, 0.9);
+  color: #f1f5f9;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+  pointer-events: auto;
+  animation: cockpit-event-toast-in 0.35s ease-out;
+}
+@keyframes cockpit-event-toast-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.cockpit-event-toast-emoji { font-size: 0.95rem; line-height: 1; }
+.cockpit-event-toast-subtitle { opacity: 0.8; font-weight: 400; }
+.cockpit-event-toast-remaining {
+  opacity: 0.7;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.cockpit-event-toast--volume_surge {
+  border-color: rgba(220, 38, 38, 0.65);
+  box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.18), 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+.cockpit-event-toast--aht_spike {
+  border-color: rgba(245, 158, 11, 0.7);
+}
+.cockpit-event-toast--staff_drop {
+  border-color: rgba(124, 58, 237, 0.65);
+}
+.cockpit-event-toast--flash_absent {
+  border-color: rgba(239, 68, 68, 0.8);
+  background: rgba(127, 29, 29, 0.92);
+  animation: cockpit-event-toast-in 0.35s ease-out, cockpit-event-flash 1.2s ease-in-out infinite;
+}
+@keyframes cockpit-event-flash {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.4), 0 4px 12px rgba(0, 0, 0, 0.4); }
+  50%      { box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.7), 0 4px 12px rgba(0, 0, 0, 0.4); }
+}
+
+.cockpit-outage-banner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 0.35rem 0.75rem;
+  background: linear-gradient(90deg, rgba(127, 29, 29, 0.85), rgba(220, 38, 38, 0.85), rgba(127, 29, 29, 0.85));
+  color: #fef2f2;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  z-index: 3;
+  pointer-events: none;
+  animation: cockpit-outage-pulse 1.6s ease-in-out infinite;
+}
+@keyframes cockpit-outage-pulse {
+  0%, 100% { opacity: 0.92; }
+  50%      { opacity: 0.65; }
+}

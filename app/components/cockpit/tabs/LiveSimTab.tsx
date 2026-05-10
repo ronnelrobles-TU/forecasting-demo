@@ -105,6 +105,7 @@ export function LiveSimTab({ onLiveChange }: LiveSimTabProps = {}) {
                 shrinkPct={scenario.shrink}
                 perInterval={result.perInterval}
                 simSpeed={speed}
+                injectedEvents={scenario.injectedEvents}
               />
             : <div className="cockpit-placeholder"><p>Loading sim…</p></div>}
         </div>

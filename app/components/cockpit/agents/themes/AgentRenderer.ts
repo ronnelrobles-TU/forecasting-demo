@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react'
 import type { AgentVisualState } from '@/lib/animation/agentTimeline'
-import type { IntervalStat, SimEvent } from '@/lib/types'
+import type { InjectedEvent, IntervalStat, SimEvent } from '@/lib/types'
 import type { ThemeKey } from '@/app/components/cockpit/ScenarioContext'
 import type { Speed } from '@/lib/animation/timeScale'
 import { DotsRenderer } from './DotsRenderer'
@@ -13,6 +13,10 @@ export interface AgentRendererProps {
   // Optional raw event stream — used by IsoRenderer for break-duration
   // lookahead (lunch detection) and shift_end pre-walks. DotsRenderer ignores.
   events?: SimEvent[]
+  // User-injected events from the scenario — surge, outage, staff drop,
+  // flash absent. IsoRenderer renders banner toasts + visual cues at the
+  // active sim time. DotsRenderer ignores.
+  injectedEvents?: InjectedEvent[]
   // Optional explicit desk capacity. When set and > peakAgents, IsoRenderer
   // draws extra empty desks (chair-pushed-in, no agent) so users can see
   // morning ramp. DotsRenderer ignores.

@@ -3,6 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { AgentRendererProps } from './AgentRenderer'
 import { Building, BuildingDefs } from './isoOffice/Building'
+import { useCamera } from './isoOffice/useCamera'
+import { CameraControls } from './isoOffice/CameraControls'
+import { EventBanner } from './isoOffice/EventBanner'
+import { activeInjectedEvents, eventVisualFlags } from './isoOffice/injectedEventVisuals'
 import { AgentFloor } from './isoOffice/AgentFloor'
 import { ManagerOffices } from './isoOffice/ManagerOffices'
 import { Reception, ReceptionDefs } from './isoOffice/Reception'
@@ -45,7 +49,7 @@ const EMPTY_ACTIVITIES: Record<string, ActivityAssignment> = {}
 
 export interface RenderedPosition { pos: ScreenPoint; opacity: number; visible: boolean }
 
-export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absenteeismPct, shrinkPct, perInterval, simSpeed }: AgentRendererProps) {
+export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absenteeismPct, shrinkPct, perInterval, simSpeed, injectedEvents }: AgentRendererProps) {
   // Fast mode: at sim speeds > 1× the user is fast-forwarding, and journey
   // animations (1.5s walks, 2.5s break sits, 4s lunch outside) take longer
   // in real time than the actual sim event they're meant to depict — the
@@ -422,15 +426,83 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
     return counts
   }, [agents, journeySnapshot])
 
+  // ── Camera / pan-zoom ─────────────────────────────────────────────────
+  const camera = useCamera({ baseW: layout.viewBox.w, baseH: layout.viewBox.h })
+
+  // ── Injected-event banners + visual flags ─────────────────────────────
+  const activeEvents = useMemo(
+    () => activeInjectedEvents(injectedEvents, simTimeMin),
+    [injectedEvents, simTimeMin],
+  )
+  const visualFlags = useMemo(() => eventVisualFlags(activeEvents), [activeEvents])
+
+  // SVG ref for keyboard focus.
+  const svgRef = useRef<SVGSVGElement | null>(null)
+  // Keyboard shortcuts: + / − zoom, arrows pan, 0 reset. Bound to window
+  // so they work whether or not the SVG is currently focused — the office
+  // is the dominant element on the page so this is fine UX.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      // Ignore when typing in inputs / textareas.
+      const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return
+      if ((e.target as HTMLElement | null)?.isContentEditable) return
+      switch (e.key) {
+        case '+':
+        case '=':
+          camera.zoomIn(); break
+        case '-':
+        case '_':
+          camera.zoomOut(); break
+        case '0':
+          camera.reset(); break
+        case 'ArrowLeft':
+          camera.panBy(40, 0); break
+        case 'ArrowRight':
+          camera.panBy(-40, 0); break
+        case 'ArrowUp':
+          camera.panBy(0, 40); break
+        case 'ArrowDown':
+          camera.panBy(0, -40); break
+        default:
+          return
+      }
+      e.preventDefault()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [camera])
+
+  // Show a brief "Press 0 to reset" hint when zoomed in.
+  const zoomedAway = Math.abs(camera.state.scale - 1) > 0.01
+    || camera.state.panX !== 0
+    || camera.state.panY !== 0
+
   return (
     <>
     <svg
-      viewBox={`0 0 ${layout.viewBox.w} ${layout.viewBox.h}`}
+      ref={svgRef}
+      viewBox={`${camera.viewBox.x} ${camera.viewBox.y} ${camera.viewBox.w} ${camera.viewBox.h}`}
+      className={`cockpit-iso-svg ${camera.dragging ? 'cockpit-iso-svg--dragging' : ''}`}
       style={{ width: '100%', height: '100%', display: 'block', background: lighting.skyColor }}
+      onWheel={camera.onWheel}
+      onMouseDown={camera.onMouseDown}
+      onTouchStart={camera.onTouchStart}
+      onTouchMove={camera.onTouchMove}
+      onTouchEnd={camera.onTouchEnd}
     >
       <BuildingDefs/>
       <ReceptionDefs/>
-      <defs><TileGlowDefs/></defs>
+      <defs>
+        <TileGlowDefs/>
+        {/* Pulse animation for the door surge ring. Uses SMIL because it
+            animates an SVG attribute we want anti-aliased and GPU-cheap. */}
+        <radialGradient id="vO-surge-glow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#dc2626" stopOpacity="0.55"/>
+          <stop offset="60%" stopColor="#dc2626" stopOpacity="0.18"/>
+          <stop offset="100%" stopColor="#dc2626" stopOpacity="0"/>
+        </radialGradient>
+      </defs>
 
       {/* Sky-color background rect (covers the full viewBox so PNG export and
           containers without `background` still see the sky). */}
@@ -480,6 +552,60 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
       <DeliveryPerson layout={layout} simTimeMin={simTimeMin}/>
 
       <Reception layout={layout}/>
+
+      {/* ── Injected-event visual cues ──
+          Drawn last so they sit above the office. We keep them inside the
+          SVG (not the HTML overlay) so they zoom/pan with the camera and
+          stay anchored to the door / agent floor / desks. */}
+      {visualFlags.surgeActive && (() => {
+        const door = layout.rooms.reception.doorPosition
+        return (
+          <g pointerEvents="none">
+            {/* Pulsing red glow centered on the front door. */}
+            <circle cx={door.x} cy={door.y - 6} r={36} fill="url(#vO-surge-glow)">
+              <animate attributeName="r" values="28;46;28" dur="1.6s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.45;1;0.45" dur="1.6s" repeatCount="indefinite"/>
+            </circle>
+            {/* A subtle red wash over the agent floor zone polygon. */}
+            <polygon
+              points={layout.rooms.agentFloor.zonePoints.map(p => `${p.x},${p.y}`).join(' ')}
+              fill="#dc2626"
+              opacity={0.10}
+            >
+              <animate attributeName="opacity" values="0.06;0.15;0.06" dur="2.4s" repeatCount="indefinite"/>
+            </polygon>
+          </g>
+        )
+      })()}
+
+      {visualFlags.outageActive && (
+        <g pointerEvents="none">
+          {/* Dim everything with a red-tinted overlay covering the full base
+              viewBox. We use the *base* dimensions (not the camera viewBox)
+              so dimming is consistent regardless of zoom. */}
+          <rect
+            x={0} y={0}
+            width={layout.viewBox.w}
+            height={layout.viewBox.h}
+            fill="#7f1d1d"
+            opacity={0.18}
+          />
+        </g>
+      )}
+
+      {visualFlags.flashAbsentActive && (
+        <g pointerEvents="none">
+          {/* Quick red flash over the agent floor — emphasises the just-fired
+              loss of agents. Auto-dismisses with the active-event window. */}
+          <polygon
+            points={layout.rooms.agentFloor.zonePoints.map(p => `${p.x},${p.y}`).join(' ')}
+            fill="#ef4444"
+            opacity={0.0}
+          >
+            <animate attributeName="opacity" values="0;0.35;0;0.25;0" dur="2.4s" repeatCount="indefinite"/>
+          </polygon>
+        </g>
+      )}
     </svg>
 
     {/* Round 5.7 clarity overlays. HTML siblings of the SVG, absolutely
@@ -493,6 +619,30 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
       <ActivityCounter counts={activityCounts}/>
       <StatusLegend/>
     </div>
+
+    {/* Camera controls — sit beside the ThemePicker on the top-right edge. */}
+    <div className="cockpit-scene-overlay cockpit-scene-overlay--top-right-camera">
+      <CameraControls
+        scale={camera.state.scale}
+        onReset={camera.reset}
+        onZoomIn={camera.zoomIn}
+        onZoomOut={camera.zoomOut}
+      />
+      {zoomedAway && (
+        <div className="cockpit-camera-hint" aria-live="polite">Press 0 to reset</div>
+      )}
+    </div>
+
+    {/* Outage banner across the top of the office — sits above the EventBanner
+        toasts so it reads first. */}
+    {visualFlags.outageActive && (
+      <div className="cockpit-outage-banner" role="status">
+        <span aria-hidden="true">⚠️</span>
+        <span>SYSTEM SLOWDOWN — calls taking longer than usual</span>
+      </div>
+    )}
+
+    <EventBanner active={activeEvents}/>
     </>
   )
 }
