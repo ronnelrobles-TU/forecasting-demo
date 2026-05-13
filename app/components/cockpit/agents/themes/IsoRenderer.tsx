@@ -1,0 +1,905 @@
+'use client'
+
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { AgentRendererProps } from './AgentRenderer'
+import { Building, BuildingDefs } from './isoOffice/Building'
+import { useCamera } from './isoOffice/useCamera'
+import { CameraControls } from './isoOffice/CameraControls'
+import { EventBanner } from './isoOffice/EventBanner'
+import { activeInjectedEvents, eventVisualFlags } from './isoOffice/injectedEventVisuals'
+import { computeDramaticState, estimateQueueDepth } from './isoOffice/dramaticEffects'
+import { DramaticEffectsLayer } from './isoOffice/DramaticEffectsLayer'
+import { AgentFloor } from './isoOffice/AgentFloor'
+import { ManagerOffices } from './isoOffice/ManagerOffices'
+import { Reception, ReceptionDefs } from './isoOffice/Reception'
+import { BreakRoom } from './isoOffice/BreakRoom'
+import { TrainingRoom } from './isoOffice/TrainingRoom'
+import { Restrooms } from './isoOffice/Restrooms'
+import { Gym } from './isoOffice/Gym'
+import { SmokingPatio } from './isoOffice/SmokingPatio'
+import { Janitor } from './isoOffice/Janitor'
+import { ExecutiveWalker } from './isoOffice/ExecutiveWalker'
+import { DeliveryPerson } from './isoOffice/DeliveryPerson'
+import { TileGlowDefs } from './isoOffice/TileGlow'
+import { computeBuildingLayout, type BuildingLayout, type ScreenPoint } from './isoOffice/geometry'
+import { computeActivityAssignments, type ActivityAssignment } from './isoOffice/activity'
+import {
+  makeJourney,
+  tickJourney,
+  transitionJourney,
+  startWalkToRoom,
+  startWalkBackToDesk,
+  isWalkingPhase,
+  journeyPosition,
+  snapJourneyFor,
+  type SnapActivity,
+  type VisualJourney,
+  type RoomKind,
+} from './isoOffice/journey'
+import { computeJourneyLookahead, breakDurationFor, hasUpcomingShiftEnd } from './isoOffice/lookahead'
+import { createVirtualClock } from './isoOffice/virtualClock'
+import { computeLighting, quantizeLightingTime } from './isoOffice/lighting'
+import { activeAgentIndicesAllocated, activeAgentIndicesFromRoster, peakInOfficeCount } from './isoOffice/shiftModel'
+import { SceneClock } from './isoOffice/SceneClock'
+import { StatusLegend } from './isoOffice/StatusLegend'
+import { ActivityCounter, type ActivityCounts } from './isoOffice/ActivityCounter'
+import type { AgentVisualState } from '@/lib/animation/agentTimeline'
+
+const SHIFT_END_LOOKAHEAD_MIN = 3
+
+// Stable empty assignments map used in fast mode. Must be a single
+// top-level reference so memoised consumers don't see it as "changed"
+// every render.
+const EMPTY_ACTIVITIES: Record<string, ActivityAssignment> = {}
+
+export interface RenderedPosition { pos: ScreenPoint; opacity: number; visible: boolean }
+
+// Threshold (in sim minutes) above which a simTimeMin delta is treated as
+// a "scrub jump" rather than smooth playback. At 0.25× speed sim advances
+// 6 sim-min/sec, so 2 sim-min ≈ 0.33s real — slow enough to ignore frame
+// jitter while still catching any user scrub. Backward deltas always snap
+// regardless of magnitude.
+const TIME_JUMP_THRESHOLD_SIM_MIN = 2
+
+export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absenteeismPct, shrinkPct, perInterval, simSpeed, injectedEvents, roster, playing = true }: AgentRendererProps) {
+  // Fast mode: at sim speeds > 1× the user is fast-forwarding, and journey
+  // animations (1.5s walks, 2.5s break sits, 4s lunch outside) take longer
+  // in real time than the actual sim event they're meant to depict — the
+  // viz lies about timing. Flip to a static "agents-at-desks-with-shirt-
+  // colors" mode that's accurate to the kernel's tick.
+  const fastMode = (simSpeed ?? 1) > 1
+
+  // Compute which agent indices are currently "on shift" using the Erlang
+  // scheduled-agent count from the per-interval stats. Without this, the
+  // agentTimeline kernel defaults every agent to idle at minute 0 — so at
+  // midnight the office is full of idle agents, which is nonsense. With
+  // this overlay, only the night-shift skeleton is visible at midnight,
+  // and the floor ramps in/out through the day matching call volume.
+  // Per-agent micro-offsets stagger arrivals so the 15-min boundary
+  // doesn't bunch.
+  // Round 5.7: peak in-office count = ceil(maxErlang / (1 - shrink/100)).
+  // Indices [peakInOffice .. agents.length) are "today's absentees" — they
+  // never come in. Their desks render with the AbsentMarker so the user sees
+  // the absenteeism rate at a glance. This is the slice between the in-office
+  // population (~234) and the total scheduled HC (~257) for a typical 159-
+  // Erlang scenario.
+  const peakInOffice = useMemo(
+    () => peakInOfficeCount(perInterval, shrinkPct),
+    [perInterval, shrinkPct],
+  )
+  const absentSlots = Math.max(0, agents.length - peakInOffice)
+
+  // Round 7.1: three-tier allocation by agent index. Productive agents
+  // (the first N matching the Erlang count) stay at desks; shrinkage
+  // agents (the next M up to the in-office target) are forced into non-
+  // desk activities; the rest are off-shift / absent.
+  // Round 11: when a roster is set, derive allocation from the roster
+  // directly (each agent snapped to a specific shift's start/end). Falls
+  // back to the interval-curve smoothing when no roster is authored.
+  const useRoster = roster != null && roster.length > 0
+  const allocation = useMemo(
+    () => useRoster
+      ? activeAgentIndicesFromRoster(roster!, agents.length, simTimeMin, shrinkPct)
+      : activeAgentIndicesAllocated(agents.length, perInterval, simTimeMin, shrinkPct),
+    [useRoster, roster, agents.length, perInterval, simTimeMin, shrinkPct],
+  )
+  const isActiveByIndex = useMemo(
+    () => {
+      // An agent is "active" (in the office) iff they're in either the
+      // productive or shrinkage set. Force the absentee tail to inactive
+      // even if the schedule curve briefly sweeps past it.
+      const arr = new Array<boolean>(agents.length)
+      const tailStart = agents.length - absentSlots
+      for (let i = 0; i < agents.length; i++) {
+        if (i >= tailStart && tailStart >= 0) {
+          arr[i] = false
+          continue
+        }
+        arr[i] = allocation.productive.has(i) || allocation.shrinkage.has(i)
+      }
+      return arr
+    },
+    [agents.length, allocation, absentSlots],
+  )
+  // Effective desk count: caller-supplied capacity, or one per agent. Layout
+  // grows to fit `deskCount` so users can SEE empty desks fill in as the
+  // morning shift ramps up.
+  const deskCount = Math.max(agents.length, deskCapacity ?? agents.length)
+  // Compute building layout once per (agent count, desk count) pair.
+  const layout: BuildingLayout = useMemo(
+    () => computeBuildingLayout(agents.length, deskCount),
+    [agents.length, deskCount],
+  )
+
+  // Time-of-day lighting. Quantize sim time to 5-min steps so the sky doesn't
+  // recompute every frame (the colour is barely changing minute-to-minute).
+  const lightingTime = quantizeLightingTime(simTimeMin, 5)
+  const lighting = useMemo(
+    () => computeLighting(lightingTime, layout.viewBox),
+    [lightingTime, layout.viewBox],
+  )
+
+  // Activity assignments — pure, stable within a 30-min sim window.
+  // Round 7.1: pass the productive/shrinkage allocation so productive
+  // agents stay at desks and shrinkage agents are routed into non-desk
+  // rooms. Without this, the scheduler would scatter productive agents
+  // out of their desks and the "At desks" overlay would undershoot the
+  // KPI strip's "Active Agents" total.
+  const activities: Record<string, ActivityAssignment> = useMemo(
+    () => computeActivityAssignments(agents, simTimeMin, layout, allocation),
+    [agents, simTimeMin, layout, allocation],
+  )
+
+  // Lookahead: per-agent break durations + shift_end times derived from events.
+  const lookahead = useMemo(
+    () => computeJourneyLookahead(events ?? []),
+    [events],
+  )
+
+  // Per-agent visual journeys.
+  const journeysRef = useRef<Record<string, VisualJourney>>({})
+  const [journeySnapshot, setJourneySnapshot] = useState<Record<string, VisualJourney>>({})
+  // Frame-time-resolved render positions. Updated alongside the snapshot.
+  const [positions, setPositions] = useState<Record<string, RenderedPosition>>({})
+  const prevStatesRef = useRef<Record<string, AgentVisualState>>({})
+  const prevActivitiesRef = useRef<Record<string, string>>({})
+  const prevAgentCountRef = useRef<number>(0)
+
+  // Virtual wall-clock for the journey state machine. Frozen while paused so
+  // walking agents stop mid-stride instead of advancing toward their
+  // destinations. Every site that previously called `performance.now()` for
+  // journey purposes now reads from this clock instead. See virtualClock.ts.
+  const clockRef = useRef(createVirtualClock(playing))
+  useEffect(() => { clockRef.current.setPlaying(playing) }, [playing])
+
+  function resolvePositions(journeys: Record<string, VisualJourney>, now: number): Record<string, RenderedPosition> {
+    const out: Record<string, RenderedPosition> = {}
+    for (const id of Object.keys(journeys)) {
+      out[id] = journeyPosition(journeys[id], now)
+    }
+    return out
+  }
+
+  // Initialize / re-initialize journeys when agent count changes.
+  //
+  // Round 5.8: this effect now ONLY prunes/preserves existing journeys
+  // when the agent roster shifts. It does NOT create journeys for new
+  // agents — the sim-state effect below owns creation, so it can use the
+  // *effective* state (Erlang-overlay-corrected) and seed the journey
+  // directly into the right resting phase. Without this split, fresh
+  // agents at 9am were being created at-desk by this effect and then the
+  // sim-state effect dispatched arriving_at_door for the same agents,
+  // producing the mass door rush.
+  useEffect(() => {
+    if (prevAgentCountRef.current !== agents.length) {
+      const now = clockRef.current.now()
+      const journeys: Record<string, VisualJourney> = {}
+      // Preserve any existing journeys for agent IDs that survive.
+      for (let i = 0; i < agents.length; i++) {
+        const a = agents[i]
+        const existing = journeysRef.current[a.id]
+        if (existing) journeys[a.id] = existing
+      }
+      // Drop journeys for agents that no longer exist; clear their prev
+      // state so a future re-add is treated as a first-sighting.
+      for (const id of Object.keys(prevStatesRef.current)) {
+        if (!journeys[id]) delete prevStatesRef.current[id]
+      }
+      journeysRef.current = journeys
+      setJourneySnapshot(journeys)
+      setPositions(resolvePositions(journeys, now))
+      prevAgentCountRef.current = agents.length
+    }
+  }, [agents, layout])
+
+  // ── Video-playback snap ──────────────────────────────────────────────
+  //
+  // The journey state machine plays in virtual wall-clock time. When sim
+  // time jumps (scrub) or reverses (rewind), the animations diverge from
+  // the simulation: agents stay mid-walk, walk through walls, or visit
+  // positions for old sim times. To restore the "video frame seek" model,
+  // we detect those events and rebuild every journey to a deterministic
+  // resting phase that matches the agent's *effective* state at the new
+  // simTimeMin — no walking animation.
+  //
+  // Pause is intentionally NOT a snap trigger. The virtual clock stops
+  // ticking while paused, so walking agents freeze at their current
+  // interpolated position (no further `elapsed` accrues). On resume the
+  // walk continues smoothly from the same position.
+  //
+  // The detector fires when:
+  //   1. simTimeMin moves backward (always — even small reversals).
+  //   2. simTimeMin jumps forward by more than TIME_JUMP_THRESHOLD_SIM_MIN.
+  const lastSimTimeRef = useRef<number>(simTimeMin)
+  // Helper to compute one agent's snapped journey from the same inputs the
+  // transition effect uses (effective state + activity assignment).
+  function snapJourneyForIndex(i: number, now: number): VisualJourney {
+    const a = agents[i]
+    const desk = layout.deskPositions[Number(a.id.replace(/^A/, '')) || 0]
+      ?? journeysRef.current[a.id]?.homeDeskPosition
+      ?? { x: 0, y: 0 }
+
+    let effectiveState: AgentVisualState = a.state
+    if (!isActiveByIndex[i]) effectiveState = 'off_shift'
+    else if (
+      a.state !== 'off_shift'
+      && hasUpcomingShiftEnd(lookahead, a.id, simTimeMin, SHIFT_END_LOOKAHEAD_MIN)
+    ) effectiveState = 'off_shift'
+
+    // Activity scatter only applies to idle agents (matches the runtime
+    // dispatcher gate). on_call / on_break / off_shift use the desk /
+    // break-table / gone phase respectively.
+    const act = (effectiveState === 'idle' && !fastMode)
+      ? (activities[a.id]?.activity ?? 'at_desk')
+      : 'at_desk'
+    const actPos = activities[a.id]?.position ?? null
+
+    // Update the prevState ledger so the transition effect doesn't fire a
+    // redundant transitionJourney() call on the next render.
+    prevStatesRef.current[a.id] = effectiveState
+    // Same for activity ledger — snap counts as "we already saw this".
+    prevActivitiesRef.current[a.id] = act
+    return snapJourneyFor(
+      a.id,
+      desk,
+      effectiveState,
+      act as SnapActivity,
+      actPos,
+      layout,
+      now,
+    )
+  }
+
+  // Full rebuild — every agent gets a fresh snapped journey. Used for time
+  // jumps / reversals where the entire scene needs to match the new sim time.
+  function snapAllJourneys(now: number): Record<string, VisualJourney> {
+    const next: Record<string, VisualJourney> = {}
+    for (let i = 0; i < agents.length; i++) {
+      next[agents[i].id] = snapJourneyForIndex(i, now)
+    }
+    return next
+  }
+
+  useEffect(() => {
+    const lastTime = lastSimTimeRef.current
+    const dt = simTimeMin - lastTime
+    const isReversed = dt < 0
+    const isJump = Math.abs(dt) > TIME_JUMP_THRESHOLD_SIM_MIN
+
+    if (isReversed || isJump) {
+      // Time jump or rewind — every journey must match the new sim time.
+      const now = clockRef.current.now()
+      const next = snapAllJourneys(now)
+      journeysRef.current = next
+      setJourneySnapshot(next)
+      setPositions(resolvePositions(next, now))
+    }
+    lastSimTimeRef.current = simTimeMin
+    // We intentionally only depend on simTimeMin here. The other values
+    // (agents, layout, activities, isActiveByIndex, lookahead) are captured
+    // by closure on snap; they're stable for the duration of a single
+    // simTimeMin render so this is correct.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [simTimeMin])
+
+  // React to sim-state changes for each agent. Also overlays the Erlang-
+  // schedule "is this agent currently on shift?" decision: if not, force
+  // their effectiveState to off_shift so journey.ts dispatches a
+  // walk-to-door + gone (visible exodus). When the schedule ramps back up
+  // and an agent becomes active again, their state flips back to idle/
+  // on_call/etc. and the journey machinery walks them in from the door.
+  //
+  // Round 5.8 fix (9am reload door rush): on the FIRST evaluation for an
+  // agent (no prior recorded state), we skip the transitionJourney call
+  // entirely. The journey was just constructed by makeJourney() with the
+  // correct initial phase (at_desk / on_call_at_desk / gone) — there's
+  // nothing to "transition" yet. Without this, agents that the shift model
+  // says should already be in-office at the starting simTime got dispatched
+  // through `arriving_at_door` (walk-from-door) the first time, causing the
+  // 234-agent rush at 9am on page load. Door arrivals now only happen for
+  // genuine state TRANSITIONS during playback (off_shift -> idle), never
+  // for the initial population.
+  useEffect(() => {
+    const now = clockRef.current.now()
+    const prev = prevStatesRef.current
+    let changed = false
+    const next: Record<string, VisualJourney> = { ...journeysRef.current }
+    for (let i = 0; i < agents.length; i++) {
+      const a = agents[i]
+      const desk = next[a.id]?.homeDeskPosition
+        ?? layout.deskPositions[Number(a.id.replace(/^A/, '')) || 0]
+        ?? { x: 0, y: 0 }
+
+      let effectiveState: AgentVisualState = a.state
+      if (!isActiveByIndex[i]) {
+        // Inactive (off the schedule's roster for this minute) — force
+        // off_shift, which dispatches walk-to-door → gone. The journey
+        // machinery already handles the visible exit.
+        effectiveState = 'off_shift'
+      } else if (
+        a.state !== 'off_shift'
+        && hasUpcomingShiftEnd(lookahead, a.id, simTimeMin, SHIFT_END_LOOKAHEAD_MIN)
+      ) {
+        effectiveState = 'off_shift'
+      }
+
+      const isFirstSighting = !next[a.id]
+      if (isFirstSighting) {
+        // First-ever sight of this agent — seed the journey with the phase
+        // matching the *effective* state (so initially-inactive agents
+        // start as `gone` and initially-active ones start at-desk). This
+        // skips the door arrival animation for the starting population.
+        next[a.id] = makeJourney(a.id, desk, effectiveState, now)
+        changed = true
+        // Record state so the next evaluation only fires on real changes.
+        prev[a.id] = effectiveState
+        continue
+      }
+
+      const prevState = prev[a.id]
+      if (prevState !== effectiveState) {
+        const breakDur = effectiveState === 'on_break'
+          ? breakDurationFor(lookahead, a.id, simTimeMin)
+          : undefined
+        next[a.id] = transitionJourney(next[a.id], effectiveState, layout, now, breakDur)
+        changed = true
+      }
+      prev[a.id] = effectiveState
+    }
+    if (changed) {
+      journeysRef.current = next
+      setJourneySnapshot(next)
+      setPositions(resolvePositions(next, now))
+    }
+  }, [agents, simTimeMin, layout, lookahead, isActiveByIndex])
+
+  // React to *display activity* changes (gym/training/restroom/chat/water_cooler).
+  // These don't show up in sim state — they're a visual fluff layer — so we
+  // dispatch journey walks here so every transition is a visible walk
+  // (no teleports). When activity flips back to at_desk, we walk back from
+  // wherever the agent currently is.
+  //
+  // Fast-mode skip: at sim speeds > 1× we suppress activity scatter entirely
+  // (Issue 4 fix). Walks would lie about timing because their real duration
+  // exceeds the sim duration of an entire on_call/break phase. Agents stay
+  // at desks with shirt colors that track sim state.
+  useEffect(() => {
+    if (fastMode) {
+      // Wipe activity history so when speed drops back to ≤ 1× the next
+      // tick re-evaluates everyone (no stale prev-activity preventing a
+      // dispatch).
+      prevActivitiesRef.current = {}
+      return
+    }
+    if (!playing) {
+      // While paused the virtual clock is frozen, so dispatching a walk
+      // would leave it stuck at progress=0 until resume. Defer until the
+      // user presses play.
+      return
+    }
+    const now = clockRef.current.now()
+    const prev = prevActivitiesRef.current
+    let changed = false
+    const next: Record<string, VisualJourney> = { ...journeysRef.current }
+    for (const a of agents) {
+      // Don't drive activity-walks for non-idle agents — sim state owns them.
+      if (a.state !== 'idle') {
+        prev[a.id] = activities[a.id]?.activity ?? 'at_desk'
+        continue
+      }
+      const newActivity = activities[a.id]?.activity ?? 'at_desk'
+      const prevActivity = prev[a.id]
+      if (prevActivity === newActivity) continue
+      prev[a.id] = newActivity
+      const j = next[a.id]
+      if (!j) continue
+      const target = activities[a.id]?.position
+      if (newActivity === 'at_desk') {
+        // Walk back from wherever we are.
+        const updated = startWalkBackToDesk(j, now)
+        if (updated !== j) {
+          next[a.id] = updated
+          changed = true
+        }
+      } else if (target) {
+        // Map activity to a RoomKind.
+        const roomKind: RoomKind | null =
+            newActivity === 'in_gym'         ? 'gym'
+          : newActivity === 'in_training'    ? 'training'
+          : newActivity === 'in_restroom'    ? 'restroom'
+          : newActivity === 'chatting'       ? 'chat'
+          : newActivity === 'at_water_cooler'? 'water_cooler'
+          : null
+        if (roomKind) {
+          const updated = startWalkToRoom(j, roomKind, target, now)
+          if (updated !== j) {
+            next[a.id] = updated
+            changed = true
+          }
+        }
+      }
+    }
+    if (changed) {
+      journeysRef.current = next
+      setJourneySnapshot(next)
+      setPositions(resolvePositions(next, now))
+    }
+  }, [agents, activities, fastMode, playing])
+
+  // Per-frame tick: advance in-flight phases AND refresh resolved positions
+  // while anything is mid-walk.
+  //
+  // Pause-aware via the virtual clock: while paused, `clockRef.current.now()`
+  // returns a frozen timestamp, so `tickJourney` is a no-op (elapsed never
+  // crosses a phase boundary) and `journeyPosition` returns the same lerp
+  // value frame after frame. Walking agents visually freeze in place. We
+  // still skip the per-frame state writes when paused so React doesn't burn
+  // cycles re-rendering the identical snapshot.
+  const playingRef = useRef(playing)
+  useEffect(() => { playingRef.current = playing }, [playing])
+  useEffect(() => {
+    let raf = 0
+    function tick() {
+      if (!playingRef.current) {
+        raf = requestAnimationFrame(tick)
+        return
+      }
+      const now = clockRef.current.now()
+      let phaseChanged = false
+      const cur = journeysRef.current
+      const nextJ: Record<string, VisualJourney> = {}
+      let anyWalking = false
+      for (const id of Object.keys(cur)) {
+        const before = cur[id]
+        const after = tickJourney(before, layout, now)
+        nextJ[id] = after
+        if (after !== before) phaseChanged = true
+        if (isWalkingPhase(after.phase)) anyWalking = true
+      }
+      if (phaseChanged) {
+        journeysRef.current = nextJ
+        setJourneySnapshot(nextJ)
+      }
+      // Re-resolve positions only when something is walking (otherwise nothing
+      // moves frame-to-frame; CSS bob is GPU-only).
+      if (anyWalking || phaseChanged) {
+        setPositions(resolvePositions(journeysRef.current, now))
+      }
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [layout])
+
+  const walkingIds = useMemo(() => {
+    const out = new Set<string>()
+    for (const id of Object.keys(journeySnapshot)) {
+      if (isWalkingPhase(journeySnapshot[id].phase)) out.add(id)
+    }
+    return out
+  }, [journeySnapshot])
+
+  // Restroom occupancy — count agents currently in any restroom-related
+  // phase OR with `in_restroom` activity assigned. Drives the stall-door
+  // "occupied" red dots and (when stalls are full) the small queue of
+  // waiting agents painted outside the doors. Without this signal the
+  // bathroom looked dead even when agents were nominally inside (Round 5.6
+  // user complaint: "no one is also going to the bathroom").
+  const restroomOccupancy = useMemo(() => {
+    let n = 0
+    for (const id of Object.keys(journeySnapshot)) {
+      const k = journeySnapshot[id].phase.kind
+      if (
+        k === 'walking_to_restroom_door'
+        || k === 'entering_restroom'
+        || k === 'inside_restroom'
+        || k === 'exiting_restroom'
+      ) n++
+    }
+    // Also count anyone whose activity says in_restroom but who hasn't
+    // started journeying yet. (Most of the time the journey is already
+    // dispatched, so this is a small additive correction.)
+    for (const id of Object.keys(activities)) {
+      if (activities[id]?.activity !== 'in_restroom') continue
+      const k = journeySnapshot[id]?.phase.kind
+      if (k === 'at_desk' || k === 'on_call_at_desk' || k == null) {
+        // Pre-walk; already counted journeys above.
+        n++
+      }
+    }
+    return n
+  }, [journeySnapshot, activities])
+
+  // Effective activities: in fast mode, suppress all activity scatter so
+  // agents stay at their desks and the simulation timing isn't lied about.
+  // The room components and the activity-effect see an empty map.
+  const effectiveActivities = fastMode ? EMPTY_ACTIVITIES : activities
+
+  // Round 5.7: live activity counts for the on-canvas overlay. Counted from
+  // current journey phases (the source of truth for where each agent is) +
+  // pre-walk activity assignments. Cheap O(N) per render.
+  const activityCounts: ActivityCounts = useMemo(() => {
+    const counts: ActivityCounts = {
+      atDesks: 0, inTraining: 0, inGym: 0, onBreak: 0,
+      smoking: 0, chatting: 0, waterCooler: 0, restroom: 0, walking: 0,
+    }
+    for (let i = 0; i < agents.length; i++) {
+      const a = agents[i]
+      const j = journeySnapshot[a.id]
+      const k = j?.phase.kind
+      if (k === 'gone' || a.state === 'off_shift') continue // not in office
+      // Walking phases (visible transit) — bucketed first.
+      if (k && (
+        k === 'walking_to_break' || k === 'walking_back_to_desk'
+        || k === 'walking_to_door_for_lunch' || k === 'walking_back_from_lunch'
+        || k === 'walking_to_door_for_shift_end' || k === 'arriving_at_door'
+        || k === 'walking_to_room' || k === 'walking_back_from_room'
+        || k === 'walking_to_restroom_door' || k === 'walking_back_from_restroom'
+        || k === 'walking_to_chat_spot' || k === 'walking_back_from_chat'
+        || k === 'urgent_relocate_to_desk'
+      )) { counts.walking++; continue }
+      // Resting phases.
+      if (k === 'at_break_table' || a.state === 'on_break') { counts.onBreak++; continue }
+      if (k === 'outside_for_lunch') { counts.onBreak++; continue }
+      if (k === 'inside_restroom' || k === 'entering_restroom' || k === 'exiting_restroom') {
+        counts.restroom++; continue
+      }
+      if (k === 'in_room') {
+        const room = j?.phase.kind === 'in_room' ? j.phase.targetRoom : null
+        if (room === 'training') counts.inTraining++
+        else if (room === 'gym') counts.inGym++
+        else if (room === 'water_cooler') counts.waterCooler++
+        else if (room === 'patio') counts.smoking++
+        else if (room === 'chat') counts.chatting++
+        else counts.atDesks++
+        continue
+      }
+      if (k === 'at_chat_spot') { counts.chatting++; continue }
+      // Default: at desk (covers at_desk, on_call_at_desk, undefined).
+      counts.atDesks++
+    }
+    return counts
+  }, [agents, journeySnapshot])
+
+  // ── Camera / pan-zoom ─────────────────────────────────────────────────
+  const camera = useCamera({ baseW: layout.viewBox.w, baseH: layout.viewBox.h })
+
+  // ── Injected-event banners + visual flags ─────────────────────────────
+  const activeEvents = useMemo(
+    () => activeInjectedEvents(injectedEvents, simTimeMin),
+    [injectedEvents, simTimeMin],
+  )
+  const visualFlags = useMemo(() => eventVisualFlags(activeEvents), [activeEvents])
+  const dramaticState = useMemo(
+    () => computeDramaticState(activeEvents, simTimeMin),
+    [activeEvents, simTimeMin],
+  )
+  // Most-recent perInterval queueLen (proxy "live" queue depth) for the
+  // floating CALLS WAITING counter during a surge.
+  const liveQueueLen = useMemo(() => {
+    const idx = Math.max(0, Math.min(47, Math.floor(simTimeMin / 30)))
+    const it = perInterval?.[idx]
+    return it?.queueLen ?? null
+  }, [perInterval, simTimeMin])
+  const queueDepth = dramaticState.surgeActive
+    ? estimateQueueDepth(dramaticState.surgeIntensity, dramaticState.surgeMagnitude, liveQueueLen)
+    : 0
+
+  // SVG ref for keyboard focus.
+  const svgRef = useRef<SVGSVGElement | null>(null)
+  // Stable refs to the camera methods so the keyboard effect doesn't depend
+  // on the camera object identity (which changes when scale/pan move). If we
+  // depended on `camera` directly the listener would re-register on every
+  // pan/zoom (and on every parent rAF-driven re-render), which combined with
+  // the per-frame setState ticks from Round 6 was tripping React 19's
+  // max-update-depth guard.
+  const cameraRef = useRef(camera)
+  useEffect(() => { cameraRef.current = camera }, [camera])
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      // Ignore when typing in inputs / textareas.
+      const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return
+      if ((e.target as HTMLElement | null)?.isContentEditable) return
+      const cam = cameraRef.current
+      switch (e.key) {
+        case '+':
+        case '=':
+          cam.zoomIn(); break
+        case '-':
+        case '_':
+          cam.zoomOut(); break
+        case '0':
+          cam.reset(); break
+        case 'ArrowLeft':
+          cam.panBy(40, 0); break
+        case 'ArrowRight':
+          cam.panBy(-40, 0); break
+        case 'ArrowUp':
+          cam.panBy(0, 40); break
+        case 'ArrowDown':
+          cam.panBy(0, -40); break
+        default:
+          return
+      }
+      e.preventDefault()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  // Show a brief "Press 0 to reset" hint when zoomed in. The hint lives in
+  // its own bottom-left overlay (Round 6.1: previously sat in the top-right
+  // camera controls strip where the inline-flex layout floated it into the
+  // wrong place on some viewports). Auto-fades after a few seconds via CSS
+  // animation; we re-mount it on each new "zoomed-away" transition so the
+  // animation replays.
+  const zoomedAway = Math.abs(camera.state.scale - 1) > 0.01
+    || camera.state.panX !== 0
+    || camera.state.panY !== 0
+  const [hintNonce, setHintNonce] = useState(0)
+  const wasZoomedAwayRef = useRef(false)
+  useEffect(() => {
+    if (zoomedAway && !wasZoomedAwayRef.current) {
+      setHintNonce(n => (n + 1) & 0xffff)
+    }
+    wasZoomedAwayRef.current = zoomedAway
+  }, [zoomedAway])
+
+  return (
+    <>
+    <svg
+      ref={svgRef}
+      viewBox={`${camera.viewBox.x} ${camera.viewBox.y} ${camera.viewBox.w} ${camera.viewBox.h}`}
+      className={`cockpit-iso-svg ${camera.dragging ? 'cockpit-iso-svg--dragging' : ''}`}
+      style={{
+        width: '100%', height: '100%', display: 'block',
+        background: dramaticState.staffDropActive ? '#475569' : lighting.skyColor,
+      }}
+      onWheel={camera.onWheel}
+      onMouseDown={camera.onMouseDown}
+      onTouchStart={camera.onTouchStart}
+      onTouchMove={camera.onTouchMove}
+      onTouchEnd={camera.onTouchEnd}
+    >
+      <BuildingDefs/>
+      <ReceptionDefs/>
+      <defs>
+        <TileGlowDefs/>
+        {/* Pulse animation for the door surge ring. Uses SMIL because it
+            animates an SVG attribute we want anti-aliased and GPU-cheap. */}
+        <radialGradient id="vO-surge-glow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#dc2626" stopOpacity="0.55"/>
+          <stop offset="60%" stopColor="#dc2626" stopOpacity="0.18"/>
+          <stop offset="100%" stopColor="#dc2626" stopOpacity="0"/>
+        </radialGradient>
+      </defs>
+
+      {/* Sky-color background rect (covers the full viewBox so PNG export and
+          containers without `background` still see the sky). */}
+      <rect
+        x={0} y={0}
+        width={layout.viewBox.w}
+        height={layout.viewBox.h}
+        fill={dramaticState.staffDropActive ? '#475569' : lighting.skyColor}
+      />
+
+      {/* Sun or moon arcing across the sky. Hidden during transitional twilight. */}
+      {lighting.sunPosition.visible && (
+        lighting.celestialBody === 'sun'
+          ? <g transform={`translate(${lighting.sunPosition.x}, ${lighting.sunPosition.y})`}>
+              <circle r={11} fill="#fde68a" opacity={0.4}/>
+              <circle r={7} fill="#fbbf24"/>
+            </g>
+          : <g transform={`translate(${lighting.sunPosition.x}, ${lighting.sunPosition.y})`}>
+              <circle r={6} fill="#f1f5f9"/>
+              <circle r={5.5} cx={1.6} fill={lighting.skyColor}/>
+            </g>
+      )}
+
+      <Building layout={layout} lighting={lighting}/>
+
+      <TrainingRoom layout={layout} agents={agents} activities={effectiveActivities} journeys={journeySnapshot} walkingIds={walkingIds}/>
+      <BreakRoom agents={agents} journeys={journeySnapshot} positions={positions} layout={layout} activities={effectiveActivities} walkingIds={walkingIds}/>
+      <Restrooms layout={layout} occupiedCount={restroomOccupancy}/>
+      <Gym layout={layout} agents={agents} activities={effectiveActivities} journeys={journeySnapshot} walkingIds={walkingIds}/>
+
+      <ManagerOffices layout={layout}/>
+
+      <AgentFloor
+        agents={agents}
+        journeys={journeySnapshot}
+        positions={positions}
+        layout={layout}
+        activities={effectiveActivities}
+        absenteeismPct={absenteeismPct}
+        absentTailStart={agents.length - absentSlots}
+      />
+
+      <SmokingPatio layout={layout} agents={agents} activities={effectiveActivities} journeys={journeySnapshot}/>
+
+      <Janitor layout={layout} simTimeMin={simTimeMin}/>
+      <ExecutiveWalker layout={layout}/>
+      <DeliveryPerson layout={layout} simTimeMin={simTimeMin}/>
+
+      <Reception layout={layout}/>
+
+      {/* ── Injected-event visual cues ──
+          Drawn last so they sit above the office. We keep them inside the
+          SVG (not the HTML overlay) so they zoom/pan with the camera and
+          stay anchored to the door / agent floor / desks. */}
+      {visualFlags.surgeActive && (() => {
+        const door = layout.rooms.reception.doorPosition
+        return (
+          <g pointerEvents="none">
+            {/* Pulsing red glow centered on the front door. */}
+            <circle cx={door.x} cy={door.y - 6} r={36} fill="url(#vO-surge-glow)">
+              <animate attributeName="r" values="28;46;28" dur="1.6s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.45;1;0.45" dur="1.6s" repeatCount="indefinite"/>
+            </circle>
+            {/* A subtle red wash over the agent floor zone polygon. */}
+            <polygon
+              points={layout.rooms.agentFloor.zonePoints.map(p => `${p.x},${p.y}`).join(' ')}
+              fill="#dc2626"
+              opacity={0.10}
+            >
+              <animate attributeName="opacity" values="0.06;0.15;0.06" dur="2.4s" repeatCount="indefinite"/>
+            </polygon>
+          </g>
+        )
+      })()}
+
+      {visualFlags.outageActive && (
+        <g pointerEvents="none">
+          {/* Dim everything with a red-tinted overlay covering the full base
+              viewBox. We use the *base* dimensions (not the camera viewBox)
+              so dimming is consistent regardless of zoom. */}
+          <rect
+            x={0} y={0}
+            width={layout.viewBox.w}
+            height={layout.viewBox.h}
+            fill="#7f1d1d"
+            opacity={0.18}
+          />
+        </g>
+      )}
+
+      {visualFlags.flashAbsentActive && (
+        <g pointerEvents="none">
+          {/* Quick red flash over the agent floor — emphasises the just-fired
+              loss of agents. Auto-dismisses with the active-event window. */}
+          <polygon
+            points={layout.rooms.agentFloor.zonePoints.map(p => `${p.x},${p.y}`).join(' ')}
+            fill="#ef4444"
+            opacity={0.0}
+          >
+            <animate attributeName="opacity" values="0;0.35;0;0.25;0" dur="2.4s" repeatCount="indefinite"/>
+          </polygon>
+        </g>
+      )}
+
+      {/* Round 9: dramatic SVG effects layer (phone particles, abandons,
+          lightning bolts, puff bursts, "?" markers). Drawn last so it sits
+          above the office. */}
+      <DramaticEffectsLayer
+        layout={layout}
+        state={dramaticState}
+        agents={agents.map(a => ({ id: a.id, state: a.state }))}
+        events={events}
+        positions={positions}
+      />
+    </svg>
+
+    {/* Round 5.7 clarity overlays. HTML siblings of the SVG, absolutely
+        positioned inside the .cockpit-agent-scene container. Subtle,
+        non-interfering, dismissible — purely informational for new users.
+        Round 5.8: clock + counter + legend now stack vertically along the
+        right edge so the StatusLegend "?" can never collide with an
+        ActivityCounter row. */}
+    <div className="cockpit-scene-overlay cockpit-scene-overlay--top-right-lower">
+      <SceneClock simTimeMin={simTimeMin}/>
+      <ActivityCounter counts={activityCounts}/>
+      <StatusLegend/>
+    </div>
+
+    {/* Camera controls — sit beside the ThemePicker on the top-right edge. */}
+    <div className="cockpit-scene-overlay cockpit-scene-overlay--top-right-camera">
+      <CameraControls
+        scale={camera.state.scale}
+        onReset={camera.reset}
+        onZoomIn={camera.zoomIn}
+        onZoomOut={camera.zoomOut}
+      />
+    </div>
+
+    {/* "Press 0 to reset" hint — bottom-left of the office canvas. Fades
+        in/out via CSS; remounted (via key) on each zoom-away transition so
+        the animation replays. */}
+    {zoomedAway && (
+      <div
+        key={`hint-${hintNonce}`}
+        className="cockpit-scene-overlay cockpit-scene-overlay--bottom-left"
+      >
+        <div className="cockpit-camera-hint" aria-live="polite">Press 0 to reset view</div>
+      </div>
+    )}
+
+    {/* ── Round 9: HTML-overlay dramatic effects ──────────────────────── */}
+
+    {/* Storm overlay (typhoon): dark blue-grey wash + animated diagonal rain.
+        Sits below the building so the office is still visible underneath. */}
+    {dramaticState.staffDropActive && (
+      <div className="cockpit-storm-overlay" aria-hidden="true"/>
+    )}
+
+    {/* Emergency lighting (outage): red corner glows + global dim + flicker. */}
+    {dramaticState.outageActive && (
+      <div className="cockpit-emergency-lighting" aria-hidden="true"/>
+    )}
+
+    {/* Pulsing red viewport border (surge): "the office literally pulses". */}
+    {dramaticState.surgeActive && (
+      <div className="cockpit-surge-border" aria-hidden="true"/>
+    )}
+
+    {/* Live "calls waiting" counter floating above the door. */}
+    {dramaticState.surgeActive && (
+      <div className="cockpit-queue-counter" role="status">
+        📞 CALLS WAITING: {queueDepth}
+      </div>
+    )}
+
+    {/* Round 15: stronger flash_absent feedback — full-canvas red edge that
+        pulses 3× over 3s + a giant "−N AGENTS UNAVAILABLE" counter that
+        fades over 4s. Both keyed on the most recent flash event id so they
+        replay on each fresh fire. */}
+    {dramaticState.flashAbsentRecent && dramaticState.flashAbsentEvents.length > 0 && (
+      <>
+        <div
+          key={`flash-edge-${dramaticState.flashAbsentEvents[dramaticState.flashAbsentEvents.length - 1].id}`}
+          className="cockpit-flash-absent-edge"
+          aria-hidden="true"
+        />
+        <div
+          key={`flash-counter-${dramaticState.flashAbsentEvents[dramaticState.flashAbsentEvents.length - 1].id}`}
+          className="cockpit-flash-absent-counter"
+          role="status"
+        >
+          −{Math.round(dramaticState.flashAbsentCount)} AGENTS UNAVAILABLE
+        </div>
+      </>
+    )}
+
+    {/* Outage banner across the top of the office — sits above the EventBanner
+        toasts so it reads first. */}
+    {visualFlags.outageActive && (
+      <div className="cockpit-outage-banner" role="status">
+        <span aria-hidden="true">⚠️</span>
+        <span>SYSTEM SLOWDOWN — calls taking longer than usual</span>
+      </div>
+    )}
+
+    <EventBanner active={activeEvents}/>
+    </>
+  )
+}

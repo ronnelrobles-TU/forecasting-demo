@@ -68,6 +68,7 @@ export default function LearnPage() {
             {
               num: '02',
               name: 'AHT',
+              anchor: 'aht',
               unit: 'Average Handle Time · seconds',
               color: 'purple',
               desc: 'Total time an agent spends on one contact: talk time + any hold time + after-call work (notes, system updates). 360 seconds = 6 minutes per call.',
@@ -76,6 +77,7 @@ export default function LearnPage() {
             {
               num: '03',
               name: 'Service Level',
+              anchor: 'sl',
               unit: '% of calls answered within threshold',
               color: 'green',
               desc: 'Your quality commitment to callers. "80/20" means 80% of calls answered within 20 seconds. This is the target the Erlang C engine optimises for.',
@@ -84,6 +86,7 @@ export default function LearnPage() {
             {
               num: '04',
               name: 'SL Threshold',
+              anchor: 'sl-threshold',
               unit: 'seconds',
               color: 'orange',
               desc: 'The time limit in your service level definition. Combined with the % above: "80% in 20 seconds." Different clients often have different thresholds.',
@@ -92,6 +95,7 @@ export default function LearnPage() {
             {
               num: '05',
               name: 'Shrinkage',
+              anchor: 'shrinkage',
               unit: '% of paid time not on phones',
               color: 'red',
               desc: 'Agents are paid but unavailable for calls: scheduled breaks, team meetings, training, coaching sessions, system downtime. Typical range: 25–35%.',
@@ -105,8 +109,8 @@ export default function LearnPage() {
               desc: 'Agents who are scheduled but absent: sick leave, personal days, no-shows. This sits on top of shrinkage, both eat into your available headcount.',
               tip: 'At 8% absenteeism, roughly 1 in 12 scheduled agents won\'t show up. High absenteeism signals engagement or scheduling problems worth addressing directly.',
             },
-          ].map(({ num, name, unit, color, desc, tip }) => (
-            <div key={num} className={`learn-input-card learn-input-card--${color}`}>
+          ].map(({ num, name, anchor, unit, color, desc, tip }: { num: string; name: string; anchor?: string; unit: string; color: string; desc: string; tip: string }) => (
+            <div key={num} id={anchor} className={`learn-input-card learn-input-card--${color}`}>
               <div className="learn-input-num">{num}</div>
               <div className="learn-input-name">{name}</div>
               <div className="learn-input-unit">{unit}</div>
@@ -122,7 +126,7 @@ export default function LearnPage() {
 
       {/* ── Erlang C ── */}
       <section className="learn-section">
-        <h2 className="learn-h2">What is Erlang C?</h2>
+        <h2 id="erlang-c" className="learn-h2">What is Erlang C?</h2>
         <div className="learn-erlang-intro">
           <div className="learn-erlang-portrait">
             <div className="learn-erlang-avatar">A.K.E</div>
@@ -277,18 +281,20 @@ export default function LearnPage() {
             },
             {
               name: 'Occupancy',
+              anchor: 'occupancy',
               tldr: 'What fraction of logged-in time agents spend actually handling contacts.',
               detail: 'Occupancy = A ÷ N. At 85–88%, agents are busy but have breathing room between calls. Above 90%, fatigue and error rates rise sharply. Below 75%, you\'re overstaffed.',
               watch: 'Occupancy and service level are in tension. Chasing 95% SL pushes N up and occupancy down, agents have more idle time. The sweet spot is typically 80–88%.',
             },
             {
               name: 'Avg ASA',
+              anchor: 'asa',
               tldr: 'Average Speed of Answer, mean wait time across all calls.',
               detail: 'ASA includes calls answered immediately (wait = 0) and those that queue. A good SL doesn\'t guarantee a low ASA, if 20% of calls wait a long time, ASA can be high even at 80% SL.',
               watch: 'ASA is driven by the tail of the wait-time distribution. Erlang C assumes exponential service times; in practice the tail can be longer, making ASA worse than predicted.',
             },
-          ].map(({ name, tldr, detail, watch }) => (
-            <div key={name} className="learn-kpi-item">
+          ].map(({ name, anchor, tldr, detail, watch }: { name: string; anchor?: string; tldr: string; detail: string; watch: string }) => (
+            <div key={name} id={anchor} className="learn-kpi-item">
               <div className="learn-kpi-item-name">{name}</div>
               <div className="learn-kpi-item-tldr">{tldr}</div>
               <p className="learn-kpi-item-detail">{detail}</p>
@@ -322,6 +328,28 @@ export default function LearnPage() {
             </div>
           ))}
         </div>
+      </section>
+
+      {/* ── HOOP ── */}
+      <section id="hoop" className="learn-section">
+        <h2 className="learn-h2">HOOP — Hours of Operation</h2>
+        <p className="learn-p">
+          The HOOP is the time window when a campaign is open and accepting contacts. US Telco runs 24/7 (HOOP 00:00–24:00); UK Fintech runs GMT business hours (HOOP 09:00–18:00). The cockpit truncates the demand curve at HOOP edges — no calls arrive outside the window, and no agents are scheduled there.
+        </p>
+        <p className="learn-p">
+          Different geos and verticals have radically different HOOPs. A 16-hour HOOP needs roughly half the daily agent-hours of a 24-hour HOOP at the same volume, but creates a different staffing-shape problem (peak-and-trough vs. flat coverage).
+        </p>
+      </section>
+
+      {/* ── Abandons ── */}
+      <section id="abandons" className="learn-section">
+        <h2 className="learn-h2">Abandons — when callers hang up</h2>
+        <p className="learn-p">
+          An <strong>abandon</strong> is a caller who hangs up before being answered, usually because the wait got too long. Industry convention removes abandons from the SL denominator: they never got a chance to be answered fast enough or slow enough, so counting them either way distorts the metric.
+        </p>
+        <p className="learn-p">
+          The cockpit models abandons with a probability ramp: callers tolerate the wait up to a campaign-specific threshold (e.g. 60 seconds), after which the per-second probability of dropping ramps with shape parameter <code>beta</code>. UK Fintech uses 45s/0.08 (impatient), AU Retail Chat uses 90s/0.03 (patient). When the queue gets long, abandons are usually what saves the SL number — and what wrecks the customer experience.
+        </p>
       </section>
 
       {/* ── Glossary ── */}
