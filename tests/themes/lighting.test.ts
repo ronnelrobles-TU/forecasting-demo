@@ -67,7 +67,7 @@ describe('computeLighting', () => {
     // Two times 1 minute apart should differ by very little (smooth lerp).
     const a = computeLighting(720, VB)
     const b = computeLighting(721, VB)
-    // Their colors should be close — but unequal in the worst case is fine.
+    // Their colors should be close, but unequal in the worst case is fine.
     expect(isHex(a.skyColor)).toBe(true)
     expect(isHex(b.skyColor)).toBe(true)
   })

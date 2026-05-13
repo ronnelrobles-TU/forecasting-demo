@@ -223,7 +223,7 @@ describe('computeBuildingLayout', () => {
     }
   })
 
-  it('multiple janitor paths exist (Round 3 — variety)', () => {
+  it('multiple janitor paths exist (Round 3, variety)', () => {
     const layout = computeBuildingLayout(150)
     expect(layout.rooms.agentFloor.janitorPaths.length).toBeGreaterThanOrEqual(2)
     for (const path of layout.rooms.agentFloor.janitorPaths) {

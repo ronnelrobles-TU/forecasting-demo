@@ -16,7 +16,7 @@ export function scheduleBreaks(numAgents: number, hoop: HoopWindow, seed: number
   const earliest = hoop.startMin + BREAK_BUFFER_MIN
   const latest = hoop.endMin - BREAK_DURATION_MIN - BREAK_BUFFER_MIN
   if (latest <= earliest) {
-    // HOOP too short — give everyone a break right after start
+    // HOOP too short, give everyone a break right after start
     return Array.from({ length: numAgents }, (_, i) => ({
       agentId: `A${i}`,
       startMin: hoop.startMin,

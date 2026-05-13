@@ -50,7 +50,7 @@ describe('computeActivityAssignments', () => {
 
   it('most agents are stable across a sub-1-min sim step (Round 4: per-agent staggered windows)', () => {
     // With staggered per-agent windows + an 8-min window length, most agents
-    // should NOT flip between adjacent sim minutes — but a few will (those
+    // should NOT flip between adjacent sim minutes, but a few will (those
     // whose phase puts a window boundary in between).
     const a = computeActivityAssignments(agents, 100, layout)
     const b = computeActivityAssignments(agents, 100.5, layout)  // half a sim minute later
@@ -178,7 +178,7 @@ describe('computeActivityAssignments with allocation (Round 7.1)', () => {
     for (let i = 0; i < 50; i++) productive.add(i)
     for (let i = 50; i < 80; i++) shrinkage.add(i)
     const out = computeActivityAssignments(agents, 100, layout, { productive, shrinkage })
-    // Indices 80..149 are off-shift — they don't render anyway, but we
+    // Indices 80..149 are off-shift, they don't render anyway, but we
     // assign at_desk so the position lookup is well-defined.
     for (let i = 80; i < 150; i++) {
       expect(out[agents[i].id].activity).toBe('at_desk')

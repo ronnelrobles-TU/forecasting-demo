@@ -4,7 +4,7 @@ import { applyHoop, normalize, callsPerInterval, intervalIndexForMinute } from '
 describe('applyHoop', () => {
   it('zeroes intervals outside HOOP', () => {
     const curve = Array.from({ length: 48 }, () => 1)
-    const result = applyHoop(curve, { startMin: 480, endMin: 1080 }) // 08:00–18:00
+    const result = applyHoop(curve, { startMin: 480, endMin: 1080 }) // 08:00-18:00
     // 08:00 = interval 16; 18:00 = interval 36
     expect(result[15]).toBe(0)
     expect(result[16]).toBe(1)

@@ -13,17 +13,25 @@ beforeEach(() => {
 })
 
 describe('ScenarioContext theme', () => {
-  it('defaults to "office" when no localStorage entry exists', () => {
+  it('defaults to "office-hd" when no localStorage entry exists', () => {
     const { result } = renderHook(() => useScenario(), { wrapper })
-    expect(result.current.theme).toBe('office')
+    expect(result.current.theme).toBe('office-hd')
   })
 
   it('hydrates from localStorage on mount', async () => {
     localStorage.setItem('wfm.cockpit.theme', 'dots')
     const { result } = renderHook(() => useScenario(), { wrapper })
-    // initial render is server-side default ("office"); useEffect runs after mount
+    // initial render is server-side default ("office-hd"); useEffect runs after mount
     await act(async () => { await Promise.resolve() })
     expect(result.current.theme).toBe('dots')
+  })
+
+  it('migrates stored "office" (v1 prototype) to "office-hd" on mount', async () => {
+    localStorage.setItem('wfm.cockpit.theme', 'office')
+    const { result } = renderHook(() => useScenario(), { wrapper })
+    await act(async () => { await Promise.resolve() })
+    expect(result.current.theme).toBe('office-hd')
+    expect(localStorage.getItem('wfm.cockpit.theme')).toBe('office-hd')
   })
 
   it('setTheme updates state and writes to localStorage', () => {

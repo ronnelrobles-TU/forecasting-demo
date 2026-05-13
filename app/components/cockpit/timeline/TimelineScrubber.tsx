@@ -13,13 +13,31 @@ interface TimelineScrubberProps {
 export function TimelineScrubber({ simTimeMin, curve, injectedEvents, onSeek }: TimelineScrubberProps) {
   const svgRef = useRef<SVGSVGElement | null>(null)
   const draggingRef = useRef(false)
+  // Latest-ref pattern: keep the freshest onSeek in a ref so the global
+  // pointermove listener can be registered ONCE on mount.
+  const onSeekRef = useRef(onSeek)
+  useEffect(() => { onSeekRef.current = onSeek }, [onSeek])
+  // rAF throttling state: collapse a storm of pointermove events into one
+  // setState per animation frame. Fast back-and-forth scrubbing in React 19
+  // can otherwise queue setState calls faster than React commits them, which
+  // trips "Maximum update depth exceeded" through downstream effect chains
+  // (simTimeMin → LiveSimTab effect → setLive → re-render → repeat).
+  const rafIdRef = useRef<number | null>(null)
+  const pendingTargetRef = useRef<number>(0)
 
   useEffect(() => {
+    function flush() {
+      rafIdRef.current = null
+      onSeekRef.current(pendingTargetRef.current)
+    }
     function onMove(e: PointerEvent) {
       if (!draggingRef.current || !svgRef.current) return
       const rect = svgRef.current.getBoundingClientRect()
       const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left))
-      onSeek((x / rect.width) * 1440)
+      pendingTargetRef.current = (x / rect.width) * 1440
+      if (rafIdRef.current === null) {
+        rafIdRef.current = requestAnimationFrame(flush)
+      }
     }
     function onUp() { draggingRef.current = false }
     window.addEventListener('pointermove', onMove)
@@ -27,8 +45,12 @@ export function TimelineScrubber({ simTimeMin, curve, injectedEvents, onSeek }: 
     return () => {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current)
+        rafIdRef.current = null
+      }
     }
-  }, [onSeek])
+  }, [])
 
   const max = Math.max(0.001, ...curve)
   const path = curve.map((v, i) => {

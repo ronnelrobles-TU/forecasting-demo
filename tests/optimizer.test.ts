@@ -43,7 +43,7 @@ describe('scoreRoster', () => {
 describe('optimizeRoster', () => {
   it('returns a valid roster with shifts inside HOOP', () => {
     const sc = baseScenario()
-    sc.hoop = { startMin: 480, endMin: 1080 }   // 08:00–18:00
+    sc.hoop = { startMin: 480, endMin: 1080 }   // 08:00-18:00
     const result = optimizeRoster(sc, { iterations: 50, budgetAgentHours: 1000 })
     expect(result.length).toBeGreaterThan(0)
     for (const s of result) {

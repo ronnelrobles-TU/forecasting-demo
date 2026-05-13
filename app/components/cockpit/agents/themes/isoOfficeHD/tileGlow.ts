@@ -23,7 +23,7 @@ export interface TileGlowLayer {
 
 /** Build the glow + absent marker layer. The marker positions are baked in
  *  on build because they're a function of the static layout + agent
- *  count — they never change between renders. */
+ *  count, they never change between renders. */
 export function buildTileGlowLayer(
   layout: BuildingLayout,
   agentCount: number,

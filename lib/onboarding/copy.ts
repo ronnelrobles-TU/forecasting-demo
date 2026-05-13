@@ -1,9 +1,9 @@
 /**
- * Onboarding content module — single source of truth for tab intro blurbs
+ * Onboarding content module, single source of truth for tab intro blurbs
  * and jargon term definitions. Edit here, not in components.
  *
  * Bumping STRIP_VERSION invalidates every user's stored collapse state, so
- * everyone sees the strips again on next load. Use sparingly — only when a
+ * everyone sees the strips again on next load. Use sparingly, only when a
  * blurb meaningfully changes.
  */
 
@@ -37,13 +37,13 @@ export const TAB_INTROS: Record<TabKey, TabIntro> = {
   live: {
     title: 'What is this view?',
     body:
-      'This tab plays your call center day as a 60-second movie. Each colored dot is one agent — green = idle, red = on a call, yellow = wrap-up, grey = on break. Press play, drag the timeline to skip around, or hit "Inject event" to drop a typhoon mid-day and watch what happens.',
+      'This tab plays your call center day as a 60-second movie. Each colored dot is one agent, green = idle, red = on a call, yellow = wrap-up, grey = on break. Press play, drag the timeline to skip around, or hit "Inject event" to drop a typhoon mid-day and watch what happens.',
     learnAnchor: '#erlang-c',
   },
   monte: {
     title: 'What is this view?',
     body:
-      'Real days are noisy — even a perfect schedule has bad-luck days. This tab simulates 1,000 versions of today and shows the spread. The blue band is the middle 80% of outcomes; the red dashed line is your worst day. Click "Replay worst day" to jump back to Live Sim and watch the disaster play out.',
+      'Real days are noisy, even a perfect schedule has bad-luck days. This tab simulates 1,000 versions of today and shows the spread. The blue band is the middle 80% of outcomes; the red dashed line is your worst day. Click "Replay worst day" to jump back to Live Sim and watch the disaster play out.',
     learnAnchor: '#erlang-c',
   },
   roster: {
@@ -55,7 +55,7 @@ export const TAB_INTROS: Record<TabKey, TabIntro> = {
   classic: {
     title: 'What is this view?',
     body:
-      'The original demo before the cockpit shipped — same Erlang C math, single-page view, no animation. Useful as a sanity-check baseline if a number on another tab looks weird.',
+      'The original demo before the cockpit shipped, same Erlang C math, single-page view, no animation. Useful as a sanity-check baseline if a number on another tab looks weird.',
     learnAnchor: '#erlang-c',
   },
 }
@@ -88,7 +88,7 @@ export const JARGON: Record<TermKey, JargonDef> = {
   },
   occupancy: {
     label: 'Occupancy',
-    body: 'Fraction of logged-in time agents spend actually on calls. 80–88% is healthy; above 90% agents burn out, below 75% you\'re overstaffed.',
+    body: 'Fraction of logged-in time agents spend actually on calls. 80-88% is healthy; above 90% agents burn out, below 75% you\'re overstaffed.',
     learnAnchor: '#occupancy',
   },
   asa: {
@@ -98,7 +98,7 @@ export const JARGON: Record<TermKey, JargonDef> = {
   },
   shrinkage: {
     label: 'Shrinkage',
-    body: '% of paid agent time NOT on the phones — breaks, training, meetings, downtime. 30% is typical. If shrinkage is 30%, you schedule ~14 to get 10 on calls.',
+    body: '% of paid agent time NOT on the phones, breaks, training, meetings, downtime. 30% is typical. If shrinkage is 30%, you schedule ~14 to get 10 on calls.',
     learnAnchor: '#shrinkage',
   },
   abandons: {

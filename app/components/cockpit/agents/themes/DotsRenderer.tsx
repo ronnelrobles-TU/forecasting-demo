@@ -74,11 +74,11 @@ export function DotsRenderer({
   const cellH = H / rows
   const r = Math.max(3, Math.min(cellW, cellH) * 0.32)
 
-  // ── Shift model — only render in-office agents (productive + shrinkage).
+  // ── Shift model, only render in-office agents (productive + shrinkage).
   // Falls back to "all agents present" when perInterval isn't supplied, so
   // existing callers (and the original test cases) still work.
   // When the user has authored a roster, snap each agent to the exact
-  // start/end the user dragged on the Gantt — same path Office takes.
+  // start/end the user dragged on the Gantt, same path Office takes.
   // Without this, Dots was reading the smoothed Erlang curve while Office
   // honored the roster, so the two themes disagreed about who was on shift.
   const useRoster = roster != null && roster.length > 0
@@ -93,7 +93,7 @@ export function DotsRenderer({
     [perInterval, shrinkPct],
   )
   // When the roster path is in use, the per-minute shift assignment already
-  // governs visibility — no need to mark a separate "absentee tail". When
+  // governs visibility, no need to mark a separate "absentee tail". When
   // only perInterval is provided, the trailing slots above the day's peak
   // in-office count are today's absentees and stay hidden.
   const absentSlots = useRoster
@@ -102,7 +102,7 @@ export function DotsRenderer({
     ? Math.max(0, agents.length - peakInOffice)
     : 0
 
-  // ── Lighting — sky color tracks the simulation time. Quantized to 5 mins
+  // ── Lighting, sky color tracks the simulation time. Quantized to 5 mins
   // so we don't recompute every frame.
   const lightingTime = quantizeLightingTime(simTimeMin, 5)
   const lighting = useMemo(
@@ -180,10 +180,10 @@ export function DotsRenderer({
           <radialGradient id="dA-brk" cx="35%" cy="35%"><stop offset="0%" stopColor="#fde68a"/><stop offset="100%" stopColor="#d97706"/></radialGradient>
           <radialGradient id="dA-off" cx="35%" cy="35%"><stop offset="0%" stopColor="#475569"/><stop offset="100%" stopColor="#1e293b"/></radialGradient>
         </defs>
-        {/* Sky color background — explicit rect so PNG export and dark
+        {/* Sky color background, explicit rect so PNG export and dark
             container backgrounds still see the sky. */}
         <rect x={0} y={0} width={W} height={H} fill={lighting.skyColor}/>
-        {/* Optional sun/moon corner icon — small so it doesn't crowd dots. */}
+        {/* Optional sun/moon corner icon, small so it doesn't crowd dots. */}
         {lighting.sunPosition.visible && (
           lighting.celestialBody === 'sun'
             ? <circle cx={W - 14} cy={14} r={5} fill="#fbbf24"/>

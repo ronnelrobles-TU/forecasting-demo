@@ -1,7 +1,7 @@
 'use client'
 
-// ExecutiveWalker — a background NPC that walks between manager office doors,
-// pauses 5–15 sec at each (peeking in / chatting), then moves on. Independent
+// ExecutiveWalker, a background NPC that walks between manager office doors,
+// pauses 5-15 sec at each (peeking in / chatting), then moves on. Independent
 // of the agent state machine. Wall-clock timing so it stays watchable at any
 // playback speed.
 //
@@ -75,7 +75,7 @@ export function ExecutiveWalker({ layout }: ExecutiveWalkerProps) {
 
   useEffect(() => {
     // Initialise the state machine once when offices become available. We
-    // intentionally do NOT setState here — the RAF tick below will publish
+    // intentionally do NOT setState here, the RAF tick below will publish
     // the first frame, avoiding a cascading render.
     if (offices.length === 0) {
       stateRef.current = null

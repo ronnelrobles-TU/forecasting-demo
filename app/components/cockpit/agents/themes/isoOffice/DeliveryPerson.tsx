@@ -1,6 +1,6 @@
 'use client'
 
-// DeliveryPerson — a background NPC that arrives at the front door every
+// DeliveryPerson, a background NPC that arrives at the front door every
 // ~30 sim min, walks to the break room (drops something off), walks back to
 // the door, leaves. Brown delivery uniform.
 //
@@ -49,7 +49,7 @@ function delStateFrame(s: DelState, nowMs: number, door: ScreenPoint): RenderFra
   }
   const t = s.durationMs > 0 ? Math.min(1, elapsed / s.durationMs) : 1
   return { pos: lerp(s.from, s.to, t), carrying: false }
-  // door referenced for completeness — kept as a parameter so future variants
+  // door referenced for completeness, kept as a parameter so future variants
   // (e.g. fade-out at the door) can use it without resignature.
   void door
 }

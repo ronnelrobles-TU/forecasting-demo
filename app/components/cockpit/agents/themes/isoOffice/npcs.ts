@@ -8,7 +8,7 @@
 //
 // All state machines are wall-clock driven and deterministic per leg (PRNG
 // seeded by NPC index + leg counter), so behaviour is reproducible across
-// scrubs and theme switches. No React, no DOM, no Pixi imports — keep this
+// scrubs and theme switches. No React, no DOM, no Pixi imports, keep this
 // module dependency-free so it can be unit-tested.
 //
 // `mulberry32` lives in Janitor.tsx for back-compat (existing tests import it

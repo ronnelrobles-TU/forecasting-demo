@@ -17,7 +17,7 @@ describe('clampPan', () => {
   it('clamps an extreme positive pan so the office stays visible', () => {
     // Try to pan way off to the right at scale=1 (push office out of view).
     const r = clampPan(1000, 0, 1, baseX, baseY, baseW, baseH, frac)
-    // panX must be reduced — the result should be far less than 1000.
+    // panX must be reduced, the result should be far less than 1000.
     expect(r.panX).toBeLessThan(50)
   })
 
@@ -30,7 +30,7 @@ describe('clampPan', () => {
     // At scale=2 the viewport is 50x50; min per-axis overlap is sqrt(0.3)*100
     // ≈ 54.77 office units. Since the viewport is smaller than the min
     // overlap budget, the viewport is forced to stay fully inside the office
-    // — i.e. vbX clamped to [0, 100 - 54.77]. A pan that pushes vbX below 0
+    //, i.e. vbX clamped to [0, 100 - 54.77]. A pan that pushes vbX below 0
     // (panX > 0 → vbX = -panX/scale) gets clamped to vbX = 0 → panX = 0.
     const r = clampPan(40, 0, 2, baseX, baseY, baseW, baseH, frac)
     expect(r.panX).toBe(0)

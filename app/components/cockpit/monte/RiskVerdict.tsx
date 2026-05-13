@@ -22,30 +22,30 @@ const VERDICT_META: Record<Verdict, VerdictMeta> = {
     label: 'ROBUST PLAN',
     color: '#22c55e',
     desc: 'P10 days still meet your SL target.',
-    action: 'Plan looks robust — current staffing absorbs typical volume swings.',
+    action: 'Plan looks robust, current staffing absorbs typical volume swings.',
   },
   healthy: {
     label: 'HEALTHY PLAN',
     color: '#84cc16',
     desc: 'Most days meet target; bad days dip a few points.',
-    action: 'Healthy — consider a light buffer agent on peak intervals if SL matters.',
+    action: 'Healthy, consider a light buffer agent on peak intervals if SL matters.',
   },
   fragile: {
     label: 'FRAGILE PLAN',
     color: '#f59e0b',
-    desc: '1 in 10 days will miss target by 5–15 points.',
-    action: 'Fragile — add 1–2 agents to peak intervals to harden the plan.',
+    desc: '1 in 10 days will miss target by 5-15 points.',
+    action: 'Fragile, add 1-2 agents to peak intervals to harden the plan.',
   },
   risky: {
     label: 'RISKY PLAN',
     color: '#ef4444',
     desc: '1 in 10 days will miss target by more than 15 points.',
-    action: 'Risky — add agents or lower SL target; current plan misses badly on bad days.',
+    action: 'Risky, add agents or lower SL target; current plan misses badly on bad days.',
   },
 }
 
 interface RiskVerdictProps {
-  p10Sl: number       // 0..1 — P10 of daily SL
+  p10Sl: number       // 0..1, P10 of daily SL
   targetSl: number    // 0..1
   daysBelowSl: number
   totalDays: number

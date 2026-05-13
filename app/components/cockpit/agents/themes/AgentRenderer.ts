@@ -11,10 +11,10 @@ export interface AgentRendererProps {
   agents: Array<{ id: string; state: AgentVisualState }>
   peakAgents: number
   simTimeMin: number
-  // Optional raw event stream — used by IsoRenderer for break-duration
+  // Optional raw event stream, used by IsoRenderer for break-duration
   // lookahead (lunch detection) and shift_end pre-walks. DotsRenderer ignores.
   events?: SimEvent[]
-  // User-injected events from the scenario — surge, outage, staff drop,
+  // User-injected events from the scenario, surge, outage, staff drop,
   // flash absent. IsoRenderer renders banner toasts + visual cues at the
   // active sim time. DotsRenderer ignores.
   injectedEvents?: InjectedEvent[]
@@ -33,24 +33,23 @@ export interface AgentRendererProps {
   shrinkPct?: number
   // Per-15-min Erlang-scheduled agent count (length 96, sim's perInterval).
   // IsoRenderer uses this to decide how many agents are "on shift" at the
-  // current minute — at midnight only the night skeleton is visible, the
+  // current minute, at midnight only the night skeleton is visible, the
   // floor ramps up through morning, and the rest leave in the evening.
   // DotsRenderer ignores.
   perInterval?: IntervalStat[]
   // Current playback speed. IsoRenderer drops to a "fast mode" at speeds
-  // > 1× — agents appear at desks with sim-state shirt colors, no journeys,
-  // no activity scatter — so the visualization tracks the sim accurately
+  // > 1×, agents appear at desks with sim-state shirt colors, no journeys,
+  // no activity scatter, so the visualization tracks the sim accurately
   // when a day is blasting by in seconds. DotsRenderer ignores.
   simSpeed?: Speed
   // Round 11: when the user has authored a roster, it's piped through here
   // so the renderer can snap each agent's shift window to the exact
-  // start/end the user dragged on the Gantt — instead of inferring shift
+  // start/end the user dragged on the Gantt, instead of inferring shift
   // boundaries from the smoothed Erlang curve. Null/empty → fall back to
   // the legacy interval-curve activation (`activeAgentIndicesAllocated`).
   roster?: RosterShift[] | null
   // Video-playback fix: whether the timeline is currently playing. When
-  // false the IsoRenderer treats new sim-state changes as scrub events —
-  // it snaps each agent to the deterministic position for `simTimeMin`
+  // false the IsoRenderer treats new sim-state changes as scrub events, // it snaps each agent to the deterministic position for `simTimeMin`
   // (no in-flight walks). When true, normal journey animations run.
   // Renderers that don't have stateful animations (Dots) can ignore.
   playing?: boolean

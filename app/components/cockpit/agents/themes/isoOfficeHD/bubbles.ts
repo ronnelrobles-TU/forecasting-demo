@@ -1,10 +1,10 @@
 // Bubble selection helpers for the HD theme. Mirrors the SVG StatusBubble
-// logic — the bubble is a pure function of the journey phase (the source of
+// logic, the bubble is a pure function of the journey phase (the source of
 // truth for "what is this agent currently doing"), with sim-state used only
 // as a fallback when the agent is at-desk.
 //
 // Previously this picked from the activity-assignment lookup, which can
-// churn frame-to-frame at productive/shrinkage allocation boundaries — that
+// churn frame-to-frame at productive/shrinkage allocation boundaries, that
 // produced the breakroom flicker (☕ ↔ 💧 ↔ 💬 every frame during play).
 // Reading from the phase keeps the bubble locked to whatever the journey
 // state machine says the agent is actually doing right now.

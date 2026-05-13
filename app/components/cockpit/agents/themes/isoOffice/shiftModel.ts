@@ -1,6 +1,6 @@
 // Visible-active-agent decision: given the per-15-min Erlang scheduled
 // count and the current sim minute, decide which agents (by index) are
-// "on shift" right now — and stagger arrivals/departures by a per-agent
+// "on shift" right now, and stagger arrivals/departures by a per-agent
 // micro-offset so the morning ramp doesn't bunch up at the 15-minute
 // boundary.
 //
@@ -22,7 +22,7 @@ import { assignAgentsToShifts, isAgentInShift } from '@/lib/animation/rosterAssi
 
 // Bucket size of the kernel's `perInterval` array. The kernel produces 48
 // entries (24h ÷ 30min). Earlier rounds incorrectly used 15min here, which
-// made shiftModel read the wrong bucket — at 5:54am it would index bucket
+// made shiftModel read the wrong bucket, at 5:54am it would index bucket
 // 23 (= 11:30am peak) instead of bucket 11 (= 5:30am low), so the whole
 // shift roster appeared "in office" before the morning had even started.
 // Both Office and Dots themes consume the result, so the bug surfaced as
@@ -37,7 +37,7 @@ export const STAGGER_WINDOW_MIN = 12
 // Hashes the agent index so the same agent always trickles in at the
 // same relative moment within an interval (stable scrubbing behaviour).
 export function staggerOffset(agentIdx: number): number {
-  // Simple integer hash — Knuth's multiplicative.
+  // Simple integer hash, Knuth's multiplicative.
   const h = ((agentIdx * 2654435761) >>> 0) / 4294967296 // [0, 1)
   return (h - 0.5) * STAGGER_WINDOW_MIN
 }
@@ -61,7 +61,7 @@ export function scheduledCountAt(perInterval: ReadonlyArray<IntervalStat> | unde
 
 // Smoothly-ramped scheduled count: linearly interpolates between the prior
 // interval's scheduled count and the current one based on how far into the
-// interval we are. This is the "background" target — the per-agent stagger
+// interval we are. This is the "background" target, the per-agent stagger
 // is added on top to decide individual activations.
 //
 // `shrinkPct` (Round 5.7): when provided, scales the curve up to the
@@ -93,7 +93,7 @@ export function isAgentActive(
   shrinkPct?: number,
 ): boolean {
   if (!perInterval || perInterval.length === 0) {
-    // No schedule data — assume everyone idle (preserve old behaviour).
+    // No schedule data, assume everyone idle (preserve old behaviour).
     return true
   }
   // Use the *forward-looking* schedule shifted by the per-agent stagger.
@@ -141,7 +141,7 @@ export function peakInOfficeCount(
 //                    what KPI strips show as "Active Agents".
 //   - IN_OFFICE    = productive / (1 - shrink/100). Includes both
 //                    productive agents AND shrinkage agents (training,
-//                    gym, break, etc.) — i.e. everyone physically in.
+//                    gym, break, etc.), i.e. everyone physically in.
 //   - SHRINKAGE_IN_OFFICE = inOffice - productive.
 //
 // The activity scheduler used to scatter ~30% of the productive agents
@@ -192,7 +192,7 @@ export function smoothOfficeAllocation(
 // 15-min boundary. An agent with negative stagger arrives slightly
 // earlier than the bulk count; positive stagger arrives later. The
 // productive/shrinkage split itself is also staggered so transitions
-// are smooth (an agent doesn't pop from "at desk" to "in gym" — they
+// are smooth (an agent doesn't pop from "at desk" to "in gym", they
 // trickle into the shrinkage band one at a time).
 export function activeAgentIndicesAllocated(
   agentCount: number,
@@ -203,7 +203,7 @@ export function activeAgentIndicesAllocated(
   const productive = new Set<number>()
   const shrinkage = new Set<number>()
   if (!perInterval || perInterval.length === 0) {
-    // No schedule data — preserve legacy "everyone idle at desks"
+    // No schedule data, preserve legacy "everyone idle at desks"
     // behaviour. Productive set covers all agents; shrinkage is empty.
     for (let i = 0; i < agentCount; i++) productive.add(i)
     return { productive, shrinkage }
@@ -235,7 +235,7 @@ export function activeAgentIndicesAllocated(
 //
 // This bypasses the smooth-Erlang-curve interpolation used by
 // `activeAgentIndicesAllocated` and instead snaps each agent to the
-// `startMin`/`endMin` the user dragged on the Gantt — so a 7am shift
+// `startMin`/`endMin` the user dragged on the Gantt, so a 7am shift
 // causes those agents to walk in through the door at exactly 7am.
 //
 // Returns an empty allocation when no agents are assigned to the active

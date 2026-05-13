@@ -17,11 +17,11 @@ interface Campaign {
 }
 
 const campaigns: Record<CampaignKey, Campaign> = {
-  us_telco_manila:     { label: 'US Telco Inbound – Manila',  volume: 620, aht: 420, sl: 80, asa: 20, shrink: 32, abs: 9,  rules: 'Voice inbound · Tier 1 troubleshoot · 24/7 follow-the-sun · ESL premium tagging' },
-  au_retail_cebu:      { label: 'AU Retail Chat – Cebu',      volume: 280, aht: 240, sl: 85, asa: 30, shrink: 28, abs: 7,  rules: 'Chat (2 concurrent) · AEST coverage · holiday surge model · post-sales focus' },
-  uk_fintech_manila:   { label: 'UK Fintech Voice – Manila',  volume: 380, aht: 540, sl: 90, asa: 15, shrink: 35, abs: 8,  rules: 'Voice · KYC compliance · GMT coverage · senior-tier only · strict QA' },
-  us_healthcare_clark: { label: 'US Healthcare – Clark',      volume: 210, aht: 600, sl: 90, asa: 30, shrink: 38, abs: 10, rules: 'Voice · HIPAA · EST/CST split · seasonal Q4 enrollment surge' },
-  ph_telco_davao:      { label: 'PH Telco Local – Davao',     volume: 740, aht: 300, sl: 75, asa: 25, shrink: 30, abs: 12, rules: 'Voice · Bisaya/Tagalog dual · local hours · weather-event flex (typhoon)' },
+  us_telco_manila:     { label: 'US Telco Inbound - Manila',  volume: 620, aht: 420, sl: 80, asa: 20, shrink: 32, abs: 9,  rules: 'Voice inbound · Tier 1 troubleshoot · 24/7 follow-the-sun · ESL premium tagging' },
+  au_retail_cebu:      { label: 'AU Retail Chat - Cebu',      volume: 280, aht: 240, sl: 85, asa: 30, shrink: 28, abs: 7,  rules: 'Chat (2 concurrent) · AEST coverage · holiday surge model · post-sales focus' },
+  uk_fintech_manila:   { label: 'UK Fintech Voice - Manila',  volume: 380, aht: 540, sl: 90, asa: 15, shrink: 35, abs: 8,  rules: 'Voice · KYC compliance · GMT coverage · senior-tier only · strict QA' },
+  us_healthcare_clark: { label: 'US Healthcare - Clark',      volume: 210, aht: 600, sl: 90, asa: 30, shrink: 38, abs: 10, rules: 'Voice · HIPAA · EST/CST split · seasonal Q4 enrollment surge' },
+  ph_telco_davao:      { label: 'PH Telco Local - Davao',     volume: 740, aht: 300, sl: 75, asa: 25, shrink: 30, abs: 12, rules: 'Voice · Bisaya/Tagalog dual · local hours · weather-event flex (typhoon)' },
 }
 
 function erlangC(N: number, A: number): number {
@@ -199,17 +199,17 @@ export default function WFMDemo() {
       {/* Header */}
       <div className="wfm-header">
         <div>
-          <div className="wfm-title">WFM Forecasting – Live Staffing Engine</div>
+          <div className="wfm-title">WFM Forecasting - Live Staffing Engine</div>
           <div className="wfm-subtitle">Erlang C + geo / campaign rules + KPI sensitivity</div>
         </div>
         <div className="wfm-campaign-select">
           <span className="wfm-label">Campaign</span>
           <select value={state.campaignKey} onChange={e => applyCampaign(e.target.value)} className="wfm-select">
-            <option value="us_telco_manila">US Telco Inbound – Manila</option>
-            <option value="au_retail_cebu">AU Retail Chat – Cebu</option>
-            <option value="uk_fintech_manila">UK Fintech Voice – Manila</option>
-            <option value="us_healthcare_clark">US Healthcare – Clark</option>
-            <option value="ph_telco_davao">PH Telco Local – Davao</option>
+            <option value="us_telco_manila">US Telco Inbound - Manila</option>
+            <option value="au_retail_cebu">AU Retail Chat - Cebu</option>
+            <option value="uk_fintech_manila">UK Fintech Voice - Manila</option>
+            <option value="us_healthcare_clark">US Healthcare - Clark</option>
+            <option value="ph_telco_davao">PH Telco Local - Davao</option>
           </select>
         </div>
       </div>

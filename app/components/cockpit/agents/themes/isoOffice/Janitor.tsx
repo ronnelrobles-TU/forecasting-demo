@@ -1,11 +1,11 @@
 'use client'
 
-// Janitor NPCs — free-roaming state machines (Round 4). Each janitor picks a
+// Janitor NPCs, free-roaming state machines (Round 4). Each janitor picks a
 // random hotspot weighted by its "personality" (one prefers aisles, one room
 // visits, one perimeter), walks there in real wall-clock time, pauses to mop /
 // look around / visit a room, then picks a new destination. Unlike Round 3
 // (fixed loop driven by simTimeMin), the position is decoupled from sim
-// playback speed: walks always take 1.5–2 real seconds regardless of how
+// playback speed: walks always take 1.5-2 real seconds regardless of how
 // fast the day is unfolding.
 //
 // Determinism: the destination roll uses a PRNG seeded by janitor index +
@@ -43,7 +43,7 @@ const PERSONALITIES: Personality[] = [
 
 // ---------- PRNG ----------
 
-// mulberry32 — small, fast, deterministic 32-bit PRNG.
+// mulberry32, small, fast, deterministic 32-bit PRNG.
 export function mulberry32(seed: number): () => number {
   let t = seed >>> 0
   return function() {
@@ -228,7 +228,7 @@ function JanitorSprite({ pos, mode }: JanitorSpriteProps) {
       <ellipse cx={0} cy={-5} rx={2.5} ry={2.3} fill="#fde4b8" stroke="#92400e" strokeWidth={0.3}/>
       <path d="M-2.6,-7 Q0,-9 2.6,-7 L2.4,-5.5 L-2.4,-5.5 Z" fill="#0d9488" stroke="#0f172a" strokeWidth={0.3}/>
       <circle cx={2.6} cy={-5.3} r={0.8} fill="#1e293b"/>
-      {/* Mop. When mopping, CSS sway. Walking — slung over shoulder. */}
+      {/* Mop. When mopping, CSS sway. Walking, slung over shoulder. */}
       {mode === 'walking' ? (
         <g>
           <line x1={3.5} y1={-2} x2={9} y2={-9} stroke="#92400e" strokeWidth={0.7}/>
@@ -256,7 +256,7 @@ export function Janitor({ layout, simTimeMin }: JanitorProps) {
   // Read hotspots fresh each render but key all effects by layout identity
   // (which is stable thanks to IsoRenderer's useMemo on agent count). Reading
   // `hotspots` as a derived value means it can change reference every render
-  // — using `layout` as the dep keeps the effect from re-firing.
+  //, using `layout` as the dep keeps the effect from re-firing.
   const hotspots = layout.rooms.agentFloor.janitorHotspots
   const hotspotsRef = useRef(hotspots)
   hotspotsRef.current = hotspots
@@ -265,7 +265,7 @@ export function Janitor({ layout, simTimeMin }: JanitorProps) {
   // changed, or an active janitor is mid-walk and its position has moved).
   // Every-frame setState in the rAF was triggering React 19's "max update
   // depth" guard whenever the parent (IsoRenderer) was also re-rendering on
-  // its own rAF — the two updates compounded into a runaway cycle.
+  // its own rAF, the two updates compounded into a runaway cycle.
   const [, forceRender] = useReducer((n: number) => (n + 1) & 0xffff, 0)
   const simTimeMinRef = useRef(simTimeMin)
   useEffect(() => { simTimeMinRef.current = simTimeMin }, [simTimeMin])

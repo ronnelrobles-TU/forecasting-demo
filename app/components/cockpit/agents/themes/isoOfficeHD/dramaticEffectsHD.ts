@@ -93,7 +93,7 @@ const lightningStyle = new TextStyle({ fontSize: 18 })
 const questionStyle = new TextStyle({ fontSize: 22, fontWeight: '900', fill: 0xdc2626, stroke: { color: 0xffffff, width: 1 } })
 
 // Round 13: super-sample dramatic-effect text for HD crispness. Same logic
-// as the agent bubble TEXT_RESOLUTION in agents.ts — bake the glyph texture
+// as the agent bubble TEXT_RESOLUTION in agents.ts, bake the glyph texture
 // at >= 4× device-pixel density so the floating phones / lightning bolts /
 // abandon markers stay sharp at the user's typical zoom level.
 const FX_TEXT_RESOLUTION = typeof window !== 'undefined'

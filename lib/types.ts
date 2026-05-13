@@ -47,9 +47,9 @@ export interface Scenario {
   /**
    * Number of desks to render in the office visualization. Defaults to
    * `peakAgents` (so existing behavior is preserved if unset). Setting it
-   * higher lets users SEE morning ramp — empty desks at midnight, agents
+   * higher lets users SEE morning ramp, empty desks at midnight, agents
    * arriving via the door, desks filling up.
-   * Visualization only — kernel ignores this field.
+   * Visualization only, kernel ignores this field.
    */
   deskCapacity?: number
   roster: RosterShift[] | null   // null → kernel derives from Erlang C

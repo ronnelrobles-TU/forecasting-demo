@@ -76,7 +76,7 @@ export function Building({ layout, lighting }: BuildingProps) {
     nwWindows.push(makeBackWallWindow(0, midJ, false, origin.x, origin.y))
   }
 
-  // Front (SE + SW) walls — low-profile, with the entrance door cut out of the
+  // Front (SE + SW) walls, low-profile, with the entrance door cut out of the
   // SW wall (the wall along i = tilesW, j varies; runs from E to S). Actually
   // the front entrance is on the south face of reception; we render the door
   // as a separate component but draw the front walls here as low silhouettes.
@@ -90,7 +90,7 @@ export function Building({ layout, lighting }: BuildingProps) {
   // to iso (centerI + doorWidth/2, tilesD) along the south wall (j = tilesD).
   const door = rooms.reception
   const doorHalf = door.doorWidth / 2
-  // Door is on the south wall — i.e., the wall running from S to W at j = tilesD,
+  // Door is on the south wall, i.e., the wall running from S to W at j = tilesD,
   // and from E to S at i = tilesW. Reception spans i in [iMin, iMax], j = tilesD.
   // The door is centered at i = (iMin+iMax)/2 along that wall.
   const ci = (door.isoBounds.iMin + door.isoBounds.iMax) / 2
@@ -101,10 +101,10 @@ export function Building({ layout, lighting }: BuildingProps) {
   const doorL = isoToScreen(doorIMax, tilesD, origin.x, origin.y)   // closer to S
   const doorR = isoToScreen(doorIMin, tilesD, origin.x, origin.y)   // closer to W
 
-  // Interior walls — collected from each room except reception (we don't want
+  // Interior walls, collected from each room except reception (we don't want
   // the reception walls to overlap the agent floor wall on the j=tilesD-RECEPTION_DEPTH line).
   const interiorWalls: Array<[ScreenPoint, ScreenPoint]> = []
-  // Helper: include interior segments only — drop any wall that lies on the
+  // Helper: include interior segments only, drop any wall that lies on the
   // perimeter (i=0, i=tilesW, j=0, j=tilesD).
   const onPerimeter = (p: ScreenPoint) => {
     // Test by inverting the iso transform: i-j = (p.x - originX) * 2 / TILE_W, i+j = (p.y - originY) * 2 / TILE_H
@@ -162,8 +162,7 @@ export function Building({ layout, lighting }: BuildingProps) {
 
       {/* Back-wall windows. At night, a time-of-day-varying fraction of
           windows glow yellow ("someone working late"); the rest take the
-          time-of-day fill. The fraction comes from `lighting.litWindowFraction`
-          — busy in early evening, sparse in deep night. During the day we
+          time-of-day fill. The fraction comes from `lighting.litWindowFraction`, busy in early evening, sparse in deep night. During the day we
           use the existing sky-blue gradient. */}
       {nwWindows.map((w, i) => {
         const litThreshold = Math.round((lighting?.litWindowFraction ?? 0.3) * 100)

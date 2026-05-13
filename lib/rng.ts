@@ -6,7 +6,7 @@ export function makeRng(seed: number): Rng {
   return seedrandom(String(seed))
 }
 
-// Knuth's algorithm — fine for typical lambdas <100
+// Knuth's algorithm, fine for typical lambdas <100
 export function poisson(rng: Rng, lambda: number): number {
   if (lambda <= 0) return 0
   // Use the inverse-transform / multiplication method

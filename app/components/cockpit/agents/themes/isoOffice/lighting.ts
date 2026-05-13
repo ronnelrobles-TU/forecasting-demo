@@ -1,6 +1,6 @@
 // Time-of-day lighting model. Computes a `LightingState` (sky colour, window
 // fill, wall warmth, sun/moon position) from `simTimeMin` ∈ [0, 1440).
-// Pure — no side effects, easy to test.
+// Pure, no side effects, easy to test.
 //
 // Sky colour interpolates between keyframes (see SKY_KEYFRAMES). Window fill
 // shifts warm at dawn/dusk and dark at night. Wall warmth (0..1) is a subtle
@@ -20,7 +20,7 @@ export interface LightingState {
   sunPosition: { x: number; y: number; visible: boolean }
   /** True if it's currently nighttime (informs window pattern + sprite). */
   isNight: boolean
-  /** Sprite label: "sun" or "moon" — caller chooses how to render. */
+  /** Sprite label: "sun" or "moon", caller chooses how to render. */
   celestialBody: 'sun' | 'moon'
   /**
    * Fraction (0..1) of nighttime windows that should glow yellow ("someone
@@ -61,23 +61,23 @@ function lerpColor(a: string, b: string, t: number): string {
 // adjacent entries; wraps at 1440 (24h).
 interface SkyKeyframe { min: number; color: string }
 const SKY_KEYFRAMES: SkyKeyframe[] = [
-  { min:    0, color: '#0a0e1a' },   // 0:00 — deep night
+  { min:    0, color: '#0a0e1a' },   // 0:00, deep night
   { min:  240, color: '#0a0e1a' },   // 4:00
-  { min:  360, color: '#1a1f3a' },   // 6:00 — late night purple
-  { min:  390, color: '#3d2c5a' },   // 6:30 — dawn purple
-  { min:  420, color: '#7d4a8a' },   // 7:00 — dawn pink
-  { min:  450, color: '#f59e0b' },   // 7:30 — sunrise orange
-  { min:  480, color: '#fbbf24' },   // 8:00 — bright yellow
-  { min:  540, color: '#fef3c7' },   // 9:00 — warm morning yellow
-  { min:  600, color: '#dbeafe' },   // 10:00 — clear sky blue
-  { min:  960, color: '#dbeafe' },   // 16:00 — clear day
-  { min: 1020, color: '#fde68a' },   // 17:00 — late afternoon golden
-  { min: 1050, color: '#f97316' },   // 17:30 — golden hour orange
-  { min: 1080, color: '#dc2626' },   // 18:00 — sunset red
-  { min: 1110, color: '#7c3aed' },   // 18:30 — dusk purple
-  { min: 1140, color: '#3730a3' },   // 19:00 — dusk indigo
-  { min: 1320, color: '#1e293b' },   // 22:00 — evening dark
-  { min: 1440, color: '#0a0e1a' },   // 24:00 — back to deep night
+  { min:  360, color: '#1a1f3a' },   // 6:00, late night purple
+  { min:  390, color: '#3d2c5a' },   // 6:30, dawn purple
+  { min:  420, color: '#7d4a8a' },   // 7:00, dawn pink
+  { min:  450, color: '#f59e0b' },   // 7:30, sunrise orange
+  { min:  480, color: '#fbbf24' },   // 8:00, bright yellow
+  { min:  540, color: '#fef3c7' },   // 9:00, warm morning yellow
+  { min:  600, color: '#dbeafe' },   // 10:00, clear sky blue
+  { min:  960, color: '#dbeafe' },   // 16:00, clear day
+  { min: 1020, color: '#fde68a' },   // 17:00, late afternoon golden
+  { min: 1050, color: '#f97316' },   // 17:30, golden hour orange
+  { min: 1080, color: '#dc2626' },   // 18:00, sunset red
+  { min: 1110, color: '#7c3aed' },   // 18:30, dusk purple
+  { min: 1140, color: '#3730a3' },   // 19:00, dusk indigo
+  { min: 1320, color: '#1e293b' },   // 22:00, evening dark
+  { min: 1440, color: '#0a0e1a' },   // 24:00, back to deep night
 ]
 
 function interpolateKeyframe(simTimeMin: number, keys: SkyKeyframe[]): string {
@@ -93,10 +93,10 @@ function interpolateKeyframe(simTimeMin: number, keys: SkyKeyframe[]): string {
   return keys[keys.length - 1].color
 }
 
-// Window keyframes — windows appear bright sky-blue during the day, warm
+// Window keyframes, windows appear bright sky-blue during the day, warm
 // orange at sunset, dark/yellow-lit at night.
 const WINDOW_KEYFRAMES: SkyKeyframe[] = [
-  { min:    0, color: '#1e293b' },   // night — dim slate (some windows lit yellow elsewhere)
+  { min:    0, color: '#1e293b' },   // night, dim slate (some windows lit yellow elsewhere)
   { min:  360, color: '#1e293b' },   // 6:00 still mostly dark
   { min:  420, color: '#fde68a' },   // 7:00 dawn warm
   { min:  480, color: '#bae6fd' },   // 8:00 morning sky
@@ -147,7 +147,7 @@ function celestialPosition(
     return { x, y }
   }
 
-  // Sun arc — 6:30 to 18:30 (12 hours)
+  // Sun arc, 6:30 to 18:30 (12 hours)
   const SUNRISE = 6.5 * 60
   const SUNSET = 18.5 * 60
   if (t >= SUNRISE && t <= SUNSET) {
@@ -155,7 +155,7 @@ function celestialPosition(
     const p = arcAt(frac)
     return { x: p.x, y: p.y, visible: true, body: 'sun' }
   }
-  // Moon arc — 19:00 to 6:00 next day (11 hours, wraps).
+  // Moon arc, 19:00 to 6:00 next day (11 hours, wraps).
   const MOONRISE = 19 * 60
   const MOONSET = 6 * 60
   let frac = 0
@@ -167,11 +167,11 @@ function celestialPosition(
 }
 
 // Fraction of nighttime windows that glow yellow at a given sim minute.
-// Round 5.5: previously a flat 0.30 — now varies by hour for atmosphere.
-//   18:00–22:00 → 0.65 (evening shift, late workers, busy)
-//   22:00–02:00 → 0.35 (mostly dark, some night shift)
-//   02:00–06:00 → 0.15 (deep night — just a couple lights)
-//   06:00–08:00 → 0.50 (early arrivals)
+// Round 5.5: previously a flat 0.30, now varies by hour for atmosphere.
+//   18:00-22:00 → 0.65 (evening shift, late workers, busy)
+//   22:00-02:00 → 0.35 (mostly dark, some night shift)
+//   02:00-06:00 → 0.15 (deep night, just a couple lights)
+//   06:00-08:00 → 0.50 (early arrivals)
 // During daytime (8am-6pm) windows take the sky-blue fill anyway, so the
 // lit fraction is unused; we still return a sensible value (0.5) for callers.
 export function nightLitFraction(simTimeMin: number): number {
@@ -180,7 +180,7 @@ export function nightLitFraction(simTimeMin: number): number {
   if (t >= 22 * 60 || t < 2 * 60)  return 0.35
   if (t >= 2 * 60 && t < 6 * 60)   return 0.15
   if (t >= 6 * 60 && t < 8 * 60)   return 0.50
-  return 0.50    // daytime fallback (unused — windows show sky during day)
+  return 0.50    // daytime fallback (unused, windows show sky during day)
 }
 
 export function computeLighting(

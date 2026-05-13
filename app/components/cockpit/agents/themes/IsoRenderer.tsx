@@ -56,7 +56,7 @@ export interface RenderedPosition { pos: ScreenPoint; opacity: number; visible: 
 
 // Threshold (in sim minutes) above which a simTimeMin delta is treated as
 // a "scrub jump" rather than smooth playback. At 0.25× speed sim advances
-// 6 sim-min/sec, so 2 sim-min ≈ 0.33s real — slow enough to ignore frame
+// 6 sim-min/sec, so 2 sim-min ≈ 0.33s real, slow enough to ignore frame
 // jitter while still catching any user scrub. Backward deltas always snap
 // regardless of magnitude.
 const TIME_JUMP_THRESHOLD_SIM_MIN = 2
@@ -64,21 +64,21 @@ const TIME_JUMP_THRESHOLD_SIM_MIN = 2
 export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absenteeismPct, shrinkPct, perInterval, simSpeed, injectedEvents, roster, playing = true }: AgentRendererProps) {
   // Fast mode: at sim speeds > 1× the user is fast-forwarding, and journey
   // animations (1.5s walks, 2.5s break sits, 4s lunch outside) take longer
-  // in real time than the actual sim event they're meant to depict — the
+  // in real time than the actual sim event they're meant to depict, the
   // viz lies about timing. Flip to a static "agents-at-desks-with-shirt-
   // colors" mode that's accurate to the kernel's tick.
   const fastMode = (simSpeed ?? 1) > 1
 
   // Compute which agent indices are currently "on shift" using the Erlang
   // scheduled-agent count from the per-interval stats. Without this, the
-  // agentTimeline kernel defaults every agent to idle at minute 0 — so at
+  // agentTimeline kernel defaults every agent to idle at minute 0, so at
   // midnight the office is full of idle agents, which is nonsense. With
   // this overlay, only the night-shift skeleton is visible at midnight,
   // and the floor ramps in/out through the day matching call volume.
   // Per-agent micro-offsets stagger arrivals so the 15-min boundary
   // doesn't bunch.
   // Round 5.7: peak in-office count = ceil(maxErlang / (1 - shrink/100)).
-  // Indices [peakInOffice .. agents.length) are "today's absentees" — they
+  // Indices [peakInOffice .. agents.length) are "today's absentees", they
   // never come in. Their desks render with the AbsentMarker so the user sees
   // the absenteeism rate at a glance. This is the slice between the in-office
   // population (~234) and the total scheduled HC (~257) for a typical 159-
@@ -139,7 +139,7 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
     [lightingTime, layout.viewBox],
   )
 
-  // Activity assignments — pure, stable within a 30-min sim window.
+  // Activity assignments, pure, stable within a 30-min sim window.
   // Round 7.1: pass the productive/shrinkage allocation so productive
   // agents stay at desks and shrinkage agents are routed into non-desk
   // rooms. Without this, the scheduler would scatter productive agents
@@ -184,7 +184,7 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
   //
   // Round 5.8: this effect now ONLY prunes/preserves existing journeys
   // when the agent roster shifts. It does NOT create journeys for new
-  // agents — the sim-state effect below owns creation, so it can use the
+  // agents, the sim-state effect below owns creation, so it can use the
   // *effective* state (Erlang-overlay-corrected) and seed the journey
   // directly into the right resting phase. Without this split, fresh
   // agents at 9am were being created at-desk by this effect and then the
@@ -220,7 +220,7 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
   // positions for old sim times. To restore the "video frame seek" model,
   // we detect those events and rebuild every journey to a deterministic
   // resting phase that matches the agent's *effective* state at the new
-  // simTimeMin — no walking animation.
+  // simTimeMin, no walking animation.
   //
   // Pause is intentionally NOT a snap trigger. The virtual clock stops
   // ticking while paused, so walking agents freeze at their current
@@ -228,7 +228,7 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
   // walk continues smoothly from the same position.
   //
   // The detector fires when:
-  //   1. simTimeMin moves backward (always — even small reversals).
+  //   1. simTimeMin moves backward (always, even small reversals).
   //   2. simTimeMin jumps forward by more than TIME_JUMP_THRESHOLD_SIM_MIN.
   const lastSimTimeRef = useRef<number>(simTimeMin)
   // Helper to compute one agent's snapped journey from the same inputs the
@@ -257,7 +257,7 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
     // Update the prevState ledger so the transition effect doesn't fire a
     // redundant transitionJourney() call on the next render.
     prevStatesRef.current[a.id] = effectiveState
-    // Same for activity ledger — snap counts as "we already saw this".
+    // Same for activity ledger, snap counts as "we already saw this".
     prevActivitiesRef.current[a.id] = act
     return snapJourneyFor(
       a.id,
@@ -270,7 +270,7 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
     )
   }
 
-  // Full rebuild — every agent gets a fresh snapped journey. Used for time
+  // Full rebuild, every agent gets a fresh snapped journey. Used for time
   // jumps / reversals where the entire scene needs to match the new sim time.
   function snapAllJourneys(now: number): Record<string, VisualJourney> {
     const next: Record<string, VisualJourney> = {}
@@ -287,7 +287,7 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
     const isJump = Math.abs(dt) > TIME_JUMP_THRESHOLD_SIM_MIN
 
     if (isReversed || isJump) {
-      // Time jump or rewind — every journey must match the new sim time.
+      // Time jump or rewind, every journey must match the new sim time.
       const now = clockRef.current.now()
       const next = snapAllJourneys(now)
       journeysRef.current = next
@@ -312,7 +312,7 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
   // Round 5.8 fix (9am reload door rush): on the FIRST evaluation for an
   // agent (no prior recorded state), we skip the transitionJourney call
   // entirely. The journey was just constructed by makeJourney() with the
-  // correct initial phase (at_desk / on_call_at_desk / gone) — there's
+  // correct initial phase (at_desk / on_call_at_desk / gone), there's
   // nothing to "transition" yet. Without this, agents that the shift model
   // says should already be in-office at the starting simTime got dispatched
   // through `arriving_at_door` (walk-from-door) the first time, causing the
@@ -332,7 +332,7 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
 
       let effectiveState: AgentVisualState = a.state
       if (!isActiveByIndex[i]) {
-        // Inactive (off the schedule's roster for this minute) — force
+        // Inactive (off the schedule's roster for this minute), force
         // off_shift, which dispatches walk-to-door → gone. The journey
         // machinery already handles the visible exit.
         effectiveState = 'off_shift'
@@ -345,7 +345,7 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
 
       const isFirstSighting = !next[a.id]
       if (isFirstSighting) {
-        // First-ever sight of this agent — seed the journey with the phase
+        // First-ever sight of this agent, seed the journey with the phase
         // matching the *effective* state (so initially-inactive agents
         // start as `gone` and initially-active ones start at-desk). This
         // skips the door arrival animation for the starting population.
@@ -374,7 +374,7 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
   }, [agents, simTimeMin, layout, lookahead, isActiveByIndex])
 
   // React to *display activity* changes (gym/training/restroom/chat/water_cooler).
-  // These don't show up in sim state — they're a visual fluff layer — so we
+  // These don't show up in sim state, they're a visual fluff layer, so we
   // dispatch journey walks here so every transition is a visible walk
   // (no teleports). When activity flips back to at_desk, we walk back from
   // wherever the agent currently is.
@@ -402,7 +402,7 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
     let changed = false
     const next: Record<string, VisualJourney> = { ...journeysRef.current }
     for (const a of agents) {
-      // Don't drive activity-walks for non-idle agents — sim state owns them.
+      // Don't drive activity-walks for non-idle agents, sim state owns them.
       if (a.state !== 'idle') {
         prev[a.id] = activities[a.id]?.activity ?? 'at_desk'
         continue
@@ -499,7 +499,7 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
     return out
   }, [journeySnapshot])
 
-  // Restroom occupancy — count agents currently in any restroom-related
+  // Restroom occupancy, count agents currently in any restroom-related
   // phase OR with `in_restroom` activity assigned. Drives the stall-door
   // "occupied" red dots and (when stalls are full) the small queue of
   // waiting agents painted outside the doors. Without this signal the
@@ -548,7 +548,7 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
       const j = journeySnapshot[a.id]
       const k = j?.phase.kind
       if (k === 'gone' || a.state === 'off_shift') continue // not in office
-      // Walking phases (visible transit) — bucketed first.
+      // Walking phases (visible transit), bucketed first.
       if (k && (
         k === 'walking_to_break' || k === 'walking_back_to_desk'
         || k === 'walking_to_door_for_lunch' || k === 'walking_back_from_lunch'
@@ -786,7 +786,7 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
 
       {visualFlags.flashAbsentActive && (
         <g pointerEvents="none">
-          {/* Quick red flash over the agent floor — emphasises the just-fired
+          {/* Quick red flash over the agent floor, emphasises the just-fired
               loss of agents. Auto-dismisses with the active-event window. */}
           <polygon
             points={layout.rooms.agentFloor.zonePoints.map(p => `${p.x},${p.y}`).join(' ')}
@@ -812,7 +812,7 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
 
     {/* Round 5.7 clarity overlays. HTML siblings of the SVG, absolutely
         positioned inside the .cockpit-agent-scene container. Subtle,
-        non-interfering, dismissible — purely informational for new users.
+        non-interfering, dismissible, purely informational for new users.
         Round 5.8: clock + counter + legend now stack vertically along the
         right edge so the StatusLegend "?" can never collide with an
         ActivityCounter row. */}
@@ -822,7 +822,7 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
       <StatusLegend/>
     </div>
 
-    {/* Camera controls — sit beside the ThemePicker on the top-right edge. */}
+    {/* Camera controls, sit beside the ThemePicker on the top-right edge. */}
     <div className="cockpit-scene-overlay cockpit-scene-overlay--top-right-camera">
       <CameraControls
         scale={camera.state.scale}
@@ -832,7 +832,7 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
       />
     </div>
 
-    {/* "Press 0 to reset" hint — bottom-left of the office canvas. Fades
+    {/* "Press 0 to reset" hint, bottom-left of the office canvas. Fades
         in/out via CSS; remounted (via key) on each zoom-away transition so
         the animation replays. */}
     {zoomedAway && (
@@ -869,7 +869,7 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
       </div>
     )}
 
-    {/* Round 15: stronger flash_absent feedback — full-canvas red edge that
+    {/* Round 15: stronger flash_absent feedback, full-canvas red edge that
         pulses 3× over 3s + a giant "−N AGENTS UNAVAILABLE" counter that
         fades over 4s. Both keyed on the most recent flash event id so they
         replay on each fresh fire. */}
@@ -890,12 +890,12 @@ export function IsoRenderer({ agents, simTimeMin, events, deskCapacity, absentee
       </>
     )}
 
-    {/* Outage banner across the top of the office — sits above the EventBanner
+    {/* Outage banner across the top of the office, sits above the EventBanner
         toasts so it reads first. */}
     {visualFlags.outageActive && (
       <div className="cockpit-outage-banner" role="status">
         <span aria-hidden="true">⚠️</span>
-        <span>SYSTEM SLOWDOWN — calls taking longer than usual</span>
+        <span>SYSTEM SLOWDOWN, calls taking longer than usual</span>
       </div>
     )}
 

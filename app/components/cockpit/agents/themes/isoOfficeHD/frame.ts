@@ -81,17 +81,16 @@ export function updateAgentLayer(
     const shirt = SHIRT_COLOR_HEX[a.state] ?? 0x22c55e
     setShirtColor(sprite, shirt)
     // HD-only flex: subtle red glow on on-call agents so they pop. Only
-    // applied when the agent is at-desk (or at-desk on call) and visible —
-    // walking glowing bodies look noisy. Capped count is naturally bounded
+    // applied when the agent is at-desk (or at-desk on call) and visible, // walking glowing bodies look noisy. Capped count is naturally bounded
     // by sim parallelism so we don't gate it explicitly here.
     const onCallVisible = a.state === 'on_call'
       && alpha > 0.6
       && (phase.kind === 'on_call_at_desk' || phase.kind === 'at_desk')
     setOnCallGlow(sprite, onCallVisible)
 
-    // Bubble — derived from the journey phase (the source of truth for what
+    // Bubble, derived from the journey phase (the source of truth for what
     // the agent is currently doing). Only visible when the agent is at a
-    // resting / room phase and visible enough — walking agents drop the bubble
+    // resting / room phase and visible enough, walking agents drop the bubble
     // (matches the SVG renderer's behaviour). Activity-assignment is no
     // longer consulted here; that data churns at productive/shrinkage
     // boundaries and was the origin of the breakroom bubble flicker.

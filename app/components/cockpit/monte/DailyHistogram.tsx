@@ -52,7 +52,7 @@ export function DailyHistogram({
 
   const min = Math.min(...values)
   const max = Math.max(...values)
-  // Avoid zero-width range — pad by tiny amount
+  // Avoid zero-width range, pad by tiny amount
   const range = max - min || 1
   const binWidth = range / BIN_COUNT
   const bins = new Array(BIN_COUNT).fill(0)

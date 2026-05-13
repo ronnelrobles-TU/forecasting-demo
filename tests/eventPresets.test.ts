@@ -12,7 +12,7 @@ function presetById(id: string): EventPreset {
   return p
 }
 
-describe('EVENT_PRESETS — preset library', () => {
+describe('EVENT_PRESETS, preset library', () => {
   it('exposes the new round-15 presets', () => {
     const ids = EVENT_PRESETS.map(p => p.id)
     expect(ids).toContain('viral_surge')
@@ -64,7 +64,7 @@ describe('EVENT_PRESETS — preset library', () => {
   })
 })
 
-describe('buildEventsFromPreset — user-tuned values', () => {
+describe('buildEventsFromPreset, user-tuned values', () => {
   it('overrides magnitude and duration per part', () => {
     const preset = presetById('surge')
     const events = buildEventsFromPreset(preset, 500, [{ magnitude: 1.5, durationMin: 90 }])
@@ -104,7 +104,7 @@ describe('buildEventsFromPreset — user-tuned values', () => {
   })
 })
 
-describe('KIND_SLIDER_CONFIG — slider ranges', () => {
+describe('KIND_SLIDER_CONFIG, slider ranges', () => {
   it('volume_surge spans 0..200%', () => {
     const cfg = KIND_SLIDER_CONFIG.volume_surge
     expect(cfg.magnitude.min).toBe(0)

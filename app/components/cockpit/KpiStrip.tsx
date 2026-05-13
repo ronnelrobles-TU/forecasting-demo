@@ -26,8 +26,7 @@ function fmtTime(min: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
-// Plain-text tooltips for each KPI label. Native HTML `title` attributes —
-// no custom popover. The user reported confusion about why "Active agents
+// Plain-text tooltips for each KPI label. Native HTML `title` attributes, // no custom popover. The user reported confusion about why "Active agents
 // (Live)" doesn't match "At desks" in the office viz; the difference is the
 // shrinkage activities (break, training, etc.). These tooltips spell out
 // each metric's definition so the relationship is discoverable on hover.
@@ -99,7 +98,7 @@ function PlanCells({ plan }: { plan: PlanKpis }) {
 function Kpi({ label, value, accent, muted, tip }: { label: React.ReactNode; value: string; accent?: 'green' | 'amber'; muted?: boolean; tip?: string }) {
   // `tip` becomes a native HTML title attribute on the cell so hovering
   // anywhere on the KPI (label or value) shows the tooltip. Intentionally
-  // unobtrusive — no popovers, no JS — just discoverable plain-text help.
+  // unobtrusive, no popovers, no JS, just discoverable plain-text help.
   return (
     <div className={`cockpit-kpi ${muted ? 'cockpit-kpi--muted' : ''}`} title={tip}>
       <div className="cockpit-kpi-label">{label}</div>

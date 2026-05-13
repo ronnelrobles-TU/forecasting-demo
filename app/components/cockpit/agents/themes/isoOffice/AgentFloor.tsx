@@ -16,12 +16,12 @@ interface AgentFloorProps {
   positions?: Record<string, RenderedPosition>
   layout: BuildingLayout
   activities?: Record<string, ActivityAssignment>
-  /** 0..100 — fraction of empty desks to mark as "absent" (subtle coffee-cup
+  /** 0..100, fraction of empty desks to mark as "absent" (subtle coffee-cup
    *  icon left behind). Visualization-only; sim kernel ignores absenteeism
    *  per-agent. */
   absenteeismPct?: number
   /** Round 5.7: indices [absentTailStart, agents.length) belong to agents
-   *  who are "absent for the day" — they never come on shift, and their
+   *  who are "absent for the day", they never come on shift, and their
    *  desks render with the AbsentMarker. */
   absentTailStart?: number
 }
@@ -45,7 +45,7 @@ function Chair({ x, y, opacity = 1 }: { x: number; y: number; opacity?: number }
   )
 }
 
-// Subtle "absent" indicator left on the desk — a small coffee mug + name tag,
+// Subtle "absent" indicator left on the desk, a small coffee mug + name tag,
 // telling the user "this agent didn't come in today" without looking like a
 // rendering bug. Painted on top of the desk.
 function AbsentMarker({ x, y }: { x: number; y: number }) {
@@ -106,7 +106,7 @@ export function AgentFloor({ agents, journeys = {}, positions = {}, layout, acti
   }
 
   // Round 5.7: agents in [absentTailStart, agents.length) are today's
-  // absentees — never on shift. Mark their desks too.
+  // absentees, never on shift. Mark their desks too.
   const tailStart = Math.max(0, Math.min(agents.length, absentTailStart ?? agents.length))
   for (let i = tailStart; i < agents.length; i++) {
     if (i < deskPositions.length) absentDeskIdx.add(i)
@@ -208,7 +208,7 @@ export function AgentFloor({ agents, journeys = {}, positions = {}, layout, acti
               <StatusBubble x={agentX} y={agentY} state={agent.state} phase={journey?.phase}/>
             )}
             {/* Round 5.7: tail-agent absent marker (agent is in the array but
-                never on shift today — desk should look empty + flagged). */}
+                never on shift today, desk should look empty + flagged). */}
             {!renderAgentHere && i >= tailStart && (
               <AbsentMarker x={deskPos.x - 1} y={deskPos.y + 1}/>
             )}

@@ -5,7 +5,7 @@ import { campaigns } from '@/lib/campaigns'
 
 describe('buildDefaultRoster', () => {
   it('returns 4 evenly-spaced shifts covering the HOOP', () => {
-    const c = campaigns.au_retail_cebu  // HOOP 360–1320 (06:00–22:00, 16h)
+    const c = campaigns.au_retail_cebu  // HOOP 360-1320 (06:00-22:00, 16h)
     const peakAgents = 80
     const r = buildDefaultRoster(c.hoop, peakAgents)
     expect(r).toHaveLength(4)
@@ -25,7 +25,7 @@ describe('buildDefaultRoster', () => {
   })
 
   it('handles tiny HOOP by clamping shift length to fit', () => {
-    const r = buildDefaultRoster({ startMin: 600, endMin: 720 }, 10)  // 10:00–12:00 (2h)
+    const r = buildDefaultRoster({ startMin: 600, endMin: 720 }, 10)  // 10:00-12:00 (2h)
     expect(r.length).toBeGreaterThanOrEqual(1)
     for (const s of r) {
       expect(s.startMin).toBeGreaterThanOrEqual(600)
@@ -36,8 +36,8 @@ describe('buildDefaultRoster', () => {
 
 describe('agentsActiveAt', () => {
   const roster: RosterShift[] = [
-    { id: 's1', startMin: 480, endMin: 1020, agentCount: 20, breaks: [] },  // 08:00–17:00
-    { id: 's2', startMin: 720, endMin: 1260, agentCount: 30, breaks: [] },  // 12:00–21:00
+    { id: 's1', startMin: 480, endMin: 1020, agentCount: 20, breaks: [] },  // 08:00-17:00
+    { id: 's2', startMin: 720, endMin: 1260, agentCount: 30, breaks: [] },  // 12:00-21:00
   ]
 
   it('sums agentCount for shifts active at the given minute', () => {

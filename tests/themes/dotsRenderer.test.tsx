@@ -23,7 +23,7 @@ function morningRampPerInterval(): IntervalStat[] {
   return out
 }
 
-// Bright-only "active" circles — fill is one of dA-idle/dA-call/dA-brk and
+// Bright-only "active" circles, fill is one of dA-idle/dA-call/dA-brk and
 // opacity is 1 (not 0.25 dim or 0.5 off-shift).
 function activeCircles(container: HTMLElement): SVGCircleElement[] {
   return Array.from(container.querySelectorAll('circle')).filter(c => {
@@ -41,7 +41,7 @@ function activeCircles(container: HTMLElement): SVGCircleElement[] {
 const NOON = 720
 
 function agentCircles(container: HTMLElement): SVGCircleElement[] {
-  // Agent dots are the ones with a `url(#dA-...)` fill — the celestial dot
+  // Agent dots are the ones with a `url(#dA-...)` fill, the celestial dot
   // uses a flat hex fill.
   return Array.from(container.querySelectorAll('circle'))
     .filter(c => (c.getAttribute('fill') ?? '').startsWith('url(#dA-'))
@@ -119,7 +119,7 @@ describe('DotsRenderer', () => {
       <DotsRenderer
         agents={agents}
         peakAgents={peakAgents}
-        simTimeMin={354}  // 5:54am — well before the 9am shift
+        simTimeMin={354}  // 5:54am, well before the 9am shift
         perInterval={morningRampPerInterval()}
         shrinkPct={30}
         roster={roster}

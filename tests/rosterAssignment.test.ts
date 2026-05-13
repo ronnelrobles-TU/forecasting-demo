@@ -47,7 +47,7 @@ describe('assignAgentsToShifts', () => {
   })
 
   it('scales counts when totalAgents differs from sum of shift agentCount', () => {
-    // Roster sums to 100; we ask for 200 — each shift's allocation should
+    // Roster sums to 100; we ask for 200, each shift's allocation should
     // double. The exact split is allowed to use rounding; what matters is
     // that all 200 indices get an assignment with the right shiftId order.
     const r = [shift('s0', 420, 900, 25), shift('s1', 540, 1020, 75)]

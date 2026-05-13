@@ -1,7 +1,7 @@
 import type { Campaign, CampaignKey } from './types'
 
 // Build a 48-interval curve from three Gaussian peaks with given weights/positions.
-// Returns relative weights (not normalized) — the kernel normalizes at use time.
+// Returns relative weights (not normalized), the kernel normalizes at use time.
 function makeCurve(peaks: { hour: number; sigma: number; weight: number }[]): number[] {
   return Array.from({ length: 48 }, (_, i) => {
     const h = i / 2
@@ -12,7 +12,7 @@ function makeCurve(peaks: { hour: number; sigma: number; weight: number }[]): nu
 export const campaigns: Record<CampaignKey, Campaign> = {
   us_telco_manila: {
     key: 'us_telco_manila',
-    label: 'US Telco Inbound – Manila',
+    label: 'US Telco Inbound - Manila',
     hoop: { startMin: 0, endMin: 1440 },                                  // 24/7
     curveTemplate: makeCurve([
       { hour: 10, sigma: 2.2, weight: 1.0 },
@@ -27,8 +27,8 @@ export const campaigns: Record<CampaignKey, Campaign> = {
   },
   au_retail_cebu: {
     key: 'au_retail_cebu',
-    label: 'AU Retail Chat – Cebu',
-    hoop: { startMin: 360, endMin: 1320 },                                // 06:00–22:00
+    label: 'AU Retail Chat - Cebu',
+    hoop: { startMin: 360, endMin: 1320 },                                // 06:00-22:00
     curveTemplate: makeCurve([
       { hour: 11, sigma: 2.0, weight: 1.0 },
       { hour: 17, sigma: 2.0, weight: 0.9 },
@@ -41,8 +41,8 @@ export const campaigns: Record<CampaignKey, Campaign> = {
   },
   uk_fintech_manila: {
     key: 'uk_fintech_manila',
-    label: 'UK Fintech Voice – Manila',
-    hoop: { startMin: 540, endMin: 1080 },                                // 09:00–18:00
+    label: 'UK Fintech Voice - Manila',
+    hoop: { startMin: 540, endMin: 1080 },                                // 09:00-18:00
     curveTemplate: makeCurve([
       { hour: 11, sigma: 1.8, weight: 1.0 },
       { hour: 14, sigma: 1.8, weight: 0.95 },
@@ -55,8 +55,8 @@ export const campaigns: Record<CampaignKey, Campaign> = {
   },
   us_healthcare_clark: {
     key: 'us_healthcare_clark',
-    label: 'US Healthcare – Clark',
-    hoop: { startMin: 480, endMin: 1260 },                                // 08:00–21:00 (split EST/CST coverage)
+    label: 'US Healthcare - Clark',
+    hoop: { startMin: 480, endMin: 1260 },                                // 08:00-21:00 (split EST/CST coverage)
     curveTemplate: makeCurve([
       { hour: 10, sigma: 2.2, weight: 1.0 },
       { hour: 14, sigma: 2.2, weight: 0.95 },
@@ -70,8 +70,8 @@ export const campaigns: Record<CampaignKey, Campaign> = {
   },
   ph_telco_davao: {
     key: 'ph_telco_davao',
-    label: 'PH Telco Local – Davao',
-    hoop: { startMin: 360, endMin: 1320 },                                // 06:00–22:00
+    label: 'PH Telco Local - Davao',
+    hoop: { startMin: 360, endMin: 1320 },                                // 06:00-22:00
     curveTemplate: makeCurve([
       { hour: 9, sigma: 1.8, weight: 1.0 },
       { hour: 16, sigma: 2.4, weight: 0.85 },

@@ -3,7 +3,7 @@
 // Translates the list of currently-active injected events into a set of
 // quantitative knobs the renderers can act on (intensity ramps, recent-flash
 // flags, queue-counter strings, etc.). This sits a layer above
-// `injectedEventVisuals.ts` — that file produces booleans + banner badges,
+// `injectedEventVisuals.ts`, that file produces booleans + banner badges,
 // while this file produces *intensities* and *time-relative* values used to
 // drive cinematic visual effects (phone particles, lightning bolts, puffs,
 // storm overlays).
@@ -23,7 +23,7 @@ const STAFF_DROP_RAMP_MIN = 1
 export interface DramaticEffectState {
   // Surge ────────────────────────────────────────────────────────────────
   surgeActive: boolean
-  /** 0..1 ramped intensity — climbs to 1.0 over SURGE_RAMP_MIN minutes. */
+  /** 0..1 ramped intensity, climbs to 1.0 over SURGE_RAMP_MIN minutes. */
   surgeIntensity: number
   /** Whole sim minutes remaining (Infinity if open-ended). */
   surgeRemainingMin: number
@@ -39,14 +39,14 @@ export interface DramaticEffectState {
   // Staff drop (typhoon) ─────────────────────────────────────────────────
   staffDropActive: boolean
   staffDropIntensity: number
-  staffDropMagnitude: number   // 0..1 — fraction of staff dropped
+  staffDropMagnitude: number   // 0..1, fraction of staff dropped
 
   // Flash absent ─────────────────────────────────────────────────────────
   /** True for ~5 sim min after a flash_absent fires. */
   flashAbsentRecent: boolean
   /** Number of agents flash-removed (sum of magnitudes from recent events). */
   flashAbsentCount: number
-  /** Ages (in sim minutes) of every recent flash event — used to tag puff
+  /** Ages (in sim minutes) of every recent flash event, used to tag puff
    *  bursts so the renderer only spawns once per event. */
   flashAbsentEvents: { id: string; ageMin: number; count: number }[]
 }
@@ -78,7 +78,7 @@ function clamp01(x: number): number {
  *
  * Intensity ramps in over a few sim minutes from each event's fireAtMin so
  * the drama doesn't snap-on jarringly when the user injects an event. (For
- * `flash_absent`, which is instantaneous, this is moot — `flashAbsentRecent`
+ * `flash_absent`, which is instantaneous, this is moot, `flashAbsentRecent`
  * just means "still in the post-fire window".)
  */
 export function computeDramaticState(

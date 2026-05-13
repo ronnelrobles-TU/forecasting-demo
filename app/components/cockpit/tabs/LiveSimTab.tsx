@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useScenario } from '../ScenarioContext'
 import { runDayInWorker } from '@/app/workers/kernelClient'
 import type { IntervalStat, Scenario, SimResult } from '@/lib/types'
@@ -45,6 +45,17 @@ export function LiveSimTab({ onLiveChange }: LiveSimTabProps = {}) {
     return () => { cancelled = true }
   }, [scenario])
 
+  // Throttle the live KPI push to 20 Hz. simTimeMin updates at the rAF rate
+  // (60 Hz during playback), and each setLive in Cockpit cascades into a full
+  // re-render of the cockpit chrome (Sidebar, KpiStrip, etc). React 19 trips
+  // "Maximum update depth exceeded" when those renders take longer than a
+  // frame because the update-depth counter doesn't reset between rAF ticks.
+  // 20 Hz is plenty for visual KPI feedback and decouples render cost from
+  // simTimeMin's update rate.
+  const liveLastFireRef = useRef(0)
+  const liveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const livePayloadRef = useRef<LiveData | null>(null)
+
   useEffect(() => {
     if (!result || !onLiveChange) return
     const stats = intervalStatsAt(result.perInterval, simTimeMin)
@@ -58,12 +69,39 @@ export function LiveSimTab({ onLiveChange }: LiveSimTabProps = {}) {
     const shrinkFactor = 1 - Math.min(95, Math.max(0, scenario.shrink)) / 100
     const absFactor = 1 - Math.min(95, Math.max(0, scenario.abs)) / 100
     const scheduledHC = Math.ceil(stats.agents / shrinkFactor / absFactor)
-    onLiveChange({ stats, abandons, simTimeMin, scheduledHC })
-    // NOTE: do NOT clear `live` in the cleanup. The effect re-runs on every
-    // simTimeMin tick, so a cleanup that nulls live would race with the new
-    // value and leave the KPI strip blank (root cause of the missing strip).
-    // We only want to clear when this tab unmounts, which is handled below.
+    livePayloadRef.current = { stats, abandons, simTimeMin, scheduledHC }
+
+    const THROTTLE_MS = 50
+    const now = performance.now()
+    const elapsed = now - liveLastFireRef.current
+
+    if (elapsed >= THROTTLE_MS) {
+      if (liveTimeoutRef.current !== null) {
+        clearTimeout(liveTimeoutRef.current)
+        liveTimeoutRef.current = null
+      }
+      liveLastFireRef.current = now
+      onLiveChange(livePayloadRef.current)
+    } else if (liveTimeoutRef.current === null) {
+      // Schedule a trailing-edge call so the final simTimeMin (e.g. when the
+      // user stops scrubbing or playback hits 24:00) still gets reported.
+      liveTimeoutRef.current = setTimeout(() => {
+        liveTimeoutRef.current = null
+        liveLastFireRef.current = performance.now()
+        const p = livePayloadRef.current
+        if (p && onLiveChange) onLiveChange(p)
+      }, THROTTLE_MS - elapsed)
+    }
   }, [result, simTimeMin, onLiveChange, scenario.shrink, scenario.abs])
+
+  useEffect(() => {
+    return () => {
+      if (liveTimeoutRef.current !== null) {
+        clearTimeout(liveTimeoutRef.current)
+        liveTimeoutRef.current = null
+      }
+    }
+  }, [])
 
   useEffect(() => {
     return () => { onLiveChange?.(null) }
@@ -86,7 +124,7 @@ export function LiveSimTab({ onLiveChange }: LiveSimTabProps = {}) {
       <div className="cockpit-viewport-header">
         <span>Live Sim · time machine</span>
         <span className="cockpit-viewport-sub">
-          {running ? 'simulating…' : `total SL: ${result ? (result.totals.sl * 100).toFixed(1) : '—'}% · abandons: ${result?.totals.abandons ?? 0}`}
+          {running ? 'simulating…' : `total SL: ${result ? (result.totals.sl * 100).toFixed(1) : ', '}% · abandons: ${result?.totals.abandons ?? 0}`}
           {' '}<TabIntroReopenLink tab="live" />
         </span>
       </div>

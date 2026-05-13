@@ -45,7 +45,7 @@ describe('isoOfficeHD/bubbles.pickBubble', () => {
     expect(b?.emoji).toBe('📞')
   })
 
-  it('phase wins over sim state — agent in gym shows 💪 even when sim is on_break', () => {
+  it('phase wins over sim state, agent in gym shows 💪 even when sim is on_break', () => {
     const b = pickBubble('on_break', {
       kind: 'in_room', targetRoom: 'gym', pos: desk, until: 0,
     })

@@ -4,7 +4,7 @@
 // (`buildAgentsPerIntervalFromRoster` in lib/kernel/sim.ts), but it never
 // associates a specific agent index with a specific shift. The renderer-side
 // shift model previously turned that count back into "the first N indices
-// are on shift" via a smooth interpolation — which means a 7am shift and a
+// are on shift" via a smooth interpolation, which means a 7am shift and a
 // 9am shift collapse into the same morning ramp without any link to the
 // roster the user actually drew.
 //
@@ -12,7 +12,7 @@
 // assigns each agent index to a specific shift template, deterministically
 // and stably across re-renders. The renderer can then ask "is agent 42
 // inside their shift window right now?" and animate door arrivals at the
-// actual `startMin` the user dragged on the Gantt — not at the rounded
+// actual `startMin` the user dragged on the Gantt, not at the rounded
 // 15-minute boundary the smoothed Erlang curve happened to cross.
 //
 // Pure module. No React, no animations.
@@ -40,7 +40,7 @@ export interface AgentShiftAssignment {
  *   Agents 50..149 → shift 1 (arrives at 9:00am)
  *
  * If the sum of `agentCount` across shifts doesn't match `totalAgents`
- * (common — the kernel sizes the agent pool from peak-interval staffing,
+ * (common, the kernel sizes the agent pool from peak-interval staffing,
  * not from the sum of shift sizes), counts are scaled proportionally so
  * the assignment fills exactly `totalAgents` slots.
  */

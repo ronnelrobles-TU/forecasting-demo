@@ -14,12 +14,12 @@ import {
 import type { IntervalStat } from '@/lib/types'
 
 // Build a synthetic perInterval that ramps from 5 (night) to 100 (midday)
-// to 5 (late evening) — typical office shape. The kernel produces 48
+// to 5 (late evening), typical office shape. The kernel produces 48
 // entries (30-min buckets), so this ramp has 48 entries with peak at i=24.
 function makeRamp(): IntervalStat[] {
   const out: IntervalStat[] = []
   for (let i = 0; i < 48; i++) {
-    // Triangular over 24h — peak at i=24 (12:00).
+    // Triangular over 24h, peak at i=24 (12:00).
     const t = Math.abs(i - 24) / 24 // 0 at noon, 1 at midnight
     const agents = Math.round(5 + (1 - t) * 95)
     out.push({ sl: 1, agents, queueLen: 0, abandons: 0, occ: 0.7, asa: 0 })
@@ -84,7 +84,7 @@ describe('smoothScheduledAt', () => {
     // interval 0 -> interval 1 (but interval -1 is treated as interval 0).
     const v = smoothScheduledAt(ramp, 15)
     expect(v).toBeCloseTo(ramp[0].agents, 5)
-    // Halfway through interval 5 (minutes 150..180) — between interval 4 and 5.
+    // Halfway through interval 5 (minutes 150..180), between interval 4 and 5.
     const mid = 150 + 15
     const expected = ramp[4].agents + (ramp[5].agents - ramp[4].agents) * 0.5
     expect(smoothScheduledAt(ramp, mid)).toBeCloseTo(expected, 1)
@@ -101,7 +101,7 @@ describe('isAgentActive', () => {
   })
 
   it('keeps the night skeleton at midnight', () => {
-    // ramp[0].agents is 5 — agent 0..4 should be active, the rest off.
+    // ramp[0].agents is 5, agent 0..4 should be active, the rest off.
     let active = 0
     for (let i = 0; i < 100; i++) {
       if (isAgentActive(i, ramp, 0)) active++
@@ -118,7 +118,7 @@ describe('isAgentActive', () => {
     for (let i = 0; i < 100; i++) {
       if (isAgentActive(i, ramp, 720)) active++
     }
-    // At peak, ramp[24] is 100 — but the per-agent stagger pulls some
+    // At peak, ramp[24] is 100, but the per-agent stagger pulls some
     // agents to "future" effective times where the ramp has already begun
     // its descent (interval 25 is 96). So we expect very high (>=90), not
     // necessarily exactly 100.

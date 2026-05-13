@@ -1010,7 +1010,7 @@ details[open] .learn-tip summary::before { content: '▼ '; }
 }
 .cockpit-chart-container { flex: 1; min-height: 240px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 0.75rem; }
 
-/* KPI strip — pinned at the bottom; never shrinks. The cockpit body is
+/* KPI strip, pinned at the bottom; never shrinks. The cockpit body is
    `flex: 1; min-height: 0`, so without `flex-shrink: 0` here a tall office
    canvas inside .cockpit-main would push the strip off-screen on shorter
    viewports (root cause of the Round 4/5 "missing strip" bug). */
@@ -1151,7 +1151,7 @@ details[open] .learn-tip summary::before { content: '▼ '; }
   align-self: flex-end;
 }
 
-/* ───────── Round 15: Inject modal — customizer ───────── */
+/* ───────── Round 15: Inject modal, customizer ───────── */
 /*
  * The inject modal grew sliders + a pending-stack list, so the body needs
  * to scroll instead of growing past the viewport. The customizer rows live
@@ -2063,14 +2063,14 @@ details[open] .learn-tip summary::before { content: '▼ '; }
   align-self: flex-start;
 }
 
-/* ───────── Cockpit KPI strip — two-row variant for Live Sim ───────── */
+/* ───────── Cockpit KPI strip, two-row variant for Live Sim ───────── */
 
 .cockpit-kpi-stack {
   display: flex;
   flex-direction: column;
   background: #1e293b;
   border-top: 1px solid #334155;
-  /* Never shrink — the strip must always sit at the bottom of the cockpit
+  /* Never shrink, the strip must always sit at the bottom of the cockpit
      even when the office canvas would otherwise grow. The cockpit-body
      above us is the flex:1 region; we are flex:0. */
   flex-shrink: 0;
@@ -2156,7 +2156,7 @@ details[open] .learn-tip summary::before { content: '▼ '; }
 
 /* ───────── Cockpit iso-office: clarity overlays (Round 5.7) ─────────
    Subtle, absolutely-positioned panels overlaid on the office canvas to
-   help new users understand what they're seeing — clock, status legend,
+   help new users understand what they're seeing, clock, status legend,
    live activity counter, and a dismissible speed-control hint.
    All panels use a translucent slate background and small typography so
    they don't compete with the main viz.
@@ -2438,7 +2438,7 @@ details[open] .learn-tip summary::before { content: '▼ '; }
    Round 12: previously sat to the LEFT of ThemePicker on the same row, but
    the ThemePicker grew wider once "Office HD" was added and the camera
    strip began clipping the "Dots" button. Stacking below avoids the width
-   coupling entirely — both clusters can grow independently and never
+   coupling entirely, both clusters can grow independently and never
    overlap. The lower overlay (--top-right-lower) shifts down accordingly. */
 .cockpit-scene-overlay--top-right-camera {
   top: 2.4rem;
@@ -2583,7 +2583,7 @@ details[open] .learn-tip summary::before { content: '▼ '; }
 }
 
 /* ───────── Round 9: Cinematic event banner cards ───────── */
-.cockpit-event-banner { /* stack container — already declared above */
+.cockpit-event-banner { /* stack container, already declared above */
   max-width: min(80%, 560px);
 }
 .cockpit-event-card {
@@ -2758,7 +2758,7 @@ details[open] .learn-tip summary::before { content: '▼ '; }
   50%      { transform: translateX(-50%) scale(1.04); }
 }
 
-/* Emergency lighting (outage) — corner red glows + global dim. */
+/* Emergency lighting (outage), corner red glows + global dim. */
 .cockpit-emergency-lighting {
   position: absolute;
   inset: 0;
@@ -2779,7 +2779,7 @@ details[open] .learn-tip summary::before { content: '▼ '; }
   99%           { opacity: 0.55; }
 }
 
-/* Storm overlay (typhoon) — dark blue-grey wash + animated rain stripes. */
+/* Storm overlay (typhoon), dark blue-grey wash + animated rain stripes. */
 .cockpit-storm-overlay {
   position: absolute;
   inset: 0;
@@ -2903,4 +2903,75 @@ details[open] .learn-tip summary::before { content: '▼ '; }
   30%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
   85%  { opacity: 1; transform: translate(-50%, -55%) scale(1); }
   100% { opacity: 0; transform: translate(-50%, -65%) scale(0.95); }
+}
+
+/* ============ Password gate (overlay) ============ */
+.password-gate {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.96);
+  z-index: 9999;
+}
+
+.password-gate-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 32px;
+  width: 360px;
+  max-width: 90vw;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  background: #1e293b;
+  color: #e2e8f0;
+}
+
+.password-gate-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #f1f5f9;
+}
+
+.password-gate-sub {
+  font-size: 13px;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+
+.password-gate-input {
+  font-size: 14px;
+  padding: 10px 12px;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  background: #0f172a;
+  color: #e2e8f0;
+  outline: none;
+}
+
+.password-gate-input:focus {
+  border-color: #3b82f6;
+}
+
+.password-gate-error {
+  font-size: 12px;
+  color: #f87171;
+}
+
+.password-gate-btn {
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px;
+  border-radius: 6px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.password-gate-btn:hover {
+  opacity: 0.9;
 }

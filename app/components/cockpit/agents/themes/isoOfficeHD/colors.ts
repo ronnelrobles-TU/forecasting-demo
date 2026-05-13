@@ -1,5 +1,5 @@
 // Color helpers shared across the HD (Pixi.js) theme. Pixi v8 uses 32-bit
-// integer colors throughout (0xRRGGBB) — these helpers convert from the
+// integer colors throughout (0xRRGGBB), these helpers convert from the
 // hex-string palette used by the SVG renderer so we keep one source of
 // truth for visual states.
 

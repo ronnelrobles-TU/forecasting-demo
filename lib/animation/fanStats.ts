@@ -16,8 +16,8 @@ export type MetricKey = 'sl' | 'abandons' | 'occupancy' | 'asa'
 export interface DailyTotals {
   sl: number          // 0..1
   abandons: number    // count
-  occupancy: number   // 0..1 — average across intervals weighted by call volume
-  asa: number         // seconds — average across day (use totals.asa)
+  occupancy: number   // 0..1, average across intervals weighted by call volume
+  asa: number         // seconds, average across day (use totals.asa)
 }
 
 export interface RunsSummary {
@@ -132,7 +132,7 @@ export function summarizeRuns(results: SimResult[], targetSl: number): RunsSumma
   const asa = computeMetricFan(results, intervalCount, worstDayIdx,
     (i, k) => results[k].perInterval[i].asa)
 
-  // Spaghetti samples — stride-pick up to SPAGHETTI_MAX days of per-interval SL
+  // Spaghetti samples, stride-pick up to SPAGHETTI_MAX days of per-interval SL
   const spaghettiSamples: number[][] = []
   const stride = Math.max(1, Math.floor(results.length / SPAGHETTI_MAX))
   for (let k = 0; k < results.length && spaghettiSamples.length < SPAGHETTI_MAX; k += stride) {

@@ -1,9 +1,9 @@
 'use client'
 
-// Office HD theme — Pixi.js / WebGL renderer. Same scene content as the SVG
+// Office HD theme, Pixi.js / WebGL renderer. Same scene content as the SVG
 // `IsoRenderer` but drawn via Pixi v8 so we can paint thousands of sprites
 // without taxing the React reconciler. The shared journey/shift/activity/
-// lighting modules are reused as-is — only the "what to paint and where" is
+// lighting modules are reused as-is, only the "what to paint and where" is
 // different. The SVG renderer remains the safe fallback.
 //
 // What the HD theme covers in this first cut:
@@ -123,7 +123,7 @@ export function IsoRendererHD({
     [agents.length, deskCount],
   )
 
-  // ── Lighting / activity / lookahead — shared modules ──────────────────
+  // ── Lighting / activity / lookahead, shared modules ──────────────────
   const lightingTime = quantizeLightingTime(simTimeMin, 5)
   const lighting = useMemo(
     () => computeLighting(lightingTime, layout.viewBox),
@@ -144,7 +144,7 @@ export function IsoRendererHD({
   const prevActivitiesRef = useRef<Record<string, string>>({})
   const prevAgentCountRef = useRef<number>(0)
 
-  // Virtual wall-clock — frozen while paused so journey positions and
+  // Virtual wall-clock, frozen while paused so journey positions and
   // tick-driven phase advances stop. See virtualClock.ts. The Pixi ticker
   // below reads this clock instead of `performance.now()`, so the agent
   // sprite layer naturally freezes in place without any "snap" rebuild.
@@ -169,9 +169,9 @@ export function IsoRendererHD({
   }, [agents, layout])
 
   // ── Video-playback snap (mirrors IsoRenderer; see that file for the
-  // detailed rationale — TL;DR: rebuild every journey to a deterministic
+  // detailed rationale, TL;DR: rebuild every journey to a deterministic
   // resting phase whenever sim time jumps or reverses. Pause is NOT a
-  // snap trigger — the virtual clock above freezes positions in place). ─
+  // snap trigger, the virtual clock above freezes positions in place). ─
   const lastSimTimeRef = useRef<number>(simTimeMin)
   function snapJourneyForIndex(i: number, now: number): VisualJourney {
     const a = agents[i]
@@ -200,7 +200,7 @@ export function IsoRendererHD({
       now,
     )
   }
-  // Full rebuild — used for time jumps / reversals (entire scene must match
+  // Full rebuild, used for time jumps / reversals (entire scene must match
   // the new sim time).
   function snapAllJourneys(now: number): Record<string, VisualJourney> {
     const next: Record<string, VisualJourney> = {}
@@ -308,7 +308,7 @@ export function IsoRendererHD({
 
   const effectiveActivities = fastMode ? EMPTY_ACTIVITIES : activities
 
-  // ── Camera state — local to this renderer (the shared useCamera hook is
+  // ── Camera state, local to this renderer (the shared useCamera hook is
   //    SVG-typed so we use a small HTML-event variant here). ─────────────
   const [camera, setCamera] = useState<CameraState>(INITIAL_CAMERA)
   const cameraRef = useRef(camera)
@@ -341,7 +341,7 @@ export function IsoRendererHD({
     const lay = layoutRef.current
     const cam = cameraRef.current
     // `renderer.screen` is in CSS pixels (post-resolution divide). This is
-    // what we want — cameraLayer transforms are applied in CSS-pixel space
+    // what we want, cameraLayer transforms are applied in CSS-pixel space
     // because autoDensity already scales the canvas backing for us.
     const containerW = app.renderer.screen.width
     const containerH = app.renderer.screen.height
@@ -382,14 +382,14 @@ export function IsoRendererHD({
     let createdApp: import('pixi.js').Application | null = null
     let resizeObserver: ResizeObserver | null = null
     async function init() {
-      // Dynamic import — Pixi pulls in the WebGL renderer modules and is
+      // Dynamic import, Pixi pulls in the WebGL renderer modules and is
       // strictly client-side. Keeping it dynamic also avoids any chance of
       // the SSR pass touching browser globals.
       const PIXI = await import('pixi.js')
       const containerEl = containerRef.current
       if (!mounted || !containerEl) return
       // Round 13: HD-quality fix. Using `resizeTo: containerEl` makes Pixi
-      // own the canvas's pixel dimensions — the canvas internal pixel size
+      // own the canvas's pixel dimensions, the canvas internal pixel size
       // is `containerSize × resolution` and CSS exactly matches container.
       // Without `resizeTo` the previous code locked the canvas to a fixed
       // viewBox size and then CSS-stretched it to fill the parent, which
@@ -410,11 +410,11 @@ export function IsoRendererHD({
         return
       }
       // The init-resolves-after-unmount path leaves a canvas element if we
-      // already attached one — clear any previous canvases before appending.
+      // already attached one, clear any previous canvases before appending.
       while (containerRef.current.firstChild) {
         containerRef.current.removeChild(containerRef.current.firstChild)
       }
-      // Important: do NOT set width/height CSS on the canvas — `autoDensity`
+      // Important: do NOT set width/height CSS on the canvas, `autoDensity`
       // already writes the correct CSS dims. Forcing 100% would override
       // that and re-introduce the upscale we're trying to eliminate.
       app.canvas.style.display = 'block'
@@ -464,7 +464,7 @@ export function IsoRendererHD({
           if (sceneRef.current) destroyHDScene(sceneRef.current)
           a.destroy(true, { children: true, texture: true })
         } catch {
-          // Best-effort teardown — Pixi v8 occasionally throws if the WebGL
+          // Best-effort teardown, Pixi v8 occasionally throws if the WebGL
           // context was already lost. Swallow so React's cleanup isn't broken.
         }
         appRef.current = null
@@ -486,7 +486,7 @@ export function IsoRendererHD({
   )
 
   // Per-frame agent updates via Pixi's ticker. We intentionally avoid React
-  // setState in the hot loop — sprite mutations happen directly on the Pixi
+  // setState in the hot loop, sprite mutations happen directly on the Pixi
   // containers and the renderer pushes a single GPU pass per frame.
   // Round 8: also drives the NPC layer (janitors / exec / delivery), the
   // smoke particle layer, and per-frame tile glow halos under at-desk agents.
@@ -586,7 +586,7 @@ export function IsoRendererHD({
   // ── Activity counts for the on-canvas overlay ─────────────────────────
   // The Pixi ticker mutates `journeysRef.current` directly each frame, so we
   // sample those mutations into a state snapshot every 250 ms (the activity
-  // scheduler updates on a sim-minute timescale — far slower than 60fps).
+  // scheduler updates on a sim-minute timescale, far slower than 60fps).
   // This keeps the render path pure (no ref reads during render).
   const [activityCounts, setActivityCounts] = useState<ActivityCounts>(() => ({
     atDesks: 0, inTraining: 0, inGym: 0, onBreak: 0,
@@ -711,7 +711,7 @@ export function IsoRendererHD({
         className={`cockpit-iso-hd ${camera.scale !== 1 || camera.panX !== 0 || camera.panY !== 0 ? 'cockpit-iso-hd--zoomed' : ''}`}
         // position: relative + overflow: hidden so Pixi's resizeTo measures
         // exactly the wrapper's content box. autoDensity writes the right
-        // CSS dims onto the canvas — we deliberately don't set width/height
+        // CSS dims onto the canvas, we deliberately don't set width/height
         // CSS on the canvas itself anywhere (that would re-introduce the
         // upscale this fix removes).
         style={{ width: '100%', height: '100%', display: 'block', position: 'relative', overflow: 'hidden', cursor: 'grab' }}
@@ -725,7 +725,7 @@ export function IsoRendererHD({
         <StatusLegend/>
       </div>
 
-      {/* Camera controls — reset / +/- buttons. Calls into the local camera
+      {/* Camera controls, reset / +/- buttons. Calls into the local camera
           state setter (HD doesn't use the SVG's useCamera hook). */}
       <div className="cockpit-scene-overlay cockpit-scene-overlay--top-right-camera">
         <CameraControls
@@ -736,7 +736,7 @@ export function IsoRendererHD({
         />
       </div>
 
-      {/* Round 9: HTML overlays — same as SVG renderer for parity. */}
+      {/* Round 9: HTML overlays, same as SVG renderer for parity. */}
       {dramaticState.staffDropActive && (
         <div className="cockpit-storm-overlay" aria-hidden="true"/>
       )}
@@ -771,7 +771,7 @@ export function IsoRendererHD({
       {visualFlags.outageActive && (
         <div className="cockpit-outage-banner" role="status">
           <span aria-hidden="true">⚠️</span>
-          <span>SYSTEM SLOWDOWN — calls taking longer than usual</span>
+          <span>SYSTEM SLOWDOWN, calls taking longer than usual</span>
         </div>
       )}
       <EventBanner active={activeEvents}/>

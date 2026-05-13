@@ -75,7 +75,7 @@ export interface RestroomsLayout extends RoomBounds {
 export interface GymLayout extends RoomBounds {
   treadmillPosition: ScreenPoint
   weightsPosition: ScreenPoint
-  // 12 unique workout spots — gym agents distribute across these so multiple
+  // 12 unique workout spots, gym agents distribute across these so multiple
   // agents at the same equipment don't stack on top of each other.
   workoutSpots: ScreenPoint[]
 }
@@ -188,7 +188,7 @@ const MIN_BUILDING_DEPTH = 20 + RECEPTION_DEPTH    // = 24
  * The number of cubicle pods (and hence the agent-floor footprint) scales with
  * `deskCapacity` (defaults to `agentCount`). When deskCapacity > agentCount
  * the extra desks render as empty (chair pushed in, no agent), so users can
- * SEE the morning ramp — empty desks at midnight, agents arriving via the
+ * SEE the morning ramp, empty desks at midnight, agents arriving via the
  * door, desks filling up as shifts begin.
  *
  * The number of manager mini-offices scales as max(2, ceil(N/35)).
@@ -203,7 +203,7 @@ export function computeBuildingLayout(agentCount: number, deskCapacity?: number)
   const podCount = Math.max(1, Math.ceil(deskCount / 4))
 
   // 2. Decide manager office count (one per ~35 agents, min 2, max 6).
-  //    Manager count is driven by agent count, not desk count — managers don't
+  //    Manager count is driven by agent count, not desk count, managers don't
   //    care about empty desks.
   const managerCount = Math.max(2, Math.min(6, Math.ceil(agentCount / 35)))
 
@@ -510,7 +510,7 @@ function makeSmokingPatio(
   W: ScreenPoint,
   agentFloor: AgentFloorLayout,
 ): SmokingPatioLayout {
-  // Attach FLUSH to the SW face — Round 4 reposition. Removes the previous
+  // Attach FLUSH to the SW face, Round 4 reposition. Removes the previous
   // floating-deck offset and instead sits the patio tight against the wall
   // line, then extends outward perpendicular to the wall. Reads as a small
   // attached balcony rather than a disconnected deck.
@@ -666,8 +666,8 @@ function makeBreakRoom(agentCount: number, originX: number, originY: number): Br
   const tableCenter = isoToScreen(ci, cj, originX, originY)
   // Water cooler + vending machine sit along the back (low-j) wall but pushed
   // INWARD (higher j, larger i for cooler / smaller i for vending) so that
-  // their drawn body — which extends ~22-26px upward in screen y from the
-  // anchor point — still falls inside the room polygon. The previous values
+  // their drawn body, which extends ~22-26px upward in screen y from the
+  // anchor point, still falls inside the room polygon. The previous values
   // (jMin + 0.5) put the rendered body OUT of the room because the y-offset
   // pulled it above the back wall (vending landed in the training room).
   const waterCooler = isoToScreen(b.iMin + 1.2, b.jMin + 2.3, originX, originY)
@@ -761,7 +761,7 @@ function makeGym(originX: number, originY: number): GymLayout {
     treadmillPosition: isoToScreen(ci - 0.6, cj - 0.5, originX, originY),
     weightsPosition: isoToScreen(ci + 0.8, cj + 0.5, originX, originY),
     workoutSpots: [
-      // Treadmill area (4 spots — pseudo-treadmill row)
+      // Treadmill area (4 spots, pseudo-treadmill row)
       isoToScreen(ci - 1.2, cj - 0.7, originX, originY),
       isoToScreen(ci - 0.6, cj - 0.5, originX, originY),
       isoToScreen(ci + 0.0, cj - 0.4, originX, originY),

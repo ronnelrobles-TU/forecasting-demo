@@ -2,10 +2,10 @@ import type { AgentVisualState } from '@/lib/animation/agentTimeline'
 import type { ScreenPoint } from './geometry'
 
 export type AnimationKind =
-  | 'desk_to_break'   // existing — agent walks from desk to break-room seat
-  | 'break_to_desk'   // existing — agent walks from break-room seat back to desk
-  | 'fade_in'         // legacy — kept for back-compat with tests / unknown paths
-  | 'fade_out'        // legacy — kept for back-compat with tests / unknown paths
+  | 'desk_to_break'   // existing, agent walks from desk to break-room seat
+  | 'break_to_desk'   // existing, agent walks from break-room seat back to desk
+  | 'fade_in'         // legacy, kept for back-compat with tests / unknown paths
+  | 'fade_out'        // legacy, kept for back-compat with tests / unknown paths
   | 'door_to_desk'    // shift_start: agent walks from front door to home desk
   | 'desk_to_door'    // shift_end: agent walks from desk to front door (then fades)
   | 'desk_to_room'    // idle activity transition: walk from desk to a room target
@@ -15,7 +15,7 @@ export interface AnimEntry {
   kind: AnimationKind
   progress: number    // 0..1
   startedAt: number   // wall-clock ms when started; useful for debugging
-  // For desk_to_room / room_to_desk / door_to_desk / desk_to_door — the
+  // For desk_to_room / room_to_desk / door_to_desk / desk_to_door, the
   // target screen position for the walk endpoint that ISN'T the desk.
   targetPosition?: ScreenPoint
 }

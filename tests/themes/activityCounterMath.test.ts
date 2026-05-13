@@ -13,14 +13,14 @@ import type { Scenario } from '@/lib/types'
  *
  * Reproduces the user-reported bug at 8:03 PM:
  *   - Active Agents = 130, Scheduled HC = 211
- *   - At desks = 203, total visible = 219  (BAD — should have been ~130 / ~191)
+ *   - At desks = 203, total visible = 219  (BAD, should have been ~130 / ~191)
  *
  * Two root causes were identified and fixed:
  *   1. Kernel never emitted `call_end`, so every agent who EVER took a call
- *      stayed `on_call` forever. By 8pm 60–70% of the pool was stuck on_call,
+ *      stayed `on_call` forever. By 8pm 60-70% of the pool was stuck on_call,
  *      and the activity scheduler forces on_call → at_desk regardless of band.
  *   2. The activity scheduler used a fixed productive-vs-shrinkage band by
- *      index, which collided with the kernel's call routing — when the kernel
+ *      index, which collided with the kernel's call routing, when the kernel
  *      put an on_call into a shrinkage-band index, the scheduler still forced
  *      it at_desk. With many such collisions, shrinkage rooms went empty.
  *
@@ -28,7 +28,7 @@ import type { Scenario } from '@/lib/types'
  * Erlang requirement is around 130 productive agents and shrink is 32%, the
  * activity scheduler routes ≈130 agents at desks and ≈61 to non-desk rooms.
  */
-describe('activity counter math at peak — Round 12 (Bug 1)', () => {
+describe('activity counter math at peak, Round 12 (Bug 1)', () => {
   it('shrinkage rooms are populated; at-desks ≈ productive Erlang', () => {
     const camp = campaigns['us_telco_manila']
     const scenario: Scenario = {

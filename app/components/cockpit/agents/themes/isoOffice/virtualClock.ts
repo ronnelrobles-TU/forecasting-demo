@@ -17,7 +17,7 @@
 //     phase duration boundary)
 // On resume, the clock catches up by carrying forward the *frozen* time, so
 // the very next frame's `elapsed` is the same as the last frame before pause
-// — playback continues smoothly from the held position.
+//, playback continues smoothly from the held position.
 
 export interface VirtualClock {
   now: () => number

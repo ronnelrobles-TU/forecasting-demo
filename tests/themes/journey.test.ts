@@ -93,7 +93,7 @@ describe('transitionJourney - defer-while-in-flight', () => {
     expect(j.phase.kind).toBe('walking_to_break')
   })
 
-  it('long break (>20 min) becomes lunch — walks to door', () => {
+  it('long break (>20 min) becomes lunch, walks to door', () => {
     let j = makeBaseline(0)
     j = transitionJourney(j, 'on_break', layout, 100, 30)
     expect(j.phase.kind).toBe('walking_to_door_for_lunch')
@@ -125,7 +125,7 @@ describe('tickJourney - in-flight phase transitions', () => {
     expect(j.phase.kind).toBe('at_break_table')
     // Sim flips back to idle right away (the bug we're fixing).
     j = transitionJourney(j, 'idle', layout, WALK_DURATION_MS + 50)
-    // Still seated — pending state is queued.
+    // Still seated, pending state is queued.
     expect(j.phase.kind).toBe('at_break_table')
     expect(j.pendingSimState).toBe('idle')
     // Tick well within the min-hold window: still seated.
@@ -161,7 +161,7 @@ describe('tickJourney - in-flight phase transitions', () => {
     expect(j.phase.kind).toBe('walking_to_door_for_lunch')
     j = tickJourney(j, layout, LUNCH_WALK_DURATION_MS + 1)
     expect(j.phase.kind).toBe('outside_for_lunch')
-    // Sim says still on break — agent stays outside.
+    // Sim says still on break, agent stays outside.
     j = tickJourney(j, layout, LUNCH_WALK_DURATION_MS + 100)
     expect(j.phase.kind).toBe('outside_for_lunch')
     // Now sim flips to idle while still outside.
@@ -254,7 +254,7 @@ describe('Round 4: restroom 5-phase visible journey', () => {
     // Fade duration elapses -> inside_restroom.
     j = tickJourney(j, layout, WALK_DURATION_MS + RESTROOM_FADE_MS + 5)
     expect(j.phase.kind).toBe('inside_restroom')
-    // Hidden — opacity 0.
+    // Hidden, opacity 0.
     const hidden = journeyPosition(j, WALK_DURATION_MS + RESTROOM_FADE_MS + 100)
     expect(hidden.opacity).toBe(0)
     expect(hidden.visible).toBe(false)
@@ -439,7 +439,7 @@ describe('snapJourneyFor / snapPhaseFor (video-playback snap)', () => {
     expect(j.phase.kind).toBe('gone')
   })
 
-  it('use case: rewind to midnight — off_shift agent snaps to gone, no in-flight walk', () => {
+  it('use case: rewind to midnight, off_shift agent snaps to gone, no in-flight walk', () => {
     // Start mid-walk to door for shift end.
     let j = makeBaseline(0)
     j = transitionJourney(j, 'off_shift', layout, 100)
@@ -453,7 +453,7 @@ describe('snapJourneyFor / snapPhaseFor (video-playback snap)', () => {
     expect(snapped.pendingSimState).toBeNull()
   })
 
-  it('use case: time jump while paused — break-walking agent snaps to a seat', () => {
+  it('use case: time jump while paused, break-walking agent snaps to a seat', () => {
     let j = makeBaseline(0)
     j = transitionJourney(j, 'on_break', layout, 100, 5)
     expect(j.phase.kind).toBe('walking_to_break')
@@ -495,10 +495,10 @@ describe('integration: full break narrative under fast sim', () => {
   })
 })
 
-describe('urgent_relocate_to_desk (Round 12 — Bug 2)', () => {
+describe('urgent_relocate_to_desk (Round 12, Bug 2)', () => {
   // Setup: agent in the gym (in_room) when sim flips them to on_call. The
   // pre-fix path used walking_back_to_desk with a straight-line lerp from
-  // the gym position to the desk — visually clipping through walls. The
+  // the gym position to the desk, visually clipping through walls. The
   // fix routes them through `urgent_relocate_to_desk`, which fades out at
   // current pos and fades in at the desk over ~600ms.
   function makeInGymJourney(t: number): VisualJourney {
@@ -513,7 +513,7 @@ describe('urgent_relocate_to_desk (Round 12 — Bug 2)', () => {
     j = tickJourney(j, layout, WALK_DURATION_MS + 100)
     expect(j.phase.kind).toBe('in_room')
     // The in_room phase has a min hold; bypass it for the test by faking
-    // the resting check via journey.pendingSimState — actually we just call
+    // the resting check via journey.pendingSimState, actually we just call
     // transitionJourney AFTER the resting check completes. Use a time past
     // MIN_ROOM_HOLD_MS so isRestingPhase returns true.
     const tCall = WALK_DURATION_MS + 100 + 4000

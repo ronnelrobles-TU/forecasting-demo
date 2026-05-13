@@ -28,7 +28,7 @@ export function HoopSlider({ value, onChange }: HoopSliderProps) {
 
   return (
     <div className="cockpit-hoop">
-      <div className="cockpit-hoop-display">{fmt(startMin)} — {fmt(endMin)}</div>
+      <div className="cockpit-hoop-display">{fmt(startMin)}, {fmt(endMin)}</div>
       <div className="cockpit-hoop-track">
         <div
           className="cockpit-hoop-fill"

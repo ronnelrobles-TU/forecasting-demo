@@ -134,7 +134,7 @@ export function MonteCarloFanChart({
             fill: false,
           },
           {
-            label: 'P10–P90 band',
+            label: 'P10-P90 band',
             data: p90,
             borderColor: 'rgba(59,130,246,0.4)',
             backgroundColor: 'rgba(59,130,246,0.18)',

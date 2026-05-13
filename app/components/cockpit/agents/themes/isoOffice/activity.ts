@@ -1,11 +1,11 @@
-// Activity scheduler — distributes IDLE agents to other rooms (training,
+// Activity scheduler, distributes IDLE agents to other rooms (training,
 // gym, restroom, chatting in aisles, water cooler) using deterministic
 // per-window hashes. The scheduler is a pure function called every render
 // with the current agents array and simTimeMin; assignments are stable
 // within a 30-min sim window so agents don't teleport between rooms every
 // frame.
 //
-// All routing is purely visual fluff — the simulation kernel only knows
+// All routing is purely visual fluff, the simulation kernel only knows
 // about idle/on_call/on_break/off_shift. Visual activity is layered on top.
 //
 // Round 7.1: the scheduler now accepts a partition of agent indices into
@@ -134,7 +134,7 @@ export function computeActivityAssignments(
   const desks: Record<string, ScreenPoint> = {}
 
   // Pre-pass for the allocation path: the kernel doesn't know about the
-  // renderer's productive/shrinkage band split — `agents.find()` routes calls
+  // renderer's productive/shrinkage band split, `agents.find()` routes calls
   // to the lowest free index across ALL active agents, so the kernel often
   // assigns `on_call` state to indices that the renderer's allocation marks
   // as SHRINKAGE. If we naively force on_call → at_desk and shrinkage → room,
@@ -172,14 +172,14 @@ export function computeActivityAssignments(
       // on_break agents are routed to break_table by the per-agent loop
       // below; they're already accounted for outside the productive count.
       // off_shift agents in the in-office band are a transient state during
-      // schedule downturns — let them fall through to the desk default below.
+      // schedule downturns, let them fall through to the desk default below.
     }
   }
   // How many idle agents need to remain at desks so the visible at-desk count
   // hits productiveTarget? on_call agents are already counted toward the
   // at-desk total; the remainder must come from idle. (Order-preserving
   // numeric iteration above means low-index idles fill the at-desk slots
-  // first — same deterministic ordering as the old index-band partition.)
+  // first, same deterministic ordering as the old index-band partition.)
   const idleAtDeskTarget = Math.max(0, productiveTarget - onCallCount)
   const idleAtDesk = new Set<string>()
   for (let k = 0; k < Math.min(idleAtDeskTarget, idleInOfficeIds.length); k++) {
@@ -210,7 +210,7 @@ export function computeActivityAssignments(
     // when the kernel routes calls into shrinkage-band indices.
     if (allocation) {
       if (!inOfficeIdx.has(i)) {
-        // Off-shift / absent — render at desk slot (the renderer's
+        // Off-shift / absent, render at desk slot (the renderer's
         // isActiveByIndex / absent-tail logic hides them anyway).
         out[a.id] = { activity: 'at_desk', position: desks[a.id] }
         continue
@@ -289,7 +289,7 @@ export function computeActivityAssignments(
     }
   })
 
-  // Restroom: hidden — activity records but position is desk (will not be
+  // Restroom: hidden, activity records but position is desk (will not be
   // rendered anywhere).
   restroomIds.forEach(id => {
     out[id] = { activity: 'in_restroom', position: desks[id] }

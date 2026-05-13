@@ -91,7 +91,7 @@ export function RosterTab() {
         <span>Roster Designer</span>
         <span className="cockpit-viewport-sub">
           {roster.length === 0
-            ? 'no roster — kernel falling back to Erlang C auto-staffing'
+            ? 'no roster, kernel falling back to Erlang C auto-staffing'
             : `${roster.length} shift${roster.length === 1 ? '' : 's'} · ${usedHours.toFixed(0)} / ${budget} agent-hours`}
           {' '}<TabIntroReopenLink tab="roster" />
         </span>
@@ -129,6 +129,6 @@ export function RosterTab() {
   )
 }
 
-// Suppress unused import warning for buildDefaultRoster — it's exposed for future use
+// Suppress unused import warning for buildDefaultRoster, it's exposed for future use
 // (e.g., a "Reset to default" button). Remove this line once consumed.
 void buildDefaultRoster

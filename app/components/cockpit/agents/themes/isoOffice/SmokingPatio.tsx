@@ -100,7 +100,7 @@ export function SmokingPatio({ layout, agents = [], activities, journeys }: Smok
       <Bench x={p.bench.x} y={p.bench.y}/>
       <Ashtray x={p.ashtray.x} y={p.ashtray.y}/>
 
-      {/* Chatters/smokers. Pair members face each other — mirror odd-indexed
+      {/* Chatters/smokers. Pair members face each other, mirror odd-indexed
           chatters across the X axis. Each gets a CSS smoke curl. */}
       {chatters.map((a, idx) => {
         const j = journeys?.[a.id]

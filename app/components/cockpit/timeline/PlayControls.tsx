@@ -35,7 +35,7 @@ export function PlayControls({ playing, speed, simTimeMin, onPlayToggle, onSpeed
             type="button"
             className={`cockpit-play-speed-btn ${speed === s ? 'cockpit-play-speed-btn--active' : ''}`}
             onClick={() => onSpeedChange(s)}
-            title={`${s}× — ${(1440 / (s * 24)).toFixed(0)}s real per sim day`}
+            title={`${s}×, ${(1440 / (s * 24)).toFixed(0)}s real per sim day`}
           >
             {s}×
           </button>

@@ -1,17 +1,17 @@
 // Static scenery for the Office HD (Pixi.js / WebGL) theme. Renders the
-// building shell — floor, perimeter walls, back-wall windows, room floor
-// tints, interior partition walls, and cubicle pod partitions — into a
+// building shell, floor, perimeter walls, back-wall windows, room floor
+// tints, interior partition walls, and cubicle pod partitions, into a
 // single Pixi.Container that is built ONCE per layout. Lighting overlay
 // (sky color, wall warmth, lit windows at night) is applied separately by
 // `lighting.ts` because it changes with simulation time.
 //
-// We keep these draw calls self-contained — no React, no effects — so the
+// We keep these draw calls self-contained, no React, no effects, so the
 // scene factory in `scene.ts` can hand the container off to the renderer
 // and forget about it. Updates that depend on time (lighting) come back
 // through dedicated update helpers, not by re-rendering scenery.
 //
 // Visual fidelity: this is a faithful translation of the SVG `Building.tsx`
-// + room components, but simplified — manager offices, training-room
+// + room components, but simplified, manager offices, training-room
 // scenery, full break-room props, restrooms and gym scenery are drawn as
 // floor tints + outlines for the first cut. Detailed furniture lives in the
 // SVG fallback theme. The HD theme's selling point is *agent throughput*,
@@ -44,7 +44,7 @@ const WINDOW_INSET_TOP = 13
 const WINDOW_INSET_BOTTOM = 8
 const WINDOW_HALF_WIDTH = 0.5
 
-// Floor / wall colors — match the SVG palette.
+// Floor / wall colors, match the SVG palette.
 const FLOOR_TOP = 0xcbd5e1
 const FLOOR_BOTTOM = 0x94a3b8
 const WALL_NE_TOP = 0xf1f5f9
@@ -137,9 +137,9 @@ function makePodPartitionPolygon(p1: ScreenPoint, p2: ScreenPoint): ScreenPoint[
 export interface SceneryLayer {
   /** Root container (added once to the cameraLayer). */
   container: Container
-  /** Floor polygon — solid color, used by the lighting overlay for warmth tint. */
+  /** Floor polygon, solid color, used by the lighting overlay for warmth tint. */
   floor: Graphics
-  /** Window polygons — re-tinted per-frame by the lighting pass. */
+  /** Window polygons, re-tinted per-frame by the lighting pass. */
   windows: Graphics
   /** Number of NE-side windows; rest are NW. Lets lighting hash deterministically. */
   neWindowCount: number
@@ -158,7 +158,7 @@ export function buildScenery(layout: BuildingLayout): SceneryLayer {
   const wallTopW = { x: W.x, y: W.y - WALL_HEIGHT }
 
   // ── Back perimeter walls (NE + NW) at full height. HD: real linear
-  // gradients via Pixi v8's FillGradient — top edge bright, bottom edge
+  // gradients via Pixi v8's FillGradient, top edge bright, bottom edge
   // shadowed. SVG version did this with a `<linearGradient>`; the original
   // HD pass faked it with an overlay triangle.
   const backWalls = new Graphics()
@@ -195,7 +195,7 @@ export function buildScenery(layout: BuildingLayout): SceneryLayer {
     .stroke({ color: 0x475569, width: 1.2, cap: 'round' })
   container.addChild(backWalls)
 
-  // ── Floor — true linear gradient from north (lighter) to south (darker).
+  // ── Floor, true linear gradient from north (lighter) to south (darker).
   // Replaces the previous triangle-overlay fake.
   const floor = new Graphics()
   const floorGrad = new FillGradient({
@@ -218,7 +218,7 @@ export function buildScenery(layout: BuildingLayout): SceneryLayer {
     const room = layout.rooms[t.name]
     if (!room) continue
     if (Array.isArray(room)) {
-      // managerOffices is an array — iterate
+      // managerOffices is an array, iterate
       for (const office of room as Array<{ zonePoints: ScreenPoint[] }>) {
         drawFilledPoly(tints, office.zonePoints, t.color, t.alpha)
       }
@@ -271,7 +271,7 @@ export function buildScenery(layout: BuildingLayout): SceneryLayer {
   }
   container.addChild(podWalls)
 
-  // ── Front (south) walls — low silhouettes with a door cut out of SW face.
+  // ── Front (south) walls, low silhouettes with a door cut out of SW face.
   const frontTopE = { x: E.x, y: E.y - FRONT_WALL_HEIGHT }
   const frontTopS = { x: S.x, y: S.y - FRONT_WALL_HEIGHT }
   const frontTopW = { x: W.x, y: W.y - FRONT_WALL_HEIGHT }
@@ -305,7 +305,7 @@ export function buildScenery(layout: BuildingLayout): SceneryLayer {
   ], WALL_OUTLINE, 0.6)
   container.addChild(frontWalls)
 
-  // ── Windows — drawn into a dedicated graphics object the lighting pass can
+  // ── Windows, drawn into a dedicated graphics object the lighting pass can
   // re-tint each frame.
   const windows = new Graphics()
   const windowCenters: Array<{ x: number; y: number }> = []
@@ -329,7 +329,7 @@ export function buildScenery(layout: BuildingLayout): SceneryLayer {
   drawWindowsInto(windows, neWindows, nwWindows, 0xbae6fd, 0x0c4a6e)
   container.addChild(windows)
 
-  // ── Desks + chairs (static — empty desks visible from the start).
+  // ── Desks + chairs (static, empty desks visible from the start).
   const desks = new Graphics()
   for (const deskPos of layout.deskPositions) {
     drawDesk(desks, deskPos.x, deskPos.y)
@@ -368,7 +368,7 @@ export function buildScenery(layout: BuildingLayout): SceneryLayer {
   }
 }
 
-/** Re-tint the windows graphics with a single fill+stroke. Cheap — Pixi
+/** Re-tint the windows graphics with a single fill+stroke. Cheap, Pixi
  *  reuses the underlying geometry, only the paint command list is rewritten. */
 export function drawWindowsInto(
   g: Graphics,
@@ -383,7 +383,7 @@ export function drawWindowsInto(
   }
 }
 
-/** Repaint windows by index pattern — used by the lighting pass to glow a
+/** Repaint windows by index pattern, used by the lighting pass to glow a
  *  fraction of windows yellow at night. We accept a predicate so the renderer
  *  can hash by window index for stable patterns across frames. */
 export function repaintWindows(
@@ -397,7 +397,7 @@ export function repaintWindows(
 ): void {
   layer.windows.clear()
   let idx = 0
-  // NW first, then NE — matches buildScenery's drawing order.
+  // NW first, then NE, matches buildScenery's drawing order.
   for (let k = 0; k < layout.windowsPerWall; k++) {
     const midJ = (k + 0.5) * layout.tilesD / layout.windowsPerWall
     const w = makeBackWallWindow(0, midJ, false, layout.origin)

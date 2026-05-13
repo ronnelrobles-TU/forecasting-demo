@@ -17,7 +17,7 @@ function bannerLabel(ev: InjectedEvent): { headline: string; sub: string } {
     case 'volume_surge':
       return { headline: 'CALL SURGE', sub: `+${Math.round(ev.magnitude * 100)}% volume incoming` }
     case 'aht_spike':
-      return { headline: 'SYSTEM SLOWDOWN', sub: `AHT ×${(1 + ev.magnitude).toFixed(1)} — calls stuck` }
+      return { headline: 'SYSTEM SLOWDOWN', sub: `AHT ×${(1 + ev.magnitude).toFixed(1)}, calls stuck` }
     case 'staff_drop':
       return { headline: 'TYPHOON ALERT', sub: `−${Math.round(ev.magnitude * 100)}% staff for the day` }
     case 'flash_absent':

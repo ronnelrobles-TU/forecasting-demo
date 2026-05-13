@@ -7,7 +7,7 @@
 // user can immediately see the effect of dragging a shift on the Gantt:
 // a 7am shift causes those agents to walk in through the door at 7am.
 //
-// Deliberately stripped down vs. the full LiveSimTab — no theme picker, no
+// Deliberately stripped down vs. the full LiveSimTab, no theme picker, no
 // scrubber, no injected-event banners. Just the office viz + a clock.
 
 import { useEffect, useMemo, useState } from 'react'
@@ -30,7 +30,7 @@ function formatHHMM(simMin: number): string {
 export function RosterPreview() {
   const { scenario } = useScenario()
   const [result, setResult] = useState<SimResult | null>(null)
-  // Start at 6am — past midnight so most morning shifts are visibly ramping
+  // Start at 6am, past midnight so most morning shifts are visibly ramping
   // shortly after the loop wraps.
   const [simTimeMin, setSimTimeMin] = useState(360)
 

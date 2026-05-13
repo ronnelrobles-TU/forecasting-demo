@@ -36,7 +36,7 @@ export type EventKind = InjectedEvent['type']
 export interface PresetPart {
   /** Which kernel event kind this part fires. */
   kind: Exclude<EventKind, 'custom'>
-  /** Default magnitude (interpretation depends on kind — see slider config). */
+  /** Default magnitude (interpretation depends on kind, see slider config). */
   defaultMagnitude: number
   /** Default duration in minutes (omit for instantaneous / open-ended). */
   defaultDurationMin?: number
@@ -72,7 +72,7 @@ export interface KindSliderConfig {
 
 export const KIND_SLIDER_CONFIG: Record<Exclude<EventKind, 'custom'>, KindSliderConfig> = {
   volume_surge: {
-    // 0% .. 200% — magnitude is interpreted as a fractional add (1 + m).
+    // 0% .. 200%, magnitude is interpreted as a fractional add (1 + m).
     magnitude: { min: 0, max: 2, step: 0.05, format: v => `+${Math.round(v * 100)}% volume` },
     duration:  { min: 5, max: 480, step: 5, quickPicks: [15, 30, 60, 120, 240] },
   },
@@ -89,7 +89,7 @@ export const KIND_SLIDER_CONFIG: Record<Exclude<EventKind, 'custom'>, KindSlider
   flash_absent: {
     // 0 .. 100 agents instantly.
     magnitude: { min: 0, max: 100, step: 1, format: v => `−${Math.round(v)} agents` },
-    // Instantaneous — no duration.
+    // Instantaneous, no duration.
   },
 }
 
@@ -190,7 +190,7 @@ export const EVENT_PRESETS: EventPreset[] = [
  * Tuned values for each part of a preset, as edited by the user in the modal.
  * Indexed by part position so it lines up with `EventPreset.parts`.
  *
- *   • `magnitude` — replaces the part's defaultMagnitude.
+ *   • `magnitude`, replaces the part's defaultMagnitude.
  *   • `durationMin === undefined` → fall back to part's defaultDurationMin.
  *   • `durationMin === null`      → open-ended ("rest of day"), staff_drop only.
  *   • `durationMin === number`    → that many minutes.

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { PasswordGate } from "./components/PasswordGate";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,7 +27,7 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-      // The page must NEVER scroll vertically — the cockpit owns the viewport
+      // The page must NEVER scroll vertically, the cockpit owns the viewport
       // and pins its KPI strip at the bottom. If the document grows past
       // 100vh, the page scrolls and the KPI strip ends up below the fold
       // (Round 5/5.5 bug). Lock both html and body to the viewport.
@@ -36,7 +37,7 @@ export default function RootLayout({
         className="flex flex-col"
         style={{ height: '100%', overflow: 'hidden', margin: 0 }}
       >
-        {children}
+        <PasswordGate>{children}</PasswordGate>
       </body>
     </html>
   );

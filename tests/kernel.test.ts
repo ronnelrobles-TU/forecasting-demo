@@ -48,7 +48,7 @@ describe('runDay', () => {
 
   it('emits call_arrive events only inside HOOP', () => {
     const sc = baseScenario()
-    sc.hoop = { startMin: 600, endMin: 720 }  // 10:00–12:00 only
+    sc.hoop = { startMin: 600, endMin: 720 }  // 10:00-12:00 only
     const result = runDay(sc)
     const arrivals = result.events.filter(e => e.type === 'call_arrive')
     expect(arrivals.length).toBeGreaterThan(0)
@@ -59,7 +59,7 @@ describe('runDay', () => {
   })
 })
 
-describe('runDay v2 — abandons', () => {
+describe('runDay v2, abandons', () => {
   it('produces some abandons under heavy load', () => {
     const sc = baseScenario(7)
     sc.dailyTotal = 50000   // overload
@@ -75,7 +75,7 @@ describe('runDay v2 — abandons', () => {
   })
 })
 
-describe('runDay v2 — breaks', () => {
+describe('runDay v2, breaks', () => {
   it('emits agent_break_start and agent_break_end events', () => {
     const result = runDay(baseScenario(11))
     const starts = result.events.filter(e => e.type === 'agent_break_start')
@@ -85,7 +85,7 @@ describe('runDay v2 — breaks', () => {
   })
 })
 
-describe('runDay v2 — injection', () => {
+describe('runDay v2, injection', () => {
   it('volume_surge injection raises abandons', () => {
     const baseline = runDay(baseScenario(13))
     const surged = runDay({
@@ -120,11 +120,11 @@ describe('runDay v2 — injection', () => {
   })
 })
 
-describe('runDay v3 — roster-driven staffing', () => {
+describe('runDay v3, roster-driven staffing', () => {
   it('uses roster agentCount per interval when roster is provided', () => {
     const sc = baseScenario(31)
     sc.roster = [
-      // Two shifts: 06–14 (24 agents), 12–22 (32 agents)
+      // Two shifts: 06-14 (24 agents), 12-22 (32 agents)
       { id: 's1', startMin: 360,  endMin: 840,  agentCount: 24, breaks: [] },
       { id: 's2', startMin: 720,  endMin: 1320, agentCount: 32, breaks: [] },
     ]
@@ -143,7 +143,7 @@ describe('runDay v3 — roster-driven staffing', () => {
     const sc = baseScenario(31)
     sc.roster = null
     const result = runDay(sc)
-    // Phase 1–3 behavior: peak interval has positive agents.
+    // Phase 1-3 behavior: peak interval has positive agents.
     const maxAgents = Math.max(...result.perInterval.map(s => s.agents))
     expect(maxAgents).toBeGreaterThan(0)
   })

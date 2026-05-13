@@ -42,7 +42,7 @@ export interface RunDayOptions {
   /**
    * When false, the returned `events` array is empty and the kernel skips per-event
    * allocations entirely. Use for Monte Carlo runs where only `perInterval` and
-   * `totals` are consumed — saves ~150KB per day, prevents OOM at 1k+ days.
+   * `totals` are consumed, saves ~150KB per day, prevents OOM at 1k+ days.
    * Default true (preserves Live Sim animation behavior).
    */
   collectEvents?: boolean
@@ -61,7 +61,7 @@ export function runDay(scenario: Scenario, opts: RunDayOptions = {}): SimResult 
   const slTarget = scenario.sl / 100
 
   // Phase 4: when scenario.roster is non-null, derive agents per interval from the roster.
-  // When null, fall back to Phase 1–3 Erlang-C-based auto-staffing.
+  // When null, fall back to Phase 1-3 Erlang-C-based auto-staffing.
   const agentsPerInterval = scenario.roster != null
     ? buildAgentsPerIntervalFromRoster(scenario.roster)
     : callsPer30.map(calls => {
@@ -179,7 +179,7 @@ export function runDay(scenario: Scenario, opts: RunDayOptions = {}): SimResult 
       queue.push({ arriveMin: min, callId })
     }
 
-    // Abandons — drop callers whose wait exceeds threshold (probabilistic ramp)
+    // Abandons, drop callers whose wait exceeds threshold (probabilistic ramp)
     const effectiveAht = scenario.aht * pert.ahtMultiplier
     const beforeQueue = queue
     queue = []
@@ -195,9 +195,9 @@ export function runDay(scenario: Scenario, opts: RunDayOptions = {}): SimResult 
     }
 
     // Emit `call_end` for agents whose call has wrapped up since the previous
-    // tick. Without this the agentTimeline `on_call` state is sticky — every
+    // tick. Without this the agentTimeline `on_call` state is sticky, every
     // agent who EVER answered a call appears permanently on_call until their
-    // next event, so by 8pm 60–70% of the agent pool reads as on_call to the
+    // next event, so by 8pm 60-70% of the agent pool reads as on_call to the
     // viz even when only ~30% are actually busy. The result is the office viz
     // showing far too many "at desks" agents (the activity scheduler forces
     // on_call to at_desk) and severely under-populating shrinkage rooms.

@@ -142,7 +142,7 @@ export function MonteCarloTab({ onReplayWorstDay }: MonteCarloTabProps = {}) {
                 p90={dailyP90}
               />
             ) : (
-              <div className="cockpit-placeholder cockpit-monte-side-placeholder"><p>—</p></div>
+              <div className="cockpit-placeholder cockpit-monte-side-placeholder"><p>, </p></div>
             )}
           </div>
         </div>

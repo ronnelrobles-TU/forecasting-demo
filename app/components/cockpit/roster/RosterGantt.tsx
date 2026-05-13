@@ -101,7 +101,7 @@ export function RosterGantt({ roster, onUpdateShift, onRemoveShift }: RosterGant
                   onPointerDown={e => startDrag(e, s, 'move')}
                 >
                   <span className="cockpit-roster-gantt-bar-label">
-                    {fmt(s.startMin)}–{fmt(s.endMin)} · {s.agentCount}
+                    {fmt(s.startMin)}-{fmt(s.endMin)} · {s.agentCount}
                   </span>
                   <div
                     className="cockpit-roster-gantt-bar-resize"

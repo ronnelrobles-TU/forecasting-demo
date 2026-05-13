@@ -17,7 +17,7 @@ export function useAnimation(): UseAnimationReturn {
   // (was 0/midnight which left the floor empty until the user scrubbed).
   const [simTimeMin, setSimTimeMin] = useState(540)
   const [playing, setPlaying] = useState(false)
-  // Default to 0.25× — a full day in ~4 real minutes. Slow enough to
+  // Default to 0.25×, a full day in ~4 real minutes. Slow enough to
   // follow individual NPC walks across the floor.
   const [speed, setSpeed] = useState<Speed>(0.25)
 
@@ -59,7 +59,11 @@ export function useAnimation(): UseAnimationReturn {
   }, [playing])
 
   const seek = useCallback((n: number) => {
-    setSimTimeMin(Math.max(0, Math.min(1440, n)))
+    const clamped = Math.max(0, Math.min(1440, n))
+    // Functional update + bail-out on no-op keeps fast scrubbing from
+    // scheduling redundant renders. Fractional pointermove deltas often
+    // round to the same value as the previous frame.
+    setSimTimeMin(prev => (prev === clamped ? prev : clamped))
   }, [])
 
   return {

@@ -1,6 +1,6 @@
 // Pixi scene assembly for the Office HD theme. Owns the top-level container
 // hierarchy and exposes the imperative API the IsoRendererHD component
-// drives each frame. Pure functions only — the React component owns the
+// drives each frame. Pure functions only, the React component owns the
 // `Application` lifecycle and passes the app in.
 
 import { Application, Container, Graphics } from 'pixi.js'
@@ -14,7 +14,7 @@ import { buildDramaticLayer, destroyDramaticLayer, type DramaticLayerHD } from '
 
 export interface HDSceneState {
   app: Application
-  /** Root transform — apply pan/zoom to this container, not the stage. */
+  /** Root transform, apply pan/zoom to this container, not the stage. */
   cameraLayer: Container
   /** Static building shell (floor, walls, partitions, desks). */
   scenery: SceneryLayer
@@ -29,7 +29,7 @@ export interface HDSceneState {
   smoke: SmokeLayer
   /** Effect overlays (lighting tint, event flashes). Drawn above agents. */
   effectLayer: Container
-  /** Lighting overlay graphics — wall warmth, surge tint, outage tint. */
+  /** Lighting overlay graphics, wall warmth, surge tint, outage tint. */
   lightingOverlay: Graphics
   /** Warm window glow drawn over the wall graphics at night. Sits between
    *  scenery and the agents so glow halos bleed past the wall outline but
@@ -48,9 +48,9 @@ export interface BuildSceneOptions {
   agentCount: number
   /** Index where today's absent agents start. */
   absentTailStart: number
-  /** 0..100 — fraction of empty desks marked absent. */
+  /** 0..100, fraction of empty desks marked absent. */
   absenteeismPct: number | undefined
-  /** Sim minute the scene was created at — used to seed NPC initial states. */
+  /** Sim minute the scene was created at, used to seed NPC initial states. */
   simTimeMin: number
 }
 
@@ -75,7 +75,7 @@ export function buildHDScene(
   const now = performance.now()
   const npcs = buildNpcLayer(layout, opts.simTimeMin, now)
   const smoke = buildSmokeLayer(
-    // Emitters at the patio standing positions — give roughly 4 wisps for
+    // Emitters at the patio standing positions, give roughly 4 wisps for
     // the typical pair clustering.
     layout.rooms.smokingPatio.standingPositions
       .slice(0, 8)
@@ -86,7 +86,7 @@ export function buildHDScene(
   const lightingOverlay = new Graphics()
   const dramatic = buildDramaticLayer()
   const celestial = new Graphics()
-  // Subpixel positioning is the Pixi v8 default for Containers — no snap
+  // Subpixel positioning is the Pixi v8 default for Containers, no snap
   // unless a Sprite explicitly opts into roundPixels. Walk animations stay
   // smooth as a result.
   // Warm-window-glow layer sits above scenery (so the glow paints over the
@@ -123,7 +123,7 @@ export function buildHDScene(
   }
 }
 
-/** Tear down — call before unmounting the renderer. The Application itself is
+/** Tear down, call before unmounting the renderer. The Application itself is
  *  destroyed by the React component. */
 export function destroyHDScene(scene: HDSceneState): void {
   for (const sprite of scene.agentSprites.values()) {

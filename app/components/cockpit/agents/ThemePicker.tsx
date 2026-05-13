@@ -2,9 +2,10 @@
 
 import { useScenario, type ThemeKey } from '../ScenarioContext'
 
+// NOTE: 'office' theme is kept in code for safekeeping (was the v1 prototype)
+// but unlinked from the picker now that 'office-hd' is the canonical version.
 const THEMES: Array<{ key: ThemeKey; label: string }> = [
   { key: 'dots', label: 'Dots' },
-  { key: 'office', label: 'Office' },
   { key: 'office-hd', label: 'Office HD' },
 ]
 

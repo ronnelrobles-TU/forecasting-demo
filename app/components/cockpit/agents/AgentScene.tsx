@@ -27,7 +27,7 @@ interface AgentSceneProps {
   showThemePicker?: boolean
   /** Whether the parent timeline is currently playing. The Iso renderers use
    *  this to switch between video-playback "snap" (paused / scrubbing) and
-   *  normal journey animations (playing). Optional — defaults to `true` so
+   *  normal journey animations (playing). Optional, defaults to `true` so
    *  callers that don't pass it preserve the legacy always-animating
    *  behavior. */
   playing?: boolean

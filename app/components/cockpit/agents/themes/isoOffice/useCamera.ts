@@ -47,7 +47,7 @@ export interface CameraApi {
   /** Pan by a delta in base-viewBox pixels (keyboard arrows). */
   panBy(dx: number, dy: number): void
 
-  // SVG event handlers — wire onto the <svg>.
+  // SVG event handlers, wire onto the <svg>.
   onWheel(e: React.WheelEvent<SVGSVGElement>): void
   onMouseDown(e: React.MouseEvent<SVGSVGElement>): void
   // Touch handlers (optional pinch-zoom + drag).
@@ -155,7 +155,7 @@ export function useCamera(opts: CameraOptions): CameraApi {
     }
   }, [])
 
-  // Zoom toward a *screen-relative* point (sx, sy) — the point under the
+  // Zoom toward a *screen-relative* point (sx, sy), the point under the
   // cursor stays anchored. We compute the viewBox-space point, then adjust
   // pan so that point maps to the same screen position at the new scale.
   const zoomTo = useCallback((newScale: number, screenX: number, screenY: number, svgRect: DOMRect) => {
@@ -273,7 +273,7 @@ export function useCamera(opts: CameraOptions): CameraApi {
       // we add dxScreen viewBox-pixels at scale=1 (because pan is in *base*
       // viewBox units). At scale=k the visual displacement per viewBox-pixel
       // is k× larger, so dragging feels "natural" without any extra scaling.
-      // (We keep this simple — pan units == screen pixels at scale=1.)
+      // (We keep this simple, pan units == screen pixels at scale=1.)
       const cur = stateRef.current
       const rawPanX = dragRef.current.startPanX + dxScreen
       const rawPanY = dragRef.current.startPanY + dyScreen
@@ -389,7 +389,7 @@ export function useCamera(opts: CameraOptions): CameraApi {
   // Memoize the API object so it has stable identity across renders when none
   // of its observable fields change. Without this, IsoRenderer's keyboard
   // useEffect (which depends on `camera`) re-registers on every parent
-  // re-render — and during heavy rAF-driven re-render cycles (Round 6 added
+  // re-render, and during heavy rAF-driven re-render cycles (Round 6 added
   // the camera, which compounded with the existing journey/positions ticks),
   // React 19's "max update depth" guard misclassifies the cascade as a
   // runaway update inside the useAnimation rAF. Stable identity breaks the

@@ -7,7 +7,7 @@ import type { InjectedEvent } from '@/lib/types'
  * "Active" semantics mirror the kernel's `inject.ts`:
  *   • volume_surge / aht_spike: active for [fireAtMin, fireAtMin + durationMin)
  *   • staff_drop: active from fireAtMin to end-of-day (no durationMin)
- *   • flash_absent: instant — we keep it "shown" for FLASH_DISPLAY_MIN minutes
+ *   • flash_absent: instant, we keep it "shown" for FLASH_DISPLAY_MIN minutes
  *     after firing, so the banner has time to be read at any sim speed.
  */
 
@@ -30,14 +30,14 @@ export function activeInjectedEvents(events: InjectedEvent[] | undefined, curren
     const ev = events[i]
     if (currentMin < ev.fireAtMin) continue
     if (ev.type === 'flash_absent') {
-      // Instantaneous — show banner for a few minutes after fire so it's visible.
+      // Instantaneous, show banner for a few minutes after fire so it's visible.
       const elapsed = currentMin - ev.fireAtMin
       if (elapsed >= FLASH_DISPLAY_MIN) continue
       out.push({ ev, remainingMin: Math.max(0, FLASH_DISPLAY_MIN - elapsed), id: `e${i}` })
       continue
     }
     if (ev.durationMin == null) {
-      // Open-ended (e.g. staff_drop) — no countdown.
+      // Open-ended (e.g. staff_drop), no countdown.
       out.push({ ev, remainingMin: Number.POSITIVE_INFINITY, id: `e${i}` })
       continue
     }
@@ -78,7 +78,7 @@ export interface EventVisualFlags {
   outageActive: boolean
   /** Show a "departing" tint over agents leaving. */
   staffDropActive: boolean
-  /** Last few minutes of a flash-absent — flash desks red. */
+  /** Last few minutes of a flash-absent, flash desks red. */
   flashAbsentActive: boolean
 }
 

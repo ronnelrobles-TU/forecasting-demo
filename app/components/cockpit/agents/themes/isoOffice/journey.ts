@@ -9,7 +9,7 @@
 // actually SEE an agent at the break table even when sim time blasts through
 // the break in 1.3 real seconds.
 //
-// Long breaks (>20 sim min) are treated as lunch — the agent walks all the
+// Long breaks (>20 sim min) are treated as lunch, the agent walks all the
 // way to the front door, disappears, then walks back in. Coffee breaks
 // (<=20 sim min) keep the existing walk-to-table-and-back behavior.
 
@@ -44,7 +44,7 @@ export type JourneyPhase =
   | { kind: 'inside_restroom'; pos: ScreenPoint; until: number }
   | { kind: 'exiting_restroom'; pos: ScreenPoint; duration: number }
   | { kind: 'walking_back_from_restroom'; from: ScreenPoint; to: ScreenPoint; duration: number }
-  // Chatting (now visible — agent walks to a chat hotspot, stands a beat,
+  // Chatting (now visible, agent walks to a chat hotspot, stands a beat,
   // walks back). Distinct from in_room so the chatter remains owned by the
   // floor renderer rather than a room component.
   | { kind: 'walking_to_chat_spot'; from: ScreenPoint; to: ScreenPoint; duration: number; spot: ScreenPoint }
@@ -54,8 +54,7 @@ export type JourneyPhase =
   // when sim flips an agent to on_call while they're in a non-desk room, we
   // can't cleanly route them around hallways, but a straight-line lerp from
   // gym → desk visibly clips through walls. So instead they fade out where
-  // they are, then fade in at their desk over the same total duration —
-  // visually reads as "they hustle to the desk to take the call" without
+  // they are, then fade in at their desk over the same total duration, // visually reads as "they hustle to the desk to take the call" without
   // any wall-clipping. Two halves: 1st half opacity 1→0 at `from`, 2nd half
   // opacity 0→1 at `to`. Total duration ~600ms.
   | { kind: 'urgent_relocate_to_desk'; from: ScreenPoint; to: ScreenPoint; duration: number }
@@ -174,7 +173,7 @@ export function journeyPosition(
     }
     case 'urgent_relocate_to_desk': {
       // First half: fade out at `from`. Second half: fade in at `to`. No
-      // straight-line lerp through walls — the agent vanishes and re-appears
+      // straight-line lerp through walls, the agent vanishes and re-appears
       // at the desk, conveying "rushed to take a call" without clipping
       // through the gym/training/etc. walls they were inside.
       const t = phase.duration > 0 ? Math.min(1, elapsed / phase.duration) : 1
@@ -214,7 +213,7 @@ function getCurrentPos(journey: VisualJourney, nowMs: number): ScreenPoint {
 }
 
 function startPhase(journey: VisualJourney, phase: JourneyPhase, nowMs: number): VisualJourney {
-  // Update lastKnownPosition opportunistically — whenever we transition to a
+  // Update lastKnownPosition opportunistically, whenever we transition to a
   // new phase, snapshot where the agent currently is (resolved via the OLD
   // phase's position, which is our latest visible point) so subsequent
   // walks can source from there instead of teleporting to a door.
@@ -282,7 +281,7 @@ function startPhaseForState(
       }, nowMs)
     }
     case 'on_call': {
-      // Calls happen at the desk — if not at the desk, get there first.
+      // Calls happen at the desk, if not at the desk, get there first.
       if (journey.phase.kind === 'at_desk' || journey.phase.kind === 'on_call_at_desk') {
         return startPhase({ ...journey, pendingSimState: null }, {
           kind: 'on_call_at_desk',
@@ -291,7 +290,7 @@ function startPhaseForState(
       }
       // Round 12 fix: when transitioning from a non-desk room (gym, training,
       // chat spot, restroom, break) directly to on_call, a straight-line
-      // walking_back_to_desk lerp visibly clips through walls — the gym is
+      // walking_back_to_desk lerp visibly clips through walls, the gym is
       // floor-up against the agent floor with no door in the lerp's path.
       // Use the urgent fade-relocate phase instead: the agent fades out where
       // they are, and fades in at the desk over ~600ms. Reads as "rushed to
@@ -320,7 +319,7 @@ function startPhaseForState(
           duration: URGENT_RELOCATE_MS,
         }, nowMs)
       }
-      // Coming from elsewhere (e.g., outside_for_lunch, gone) — keep the
+      // Coming from elsewhere (e.g., outside_for_lunch, gone), keep the
       // existing walk-back-to-desk path which routes through the door.
       return startPhase({ ...journey, pendingSimState: 'on_call' }, {
         kind: 'walking_back_to_desk',
@@ -443,7 +442,7 @@ export function transitionJourney(
 ): VisualJourney {
   const isResting = isRestingPhase(journey.phase, nowMs)
   if (!isResting) {
-    // Stash for later — current narrative segment must complete first.
+    // Stash for later, current narrative segment must complete first.
     return { ...journey, pendingSimState: newSimState }
   }
   return startPhaseForState(journey, newSimState, layout, nowMs, simBreakDurationMin)
@@ -671,7 +670,7 @@ export function tickJourney(
       break
     }
     case 'urgent_relocate_to_desk': {
-      // Fade-out / fade-in is purely a visual phase — once it completes the
+      // Fade-out / fade-in is purely a visual phase, once it completes the
       // agent settles at the desk in whichever stable state was queued
       // (almost always on_call, since that's what triggers the relocate).
       if (elapsed >= phase.duration) {
@@ -744,7 +743,7 @@ export function isAtBreakTable(phase: JourneyPhase): boolean {
 //
 // Video-playback semantics. When sim time jumps (scrub), reverses (rewind),
 // or pauses with stale in-flight journeys, the renderer rebuilds journeys
-// from scratch with this function — instantly placing each agent at their
+// from scratch with this function, instantly placing each agent at their
 // "where should they be at simTimeMin" position with NO walking animation.
 //
 // The phase is always a stable resting phase (at_desk / on_call_at_desk /
@@ -804,7 +803,7 @@ export function snapPhaseFor(
         ? { kind: 'at_chat_spot', pos: activityPosition, until: FAR_FUTURE_MS }
         : { kind: 'at_desk', pos: homeDeskPosition }
     case 'in_restroom':
-      // Hidden inside the restroom — opacity 0, off-screen.
+      // Hidden inside the restroom, opacity 0, off-screen.
       return { kind: 'inside_restroom', pos: homeDeskPosition, until: FAR_FUTURE_MS }
     case 'at_break_table': {
       const seat = pickBreakSeat(agentId, layout.rooms.breakRoom.seatPositions)

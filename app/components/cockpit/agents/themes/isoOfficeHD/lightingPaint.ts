@@ -33,7 +33,7 @@ function getCelestialBloom(): AdvancedBloomFilter {
 
 let celestialBloomAttached = false
 
-// FNV-ish window hash — matches Building.tsx's deterministic pattern so window
+// FNV-ish window hash, matches Building.tsx's deterministic pattern so window
 // glow lays down consistently between SVG and HD themes.
 function windowHash(seed: number): number {
   let h = (seed * 2654435761) >>> 0
@@ -58,7 +58,7 @@ export function paintLighting(
   const skyColor = hexStringToNumber(lighting.skyColor)
   scene.app.renderer.background.color = skyColor
 
-  // Windows — tint with the lighting fill, glowing yellow at night for a
+  // Windows, tint with the lighting fill, glowing yellow at night for a
   // deterministic fraction.
   const windowFill = hexStringToNumber(lighting.windowFill)
   const windowStroke = hexStringToNumber(lighting.windowStroke)
@@ -73,7 +73,7 @@ export function paintLighting(
     (i) => lighting.isNight && (windowHash(i * 7919 + 13) % 100) < litThreshold,
   )
 
-  // Lighting + event overlays — drawn into a single Graphics each frame.
+  // Lighting + event overlays, drawn into a single Graphics each frame.
   const overlay = scene.lightingOverlay
   overlay.clear()
 
@@ -108,8 +108,7 @@ export function paintLighting(
       .fill({ color: 0x7f1d1d, alpha: 0.18 })
   }
 
-  // Flash-absent: short red flash over the agent floor (no animation here —
-  // the active-event window keeps it visible for a few seconds).
+  // Flash-absent: short red flash over the agent floor (no animation here, // the active-event window keeps it visible for a few seconds).
   if (flags.flashAbsentActive) {
     const fp = layout.rooms.agentFloor.zonePoints
     const flat: number[] = []
@@ -156,13 +155,13 @@ export function paintLighting(
     for (let i = 0; i < scene.scenery.windowCenters.length; i++) {
       if ((windowHash(i * 7919 + 13) % 100) >= litThresholdInner) continue
       const c = scene.scenery.windowCenters[i]
-      // Two layered discs — outer atmospheric glow + tighter warm core.
+      // Two layered discs, outer atmospheric glow + tighter warm core.
       glow
         .circle(c.x, c.y, 9).fill({ color: 0xfde68a, alpha: 0.18 })
         .circle(c.x, c.y, 5.5).fill({ color: 0xfbbf24, alpha: 0.32 })
     }
   }
 
-  // (Static walls already include the wall outline — nothing else needed here.)
+  // (Static walls already include the wall outline, nothing else needed here.)
   void WALL_HEIGHT
 }

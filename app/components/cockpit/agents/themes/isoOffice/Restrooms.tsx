@@ -6,7 +6,7 @@ interface RestroomsProps {
   layout: BuildingLayout
   // Number of agents currently inside the restrooms (in_restroom activity
   // OR mid restroom-journey). Used to render an "occupied" red dot on a
-  // matching number of stall doors, plus a small queue of 1–2 waiting
+  // matching number of stall doors, plus a small queue of 1-2 waiting
   // agents outside the door if there are more occupants than stalls.
   occupiedCount?: number
 }
@@ -14,7 +14,7 @@ interface RestroomsProps {
 const ptsStr = (pts: ReadonlyArray<ScreenPoint>) => pts.map(p => `${p.x},${p.y}`).join(' ')
 
 // Top-down toilet icon: oval bowl, rectangular tank behind, lid lines.
-// Sized to read clearly at the iso scale — the previous tiny ellipse hint
+// Sized to read clearly at the iso scale, the previous tiny ellipse hint
 // was too subtle (Round 5.5).
 function Toilet({ x, y }: { x: number; y: number }) {
   return (
@@ -25,7 +25,7 @@ function Toilet({ x, y }: { x: number; y: number }) {
       <rect x={-2.5} y={-3.6} width={5} height={2.0} fill="#f8fafc" stroke="#475569" strokeWidth={0.35} rx={0.4}/>
       {/* Tank top trim */}
       <rect x={-2.5} y={-3.6} width={5} height={0.5} fill="#cbd5e1"/>
-      {/* Bowl — oval seat */}
+      {/* Bowl, oval seat */}
       <ellipse cx={0} cy={0.2} rx={2.7} ry={1.8} fill="#f8fafc" stroke="#475569" strokeWidth={0.35}/>
       {/* Bowl interior (inside hole) */}
       <ellipse cx={0} cy={0.2} rx={1.7} ry={1.0} fill="#bae6fd" opacity={0.7}/>
@@ -59,7 +59,7 @@ function Sink({ x, y }: { x: number; y: number }) {
   )
 }
 
-// Mirror — long rectangle, framed, with light reflection accents.
+// Mirror, long rectangle, framed, with light reflection accents.
 function Mirror({ x, y, width = 12 }: { x: number; y: number; width?: number }) {
   return (
     <g transform={`translate(${x}, ${y})`}>
@@ -72,7 +72,7 @@ function Mirror({ x, y, width = 12 }: { x: number; y: number; width?: number }) 
   )
 }
 
-// Stall partition — a small enclosure with a door and a top-down toilet
+// Stall partition, a small enclosure with a door and a top-down toilet
 // inside. When `occupied` is true, the door swings shut (axis-aligned) and
 // a small red "occupied" dot appears on the door so the user can see at a
 // glance which stalls are in use.
@@ -106,7 +106,7 @@ function Stall({ x, y, occupied = false }: { x: number; y: number; occupied?: bo
   )
 }
 
-// Tiny waiting figure — a stick-style top-down sprite. Drawn outside the
+// Tiny waiting figure, a stick-style top-down sprite. Drawn outside the
 // restroom doors when stalls are full. Keeps the bathroom visibly busy.
 function WaitingPerson({ x, y }: { x: number; y: number }) {
   return (
@@ -123,13 +123,13 @@ function WaitingPerson({ x, y }: { x: number; y: number }) {
   )
 }
 
-// Urinal — wall-mounted, top-down view: a wide curved trough.
+// Urinal, wall-mounted, top-down view: a wide curved trough.
 function Urinal({ x, y }: { x: number; y: number }) {
   return (
     <g transform={`translate(${x}, ${y})`}>
       {/* Mounting plate (against the wall) */}
       <rect x={-2.5} y={-1.5} width={5} height={1.0} fill="#cbd5e1" stroke="#475569" strokeWidth={0.3}/>
-      {/* Bowl — wider top, narrower bottom */}
+      {/* Bowl, wider top, narrower bottom */}
       <path d="M-2.4,-0.5 L2.4,-0.5 L2.0,2.4 L-2.0,2.4 Z" fill="#f8fafc" stroke="#475569" strokeWidth={0.3}/>
       {/* Drain */}
       <ellipse cx={0} cy={1.6} rx={0.7} ry={0.3} fill="#0f172a"/>
@@ -209,7 +209,7 @@ export function Restrooms({ layout, occupiedCount = 0 }: RestroomsProps) {
   const midJ = (b.jMin + b.jMax) / 2
 
   // Total stalls across the M+F sides (must match the <Stall>s rendered
-  // below). Cap occupied at this count; overflow shows up as 1–2 waiting
+  // below). Cap occupied at this count; overflow shows up as 1-2 waiting
   // people outside the doors.
   const TOTAL_STALLS = 5 // 2 M + 3 F
   const occupiedStalls = Math.min(TOTAL_STALLS, Math.max(0, occupiedCount))
@@ -234,7 +234,7 @@ export function Restrooms({ layout, occupiedCount = 0 }: RestroomsProps) {
 
   return (
     <g>
-      {/* Pale-blue tiled floor — instantly reads as bathroom. */}
+      {/* Pale-blue tiled floor, instantly reads as bathroom. */}
       <TileFloor id="restroom" points={r.zonePoints}/>
 
       {/* Tile divider between M and F halves (mid-room wall hint) */}
@@ -249,7 +249,7 @@ export function Restrooms({ layout, occupiedCount = 0 }: RestroomsProps) {
       />
 
       {/* M-side fixtures. First N stalls (in fixed order) flip to occupied
-          based on occupiedStalls — gives the user a visible "someone's in
+          based on occupiedStalls, gives the user a visible "someone's in
           there" cue without needing to track individual agents to specific
           stalls (which would also wreck the deterministic rendering). */}
       <Stall x={mStall1.x} y={mStall1.y} occupied={occupiedStalls > 0}/>

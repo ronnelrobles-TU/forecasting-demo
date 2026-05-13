@@ -179,7 +179,7 @@ describe('computeVerdict', () => {
     expect(computeVerdict(0.76, 0.80)).toBe('healthy')
   })
 
-  it('returns fragile when P10 is 5–15pp below target', () => {
+  it('returns fragile when P10 is 5-15pp below target', () => {
     expect(computeVerdict(0.70, 0.80)).toBe('fragile')
     expect(computeVerdict(0.66, 0.80)).toBe('fragile')
   })

@@ -1,5 +1,5 @@
 // Static furniture detail for the HD theme. Translated faithfully from the
-// SVG room components — gym treadmill / weights, training whiteboard +
+// SVG room components, gym treadmill / weights, training whiteboard +
 // chairs, break table / cooler / vending, restroom toilets / sinks /
 // mirrors / urinals + tile divider, manager office desks / chairs /
 // whiteboards / doors, reception security desk / guard / double doors.
@@ -205,7 +205,7 @@ function drawStallEnclosure(g: Graphics, x: number, y: number) {
   g.rect(x + 4.2, y - 3.2, 0.5, 7).fill({ color: 0x94a3b8 }).stroke({ color: 0x475569, width: 0.25 })
   // Back wall
   g.rect(x - 4.5, y - 3.5, 9, 0.5).fill({ color: 0x94a3b8 }).stroke({ color: 0x475569, width: 0.25 })
-  // Front wall stubs (door always shown half-open in HD scenery — occupancy
+  // Front wall stubs (door always shown half-open in HD scenery, occupancy
   // is dynamic and lives in the overlay layer if we ever want to add it)
   g.rect(x - 4.5, y + 3.3, 2.0, 0.5).fill({ color: 0x94a3b8 }).stroke({ color: 0x475569, width: 0.25 })
   g.rect(x + 2.5, y + 3.3, 2.0, 0.5).fill({ color: 0x94a3b8 }).stroke({ color: 0x475569, width: 0.25 })
@@ -394,7 +394,7 @@ export function drawSmokingPatio(g: Graphics, layout: BuildingLayout) {
 
 /** Build a static guard agent sprite for the reception desk. The HD agent
  *  layer doesn't include the guard since they're not in the simulation
- *  roster — this mirrors the SVG `<AgentSprite>` placement. */
+ *  roster, this mirrors the SVG `<AgentSprite>` placement. */
 export function buildGuardSprite(layout: BuildingLayout): Container {
   const c = new Container()
   const g = new Graphics()

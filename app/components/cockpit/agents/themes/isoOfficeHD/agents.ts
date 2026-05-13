@@ -1,7 +1,7 @@
 // Per-agent Pixi sprites for the Office HD theme. We model each agent as a
 // `Container` holding a shadow ellipse, a body (shirt), a head, and an
 // optional emoji status bubble. Recoloring (sim state changing the shirt) is
-// done by rebuilding the body Graphics — Pixi v8 batches Graphics updates
+// done by rebuilding the body Graphics, Pixi v8 batches Graphics updates
 // efficiently and at our scale (≤ 1k agents) the overhead is negligible.
 //
 // All draw helpers are pure: they accept a Graphics target plus coordinates
@@ -22,7 +22,7 @@ import {
 
 // HD-only flex: a subtle red GlowFilter applied to the body of on-call
 // agents so they pop against the rest of the floor. Lazily constructed on
-// first use and shared across every on-call sprite — pixi-filters batches
+// first use and shared across every on-call sprite, pixi-filters batches
 // sprites that share the same filter instance, so this is the cheap path
 // even at 200+ agents. Lazy init matters because the GlowFilter constructor
 // touches the WebGL context, which doesn't exist under jsdom (test env).
@@ -41,7 +41,7 @@ function getOnCallGlow(): GlowFilter {
   return _onCallGlow
 }
 
-// Cached devicePixelRatio for crisp text — captured once per sprite build
+// Cached devicePixelRatio for crisp text, captured once per sprite build
 // instead of on every getter call (it doesn't change at runtime).
 // Round 13: bump the floor and the ceiling. Status emoji is rendered at
 // `fontSize=8` then transform-scaled down; baking the texture at >= 4×
@@ -52,15 +52,15 @@ const TEXT_RESOLUTION = typeof window !== 'undefined'
   ? Math.min(8, Math.max(4, (window.devicePixelRatio || 1) * 2))
   : 4
 
-// System emoji font stack — order matters so each platform picks its native
+// System emoji font stack, order matters so each platform picks its native
 // color-emoji face (Apple, Microsoft, Google) before falling back.
 const EMOJI_FONT_STACK
   = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'
 
 export interface AgentSpriteHD {
-  /** Container — translate this to position the agent. */
+  /** Container, translate this to position the agent. */
   container: Container
-  /** Body graphics — re-drawn whenever the shirt color changes. */
+  /** Body graphics, re-drawn whenever the shirt color changes. */
   body: Graphics
   /** Head + accessories. Drawn once. */
   head: Graphics
@@ -78,7 +78,7 @@ export interface AgentSpriteHD {
  *  container to the agent layer and translating it to the right position. */
 export function createAgentSprite(): AgentSpriteHD {
   const container = new Container()
-  // Subpixel positioning is on by default in Pixi v8 — Container.x/y accept
+  // Subpixel positioning is on by default in Pixi v8, Container.x/y accept
   // floats and the renderer transforms them without snapping. We rely on
   // that here so walk animations stay buttery.
   // Pixi v8 prefers explicit zIndex sorting when needed; we draw shadow→body→head
@@ -108,14 +108,14 @@ export function createAgentSprite(): AgentSpriteHD {
   }
 }
 
-/** Toggle the HD-exclusive on-call glow on the agent body. Idempotent — if
+/** Toggle the HD-exclusive on-call glow on the agent body. Idempotent, if
  *  the desired state already matches the current filter list we no-op so
  *  the per-frame call path stays cheap. */
 export function setOnCallGlow(sprite: AgentSpriteHD, on: boolean): void {
   const cur = sprite.body.filters
   const has = Array.isArray(cur) && cur.length > 0
   if (on === has) return
-  // Pixi v8 Filter type — assign directly. We share a single filter instance
+  // Pixi v8 Filter type, assign directly. We share a single filter instance
   // across every on-call sprite so the renderer can batch them.
   sprite.body.filters = on ? [getOnCallGlow()] : []
 }
@@ -160,7 +160,7 @@ export function setStatusBubble(
   } else {
     sprite.bubble.removeChildren()
   }
-  // Soft drop shadow under the bubble (a darker offset disc) — gives the
+  // Soft drop shadow under the bubble (a darker offset disc), gives the
   // bubble depth so it doesn't look pasted on. Cheap (one circle) and
   // doesn't require a DropShadowFilter pass per agent.
   const shadow = new Graphics()
@@ -172,7 +172,7 @@ export function setStatusBubble(
   bg.circle(0, -15, 5.2).fill({ color: 0xffffff }).stroke({ color: strokeColor, width: 1.1 })
   sprite.bubble.addChild(bg)
   // Emoji text. Larger fontSize (8) renders at native emoji resolution
-  // before being downscaled by Pixi's transform — this is what makes the
+  // before being downscaled by Pixi's transform, this is what makes the
   // glyphs look crisp on retina. resolution=devicePixelRatio*2 (capped at
   // 4) bakes the texture at 2× the screen density so zooming reveals
   // detail rather than mush.
@@ -196,7 +196,7 @@ export function setStatusBubble(
   sprite.lastBubbleKey = key
 }
 
-/** Tear down a sprite — removes from parent and destroys all owned graphics. */
+/** Tear down a sprite, removes from parent and destroys all owned graphics. */
 export function destroyAgentSprite(sprite: AgentSpriteHD): void {
   if (sprite.container.parent) sprite.container.parent.removeChild(sprite.container)
   sprite.container.destroy({ children: true })

@@ -1,4 +1,4 @@
-// HD (Pixi) NPC layer — janitors, executive walker, delivery person.
+// HD (Pixi) NPC layer, janitors, executive walker, delivery person.
 //
 // Mirrors the SVG components but as Pixi `Container`s built once and mutated
 // per frame. State machines come from `isoOffice/npcs.ts` so the SVG and HD

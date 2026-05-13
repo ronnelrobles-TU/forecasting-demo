@@ -18,7 +18,7 @@
 //     been "stuck" for an unusually long time (proxied via rAF age).
 //
 //   • Flash absent: short-lived puff bursts at the *just-vacated* desks
-//     (3–4 grey/white circles expanding + fading), plus brief red "?" marks.
+//     (3-4 grey/white circles expanding + fading), plus brief red "?" marks.
 
 import { useEffect, useRef } from 'react'
 import type { BuildingLayout, ScreenPoint } from './geometry'
@@ -55,7 +55,7 @@ interface Props {
   layout: BuildingLayout
   state: DramaticEffectState
   agents: AgentLite[]
-  /** Most recent sim events — used to detect call_abandon during surge. */
+  /** Most recent sim events, used to detect call_abandon during surge. */
   events?: SimEvent[]
   /** Stable map of agent id → screen position (resolved each frame). */
   positions: Record<string, { pos: ScreenPoint; visible: boolean }>
@@ -138,7 +138,7 @@ export function DramaticEffectsLayer({ layout, state, agents, events, positions 
           const ev = evList[i]
           if (ev.type === 'call_abandon' && abandonsRef.current.length < ABANDON_PARTICLE_MAX) {
             // Anchor at a random spot inside the agent floor zone polygon's
-            // bbox (good-enough — the visual is just a vertical riser).
+            // bbox (good-enough, the visual is just a vertical riser).
             const zp = lay.rooms.agentFloor.zonePoints
             let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
             for (const p of zp) {
@@ -231,7 +231,7 @@ export function DramaticEffectsLayer({ layout, state, agents, events, positions 
       puffsRef.current     = puffsRef.current.filter(p => now - p.spawnAt < PUFF_DUR_MS)
       questionsRef.current = questionsRef.current.filter(p => now - p.spawnAt < QUESTION_MARK_DUR_MS)
 
-      // Direct DOM paint into the <g> — no React reconciler.
+      // Direct DOM paint into the <g>, no React reconciler.
       paintParticles(now)
       raf = requestAnimationFrame(tick)
     }
@@ -240,7 +240,7 @@ export function DramaticEffectsLayer({ layout, state, agents, events, positions 
       const g = gRef.current
       if (!g) return
       const NS = 'http://www.w3.org/2000/svg'
-      // Wholesale wipe — particle counts are bounded (≤120 nodes) so it's cheap.
+      // Wholesale wipe, particle counts are bounded (≤120 nodes) so it's cheap.
       while (g.firstChild) g.removeChild(g.firstChild)
 
       // Phones

@@ -8,13 +8,13 @@ interface StatusBubbleProps {
   y: number
   state: AgentVisualState
   /**
-   * Journey phase — the SOURCE OF TRUTH for "what is this agent currently
+   * Journey phase, the SOURCE OF TRUTH for "what is this agent currently
    * doing and where are they". The bubble is a pure function of the phase
    * (and sim state, used only as a fallback when at-desk).
    *
    * Previously the bubble was driven by the activity-assignment lookup
    * which can churn frame-to-frame at productive/shrinkage allocation
-   * boundaries — that produced the breakroom flicker (☕ ↔ 💧 ↔ 💬 every
+   * boundaries, that produced the breakroom flicker (☕ ↔ 💧 ↔ 💬 every
    * frame during play). Reading from the phase keeps the bubble locked
    * to whatever the journey state machine says the agent is actually
    * doing right now.
@@ -63,14 +63,14 @@ export function bubbleStyleForPhase(
         default:             return null
       }
     }
-    // Hidden / transient phases — no bubble.
+    // Hidden / transient phases, no bubble.
     case 'inside_restroom':
     case 'entering_restroom':
     case 'exiting_restroom':
     case 'gone':
     case 'outside_for_lunch':
       return null
-    // Walking phases — no bubble (matches the SVG renderer's existing
+    // Walking phases, no bubble (matches the SVG renderer's existing
     // "drop bubble while walking" behaviour).
     case 'arriving_at_door':
     case 'walking_to_break':

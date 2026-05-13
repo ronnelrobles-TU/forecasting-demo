@@ -11,8 +11,7 @@
 //     inject. This replaces the no-op "custom" event from the kernel with
 //     a real perturbation built from the chosen kind.
 //   • Add to stack: when customizing, the user can push the configured
-//     event(s) onto a "pending" list and add another before submitting —
-//     supports compound crises beyond the canned preset.
+//     event(s) onto a "pending" list and add another before submitting, //     supports compound crises beyond the canned preset.
 
 import { useEffect, useState } from 'react'
 import type { InjectedEvent } from '@/lib/types'

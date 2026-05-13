@@ -56,11 +56,19 @@ export function ScenarioProvider({ children }: { children: ReactNode }) {
   const [scenario, setScenario] = useState<Scenario>(() => scenarioFromCampaign('us_telco_manila'))
 
   // Theme: SSR-safe default; useEffect hydrates from localStorage on mount
-  const [theme, setThemeState] = useState<ThemeKey>('office')
+  const [theme, setThemeState] = useState<ThemeKey>('office-hd')
 
   useEffect(() => {
     if (typeof window === 'undefined') return
     const stored = window.localStorage.getItem(THEME_STORAGE_KEY)
+    // Migrate stored 'office' (v1 prototype) to 'office-hd' since 'office' is
+    // unlinked from the picker. Keeps the 'office' code in place for safekeeping.
+    if (stored === 'office') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: SSR-safe localStorage hydration
+      setThemeState('office-hd')
+      window.localStorage.setItem(THEME_STORAGE_KEY, 'office-hd')
+      return
+    }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: SSR-safe localStorage hydration
     if (isValidTheme(stored)) setThemeState(stored)
   }, [])
